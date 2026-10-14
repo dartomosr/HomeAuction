@@ -37,10 +37,11 @@ const ELIMINATION_EFFECTS = [
   ['blast', '2 · Взрыв'],
   ['shot', '3 · Выстрел'],
   ['bubble', '4 · Лопнувший пузырь'],
-  ['slash', '5 · Кривой разрез'],
+  ['slash', '5 · Прямой разрез'],
   ['glitch', '6 · Цифровой сбой'],
   ['pixels', '7 · Пиксельный распад'],
-  ['vortex', '8 · Вихрь']
+  ['vortex', '8 · Вихрь'],
+  ['split', '9 · Трещина и падающий верх']
 ];
 let effectsEnabled = localStorage.getItem('auction_effects_enabled') !== 'off';
 let enabledEffects;
@@ -149,10 +150,23 @@ const readyCounterEl = document.getElementById('ready-counter');
 const roMaxPoints = document.getElementById('ro-max-points');
 const roMaxItems = document.getElementById('ro-max-items');
 const roKeepZero = document.getElementById('ro-keep-zero');
+const roFlexiblePoints = document.getElementById('ro-flexible-points');
+const roForeignPoints = document.getElementById('ro-foreign-points');
+const setRestrictOwn = document.getElementById('set-restrict-own');
+const setForeignOnly = document.getElementById('set-foreign-only');
+const ownLimitGroup = document.getElementById('own-limit-group');
+const pointsSplitPreview = document.getElementById('points-split-preview');
+const poolPointsPolicy = document.getElementById('pool-points-policy');
 const hostSettingsForm = document.getElementById('host-settings-form');
 const setMaxPoints = document.getElementById('set-max-points');
 const setMaxItems = document.getElementById('set-max-items');
 const setSpinDuration = document.getElementById('set-spin-duration');
+const wheelDurationPanel = document.getElementById('wheel-duration-panel');
+const hostDurationControl = document.getElementById('host-duration-control');
+const durationReadonly = document.getElementById('duration-readonly');
+const durationApply = document.getElementById('duration-apply');
+const durationMinus = document.getElementById('duration-minus');
+const durationPlus = document.getElementById('duration-plus');
 const setKeepZero = document.getElementById('set-keep-zero');
 const zeroWeightGroup = document.getElementById('zero-weight-group');
 const setZeroWeight = document.getElementById('set-zero-weight');
@@ -193,6 +207,9 @@ const particleCtx = wheelParticles.getContext('2d');
 const fxCanvas = document.getElementById('wheel-fx-canvas');
 const wheelFx = new WheelSectorEffects(fxCanvas);
 const effectsCheckboxes = document.getElementById('effects-checkboxes');
+const effectsSelectAll = document.getElementById('fx-select-all');
+const effectsMasterToggle = document.getElementById('fx-master-toggle');
+const effectsSelectNone = document.getElementById('fx-select-none');
 const effectsSettings = document.getElementById('effects-settings');
 const btnToggleEffects = document.getElementById('btn-toggle-effects');
 const btnResetHard = document.getElementById('btn-reset-hard');
@@ -228,13 +245,25 @@ function renderEffectsControls() {
         ? [...new Set([...enabledEffects, id])]
         : enabledEffects.filter(effect => effect !== id);
       localStorage.setItem('auction_effect_list', JSON.stringify(enabledEffects));
+      effectsMasterToggle.checked = enabledEffects.length === ELIMINATION_EFFECTS.length;
+      effectsMasterToggle.indeterminate = enabledEffects.length > 0 && !effectsMasterToggle.checked;
     });
     wrapper.append(checkbox, document.createTextNode(label));
     effectsCheckboxes.appendChild(wrapper);
   }
+  effectsMasterToggle.checked = enabledEffects.length === ELIMINATION_EFFECTS.length;
+  effectsMasterToggle.indeterminate = enabledEffects.length > 0 && !effectsMasterToggle.checked;
   btnToggleEffects.textContent = effectsEnabled ? '✨ Эффекты: ВКЛ' : '◌ Эффекты: ВЫКЛ';
   btnToggleEffects.setAttribute('aria-pressed', String(effectsEnabled));
 }
+function setAllEffects(enabled) {
+  enabledEffects = enabled ? ELIMINATION_EFFECTS.map(([id]) => id) : [];
+  localStorage.setItem('auction_effect_list', JSON.stringify(enabledEffects));
+  renderEffectsControls();
+}
+effectsMasterToggle.addEventListener('change', () => setAllEffects(effectsMasterToggle.checked));
+effectsSelectAll.addEventListener('click', () => setAllEffects(true));
+effectsSelectNone.addEventListener('click', () => setAllEffects(false));
 btnToggleEffects.addEventListener('click', () => {
   effectsEnabled = !effectsEnabled;
   localStorage.setItem('auction_effects_enabled', effectsEnabled ? 'on' : 'off');
@@ -533,6 +562,10 @@ if (p.isHost) {
   // Сводка настроек
   roMaxPoints.textContent = state.settings.maxPoints;
   roMaxItems.textContent = state.settings.maxItems;
+  const foreignReserve = state.settings.restrictOwnPoints ? state.settings.foreignOnlyPoints : 0;
+  roFlexiblePoints.textContent = state.settings.restrictOwnPoints
+    ? `${state.settings.maxPoints - foreignReserve} очк.` : `Все ${state.settings.maxPoints} очк.`;
+  roForeignPoints.textContent = state.settings.restrictOwnPoints ? `${foreignReserve} очк.` : 'Нет ограничений';
   roKeepZero.textContent = state.settings.keepZeroItems
     ? `На колесе (вес ${state.settings.zeroItemWeight})`
     : 'Удаляются';
@@ -542,11 +575,14 @@ if (p.isHost) {
     hostSettingsForm.classList.remove('hidden');
     if (document.activeElement !== setMaxPoints &&
         document.activeElement !== setMaxItems &&
-        document.activeElement !== setSpinDuration &&
+        document.activeElement !== setForeignOnly &&
         document.activeElement !== setZeroWeight) {
       setMaxPoints.value = state.settings.maxPoints;
       setMaxItems.value = state.settings.maxItems;
-      setSpinDuration.value = state.settings.spinDuration;
+      setRestrictOwn.checked = Boolean(state.settings.restrictOwnPoints);
+      setForeignOnly.value = state.settings.foreignOnlyPoints || 0;
+      ownLimitGroup.classList.toggle('hidden', !setRestrictOwn.checked);
+      updatePointsSplitPreview();
       setKeepZero.checked = state.settings.keepZeroItems;
       setZeroWeight.value = state.settings.zeroItemWeight;
       zeroWeightGroup.classList.toggle('hidden', !state.settings.keepZeroItems);
@@ -556,6 +592,19 @@ if (p.isHost) {
   }
 }
 
+function updatePointsSplitPreview() {
+  const total = Math.max(1, Number(setMaxPoints.value) || 100);
+  setForeignOnly.max = total;
+  const reserve = setRestrictOwn.checked
+    ? Math.max(0, Math.min(total, Number(setForeignOnly.value) || 0)) : 0;
+  pointsSplitPreview.textContent = `${total - reserve} очк. — на свои и чужие; ${reserve} очк. — только на чужие.`;
+}
+setRestrictOwn.addEventListener('change', () => {
+  ownLimitGroup.classList.toggle('hidden', !setRestrictOwn.checked);
+  updatePointsSplitPreview();
+});
+setForeignOnly.addEventListener('input', updatePointsSplitPreview);
+setMaxPoints.addEventListener('input', updatePointsSplitPreview);
 setKeepZero.addEventListener('change', () => {
   zeroWeightGroup.classList.toggle('hidden', !setKeepZero.checked);
 });
@@ -565,7 +614,8 @@ hostSettingsForm.addEventListener('submit', (e) => {
   socket.emit('update_settings', {
     maxPoints: Number(setMaxPoints.value),
     maxItems: Number(setMaxItems.value),
-    spinDuration: Number(setSpinDuration.value),
+    restrictOwnPoints: setRestrictOwn.checked,
+    foreignOnlyPoints: Number(setForeignOnly.value),
     keepZeroItems: setKeepZero.checked,
     zeroItemWeight: Number(setZeroWeight.value)
   });
@@ -595,6 +645,7 @@ function renderMainArea(state) {
   if (state.phase === 'POOL') {
     viewPool.classList.remove('hidden');
     viewReveal.classList.add('hidden');
+    wheelDurationPanel.classList.add('hidden');
     renderPoolView(state);
   } else {
     viewPool.classList.add('hidden');
@@ -608,6 +659,10 @@ function renderPoolView(state) {
   myMaxPointsEl.textContent = state.settings.maxPoints;
   myItemsCountEl.textContent = state.me.myItemsCount;
   myMaxItemsEl.textContent = state.settings.maxItems;
+  const reserve = state.settings.restrictOwnPoints ? state.settings.foreignOnlyPoints : 0;
+  poolPointsPolicy.textContent = reserve
+    ? `Из ${state.settings.maxPoints} очков: до ${state.settings.maxPoints - reserve} можно вложить в свои варианты, ${reserve} зарезервированы для чужих. Неиспользованные очки не обязательны к распределению.`
+    : `Без ограничений: все ${state.settings.maxPoints} очков можно вложить в любые варианты.`;
 
   const isLocked = state.me.ready;
   inputItemTitle.disabled = isLocked || state.me.myItemsCount >= state.settings.maxItems;
@@ -654,7 +709,11 @@ function renderPoolView(state) {
     const controls = document.createElement('div');
     controls.className = 'pool-item-controls';
 
-    const maxPossibleForThisItem = item.myPoints + state.me.remainingPoints;
+    const ownLimit = state.settings.maxPoints - reserve;
+    const allowedByOwnership = item.canDelete
+      ? Math.max(0, ownLimit - (state.me.mySpentOwnPoints - item.myPoints))
+      : state.settings.maxPoints;
+    const maxPossibleForThisItem = Math.max(0, Math.min(item.myPoints + state.me.remainingPoints, allowedByOwnership));
 
     // Кнопки быстрого шага (-10, -1, ползунок, числовое поле, +1, +10, MAX)
     const makeStepBtn = (label, delta) => {
@@ -676,7 +735,7 @@ function renderPoolView(state) {
     slider.type = 'range';
     slider.className = 'pts-slider';
     slider.min = 0;
-    slider.max = state.settings.maxPoints;
+    slider.max = maxPossibleForThisItem;
     slider.value = item.myPoints;
     slider.disabled = isLocked;
     slider.addEventListener('input', () => {
@@ -724,16 +783,28 @@ formAddItem.addEventListener('submit', (e) => {
 // Раскидать очки поровну
 btnDistributeEven.addEventListener('click', () => {
   if (!appState || appState.items.length === 0) return;
-  const count = appState.items.length;
+  const items = appState.items;
+  const count = items.length;
   const total = appState.settings.maxPoints;
-  const base = Math.floor(total / count);
-  let rem = total % count;
-
-  appState.items.forEach((it) => {
-    const pts = base + (rem > 0 ? 1 : 0);
-    if (rem > 0) rem--;
-    socket.emit('set_points', { itemId: it.id, points: pts });
-  });
+  const limit = total - (appState.settings.restrictOwnPoints ? appState.settings.foreignOnlyPoints : 0);
+  const allocation = items.map((_, i) => Math.floor(total / count) + (i < total % count ? 1 : 0));
+  let ownTotal = allocation.reduce((sum, p, i) => sum + (items[i].canDelete ? p : 0), 0);
+  let extra = Math.max(0, ownTotal - limit);
+  for (let i = 0; i < count && extra > 0; i++) {
+    if (!items[i].canDelete) continue;
+    const amount = Math.min(extra, allocation[i]);
+    allocation[i] -= amount;
+    extra -= amount;
+  }
+  const others = items.map((it, i) => !it.canDelete ? i : -1).filter(i => i >= 0);
+  if (others.length) {
+    const leftover = total - allocation.reduce((sum, p) => sum + p, 0);
+    for (let i = 0; i < leftover; i++) allocation[others[i % others.length]]++;
+  }
+  // Сначала снимаем старые ставки, затем расставляем новые: сервер проверяет
+  // каждый запрос независимо, не позволяя промежуточному состоянию превысить N.
+  items.forEach(it => { if (it.myPoints) socket.emit('set_points', { itemId: it.id, points: 0 }); });
+  items.forEach((it, i) => { if (allocation[i]) socket.emit('set_points', { itemId: it.id, points: allocation[i] }); });
 });
 
 // Обнулить мои ставки
@@ -754,6 +825,14 @@ btnReady.addEventListener('click', () => {
 
 // 10. ФАЗА 2 И 3: КОЛЕСО, СЛИЯНИЕ ДУБЛИКАТОВ И ТАБЛИЦА ВЕРОЯТНОСТЕЙ
 function renderRevealView(state) {
+  wheelDurationPanel.classList.remove('hidden');
+  const canEditDuration = state.me.isHost && state.phase === 'REVEAL';
+  hostDurationControl.classList.toggle('hidden', !canEditDuration);
+  durationReadonly.classList.toggle('hidden', canEditDuration);
+  durationReadonly.textContent = `${state.settings.spinDuration} сек.`;
+  const lockedDuration = state.wheel.isSpinning || isAnimatingWheel || Boolean(activeElimination);
+  [setSpinDuration, durationApply, durationMinus, durationPlus].forEach(el => el.disabled = lockedDuration);
+  if (document.activeElement !== setSpinDuration) setSpinDuration.value = state.settings.spinDuration;
   const aliveItems = state.items.filter((i) => !i.eliminated);
   aliveCounter.textContent = `В игре: ${aliveItems.length} из ${state.items.length}`;
 
@@ -885,6 +964,21 @@ btnMerge.addEventListener('click', () => {
   socket.emit('merge_items', { sourceId, targetId });
 });
 
+function applySpinDuration() {
+  const raw = Number(setSpinDuration.value);
+  if (!Number.isFinite(raw)) return;
+  socket.emit('update_spin_duration', { duration: Math.max(2, Math.min(500, raw)) });
+}
+durationApply.addEventListener('click', applySpinDuration);
+setSpinDuration.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); applySpinDuration(); setSpinDuration.blur(); }
+});
+for (const [button, step] of [[durationMinus, -5], [durationPlus, 5]]) {
+  button.addEventListener('click', () => {
+    setSpinDuration.value = Math.max(2, Math.min(500, (Number(setSpinDuration.value) || 5.5) + step));
+    applySpinDuration();
+  });
+}
 btnSpinWheel.addEventListener('click', () => {
   initAudio();
   if (!activeElimination) socket.emit('spin_wheel');
@@ -1149,10 +1243,15 @@ wheelCanvas.addEventListener('pointermove', (event) => {
   wheelTooltip.textContent = `${found.title} — ${found.totalPoints} очк.`;
   wheelTooltip.classList.remove('hidden');
   const posX = event.clientX - rect.left;
-  wheelTooltip.style.left = `${Math.max(wheelTooltip.offsetWidth / 2 + 8, Math.min(rect.width - wheelTooltip.offsetWidth / 2 - 8, posX))}px`;
+  const half = wheelTooltip.offsetWidth / 2;
+  const viewportLeft = 10 - rect.left + half;
+  const viewportRight = window.innerWidth - 10 - rect.left - half;
+  const safeLeft = Math.max(viewportLeft, Math.min(viewportRight, posX));
+  wheelTooltip.style.left = `${safeLeft}px`;
   wheelTooltip.style.top = `${Math.max(42, event.clientY - rect.top)}px`;
 });
 wheelCanvas.addEventListener('pointerleave', () => wheelTooltip.classList.add('hidden'));
+window.addEventListener('resize', () => wheelTooltip.classList.add('hidden'));
 
 if (typeof ResizeObserver !== 'undefined') {
   new ResizeObserver(() => { resizeWheelCanvas(); if (!isAnimatingWheel && !activeElimination) drawWheel(); }).observe(wheelStage);

@@ -12,7 +12,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Начальные настройки используются в том числе для полного сброса комнаты.
 const DEFAULT_SETTINGS = Object.freeze({ maxPoints: 100, maxItems: 3, keepZeroItems: false,
-  zeroItemWeight: 0.5, spinDuration: 5.5 });
+  zeroItemWeight: 0.5, spinDuration: 5.5, restrictOwnPoints: false, foreignOnlyPoints: 0 });
 let pendingSpinTimer = null;
 let spinGeneration = 0;
 
@@ -84,13 +84,15 @@ function buildClientState(forToken) {
 
   let myItemsCount = 0;
   let mySpentPoints = 0;
+  let mySpentOwnPoints = 0;
 
   for (const item of state.items) {
     if (item.createdByToken === forToken && !item.mergedInto) {
       myItemsCount++;
     }
-    if (item.allocations[forToken]) {
+    if (item.allocations[forToken] && !item.mergedInto) {
       mySpentPoints += item.allocations[forToken];
+      if (item.createdByToken === forToken) mySpentOwnPoints += item.allocations[forToken];
     }
   }
 
@@ -143,6 +145,7 @@ function buildClientState(forToken) {
       ready: me.ready,
       myItemsCount,
       mySpentPoints,
+      mySpentOwnPoints,
       remainingPoints: Math.max(0, state.settings.maxPoints - mySpentPoints)
     } : null,
     players: playersList,
@@ -253,7 +256,12 @@ io.on('connection', (socket) => {
     const maxItems = Math.max(1, Math.min(50, parseInt(newSettings.maxItems, 10) || 3));
     const keepZeroItems = Boolean(newSettings.keepZeroItems);
     const zeroItemWeight = Math.max(0.01, Math.min(100, parseFloat(newSettings.zeroItemWeight) || 0.5));
-    const spinDuration = Math.max(2, Math.min(500, parseFloat(newSettings.spinDuration) || 5.5));
+    // Резерв можно потратить исключительно на варианты других игроков.
+    // Когда опция отключена, все N очков разрешено вложить в любые лоты.
+    const restrictOwnPoints = Boolean(newSettings.restrictOwnPoints);
+    const foreignOnlyPoints = restrictOwnPoints
+      ? Math.max(0, Math.min(maxPoints, Math.floor(Number(newSettings.foreignOnlyPoints) || 0))) : 0;
+    const spinDuration = state.settings.spinDuration; // управляeтся отдельно на экране колеса
 
     // Если уменьшили лимит очков, сбросим ставки тем, кто превысил новый лимит
     if (state.phase === 'POOL' && maxPoints < state.settings.maxPoints) {
@@ -268,7 +276,42 @@ io.on('connection', (socket) => {
       }
     }
 
-    state.settings = { maxPoints, maxItems, keepZeroItems, zeroItemWeight, spinDuration };
+    // Если новые правила сделали старые ставки на свои лоты недопустимыми,
+    // уменьшаем только собственные ставки и возвращаем очки на баланс.
+    if (state.phase === 'POOL') {
+      const ownLimit = maxPoints - foreignOnlyPoints;
+      for (const pToken of state.players.keys()) {
+        let ownSpent = state.items.filter(it => !it.mergedInto && it.createdByToken === pToken)
+          .reduce((sum, it) => sum + (it.allocations[pToken] || 0), 0);
+        let changed = false;
+        for (const item of state.items) {
+          if (ownSpent <= ownLimit) break;
+          if (item.mergedInto || item.createdByToken !== pToken) continue;
+          const current = item.allocations[pToken] || 0;
+          const reduction = Math.min(current, ownSpent - ownLimit);
+          if (reduction) {
+            if (current === reduction) delete item.allocations[pToken];
+            else item.allocations[pToken] = current - reduction;
+            ownSpent -= reduction;
+            changed = true;
+          }
+        }
+        if (changed) state.players.get(pToken).ready = false;
+      }
+    }
+    state.settings = { maxPoints, maxItems, keepZeroItems, zeroItemWeight,
+      spinDuration, restrictOwnPoints, foreignOnlyPoints };
+    broadcastState();
+  });
+
+  // Ведущий меняет время непосредственно у колеса, без сохранения других правил.
+  socket.on('update_spin_duration', ({ duration }) => {
+    const player = state.players.get(currentToken);
+    if (!player || player.socketId !== socket.id || !player.isHost ||
+        state.phase !== 'REVEAL' || state.wheel.isSpinning) return;
+    const n = Number(duration);
+    if (!Number.isFinite(n)) return;
+    state.settings.spinDuration = Math.max(2, Math.min(500, Math.round(n * 2) / 2));
     broadcastState();
   });
 
@@ -333,7 +376,13 @@ io.on('connection', (socket) => {
       }
     }
 
-    const allowed = Math.max(0, Math.min(desired, state.settings.maxPoints - spentOnOthers));
+    const ownLimit = state.settings.maxPoints - (state.settings.restrictOwnPoints ? state.settings.foreignOnlyPoints : 0);
+    const spentOnOwnOthers = item.createdByToken === currentToken
+      ? state.items.filter(it => !it.mergedInto && it.id !== itemId && it.createdByToken === currentToken)
+          .reduce((sum, it) => sum + (it.allocations[currentToken] || 0), 0)
+      : 0;
+    const allowed = Math.max(0, Math.min(desired, state.settings.maxPoints - spentOnOthers,
+      item.createdByToken === currentToken ? ownLimit - spentOnOwnOthers : state.settings.maxPoints));
     if (allowed === 0) {
       delete item.allocations[currentToken];
     } else {

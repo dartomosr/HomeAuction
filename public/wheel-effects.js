@@ -197,18 +197,28 @@
       shard(ctx, fx, f, dx, dy, f.spin * sec, t > .77 ? alpha : 1);
     }
   }
+  // Схлопывание не растяжением картинки: закрываем дугу сегмента к его началу.
   function fold(ctx, fx, t) {
+    const remain = Math.max(.0001, 1 - easeOut(t));
     ctx.save();
-    ctx.translate(fx.impact.x, fx.impact.y);
-    const xscale = 1 - .93 * easeOut(t);
-    const yscale = 1 - .5 * smooth(Math.max(0, t - .27) / .73);
-    ctx.scale(Math.max(.02, xscale), Math.max(.06, yscale));
-    ctx.rotate(t * .14);
-    ctx.translate(-fx.impact.x, -fx.impact.y);
-    drawImage(ctx, fx, 1 - smooth((t - .72) / .28));
+    ctx.beginPath();
+    ctx.moveTo(fx.cx, fx.cy);
+    ctx.arc(fx.cx, fx.cy, fx.radius + fx.scale, fx.startAngle, fx.startAngle + fx.angle * remain);
+    ctx.closePath();
+    ctx.clip();
+    drawImage(ctx, fx, 1 - smooth((t - .86) / .14));
+    // Мягкий свет вдоль движущейся границы дуги.
+    if (remain > .02) {
+      const a = fx.startAngle + fx.angle * remain;
+      ctx.beginPath(); ctx.moveTo(fx.cx, fx.cy);
+      ctx.lineTo(fx.cx + Math.cos(a) * fx.radius, fx.cy + Math.sin(a) * fx.radius);
+      ctx.strokeStyle = `rgba(250,248,255,${.25 * (1 - t)})`;
+      ctx.lineWidth = fx.scale * 1.8;
+      ctx.stroke();
+    }
     ctx.restore();
   }
-  function particles(ctx, fx, elapsed, kind) {
+    function particles(ctx, fx, elapsed, kind) {
     for (const p of fx.sparks) {
       const sec = elapsed - p.delay;
       if (sec < 0) continue;
@@ -249,102 +259,158 @@
     }
     particles(ctx, fx, sec, 'blast');
   }
-  function hole(ctx, fx, t) {
+  // Не мишень из концентрических окружностей: небольшой неровный прокол.
+  function bulletPuncture(ctx, fx) {
     const { x, y } = fx.impact;
-    const r = (10 + Math.sin(t * 12) * .5) * fx.scale;
+    const r = 6.5 * fx.scale;
     ctx.save();
-    ctx.translate(x, y);
-    ctx.fillStyle = '#340c12';
-    ctx.shadowColor = 'rgba(55,0,0,.65)'; ctx.shadowBlur = 6 * fx.scale;
-    ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, TAU); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#0c070c';
     ctx.beginPath();
-    for (let i = 0; i < 16; i++) {
-      const a = i / 16 * TAU;
-      const rr = r * (i % 3 === 0 ? 1.1 : .72);
-      if (i === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
-      else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    for (let i = 0; i < 17; i++) {
+      const a = TAU * i / 17;
+      const noise = .82 + .18 * Math.sin(i * 7.3 + fx.seed);
+      const px = x + Math.cos(a) * r * noise;
+      const py = y + Math.sin(a) * r * noise;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(199,78,73,.85)';
-    ctx.lineWidth = fx.scale * 1.5;
-    ctx.stroke();
+    ctx.closePath();
+    ctx.fillStyle = '#17060b';
+    ctx.shadowColor = '#48020a'; ctx.shadowBlur = 5 * fx.scale;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Верхнее кровяное пятно и несколько густых, неодинаково длинных потёков.
+  // Кровь течёт строго по экрану вниз, не поворачиваясь с колесом.
+  function drawBlood(ctx, fx, t) {
+    const progress = smooth((t - .08) / .74);
+    if (progress <= 0) return;
+    const { x, y } = fx.impact;
+    const k = fx.scale;
+    const spread = Math.min(37 * k, Math.max(12 * k, fx.radius * fx.angle * .55));
+    const top = y - 7 * k;
+    const ends = [.62, 1, .48, .81, .36];
+    const widths = [.095, .10, .065, .085, .075];
+    const lengths = [110, 198, 145, 175, 94];
+    ctx.save();
+    ctx.globalAlpha = 1 - smooth((t - .88) / .12);
+    ctx.beginPath();
+    // Густая широкая шапка крови вокруг отверстия без круглой мишени.
+    ctx.moveTo(x - spread, top + 1 * k);
+    ctx.bezierCurveTo(x - spread * 1.06, top - 11 * k, x - spread * .60, top - 12 * k, x - spread * .34, top - 11 * k);
+    ctx.bezierCurveTo(x - spread * .04, top - 5 * k, x + spread * .18, top - 12 * k, x + spread * .42, top - 9 * k);
+    ctx.bezierCurveTo(x + spread * .95, top - 10 * k, x + spread * 1.12, top + 1 * k, x + spread, top + 12 * k);
+    ctx.bezierCurveTo(x + spread * .85, top + 19 * k, x + spread * .57, top + 14 * k, x + spread * .36, top + 15 * k);
+    ctx.bezierCurveTo(x + spread * .01, top + 23 * k, x - spread * .57, top + 19 * k, x - spread * .84, top + 12 * k);
+    ctx.closePath();
+    // Растущие вязкие струи, каждой свой темп и длина. Капля на конце — часть силуэта.
+    for (let i = 0; i < ends.length; i++) {
+      const offset = (i - 2) * .39;
+      const bx = x + spread * offset;
+      const by = top + (15 + ((i * 7) % 6)) * k;
+      const width = Math.max(2.2 * k, spread * widths[i]);
+      const travel = Math.min(fx.height - by - 3 * k, lengths[i] * k) * progress * ends[i];
+      const sway = Math.sin(progress * 3.2 + i * 2.4) * 2.6 * k;
+      const tx = bx + sway + (i - 2) * 1.5 * k;
+      const ty = by + travel;
+      if (travel < 1) continue;
+      ctx.moveTo(bx - width, by - 3 * k);
+      ctx.bezierCurveTo(bx - width * 1.1, by + travel * .27,
+        tx - width * .72, by + travel * .64, tx - width * .75, ty - width);
+      ctx.bezierCurveTo(tx - width * 1.2, ty + width * .5, tx - width * .52, ty + width * 1.7, tx, ty + width * 1.8);
+      ctx.bezierCurveTo(tx + width * .82, ty + width * 1.5, tx + width * 1.25, ty + width * .42, tx + width * .75, ty - width);
+      ctx.bezierCurveTo(tx + width * .65, by + travel * .60, bx + width * 1.1, by + travel * .16, bx + width, by - 3 * k);
+      ctx.closePath();
+    }
+    const blood = ctx.createLinearGradient(x - spread, top, x + spread, top + 80 * k);
+    blood.addColorStop(0, '#760009');
+    blood.addColorStop(.46, '#b60811');
+    blood.addColorStop(1, '#55000d');
+    ctx.fillStyle = blood;
+    ctx.shadowColor = 'rgba(51,0,5,.42)';
+    ctx.shadowBlur = 4 * k;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Узкие глянцевые отблески на основных потёках, не красная паутина.
+    ctx.strokeStyle = 'rgba(255,102,100,.38)';
+    ctx.lineWidth = 1.15 * k; ctx.lineCap = 'round';
+    for (const i of [1, 3]) {
+      const bx = x + spread * (i - 2) * .39;
+      const h = Math.min(fx.height - top - 25 * k, lengths[i] * k) * progress * ends[i];
+      ctx.beginPath(); ctx.moveTo(bx - 1.6 * k, top + 17 * k);
+      ctx.quadraticCurveTo(bx - 3 * k, top + h * .5, bx, top + Math.max(16 * k, h - 6 * k));
+      ctx.stroke();
+    }
     ctx.restore();
   }
   function shot(ctx, fx, t) {
-    drawImage(ctx, fx, 1 - smooth((t - .77) / .23));
-    if (t < .065) return;
+    drawImage(ctx, fx, 1 - smooth((t - .91) / .09));
+    if (t < .045) return;
+    drawBlood(ctx, fx, t);
     ctx.save();
-    traceWedge(ctx, fx); ctx.clip();
-    ctx.globalAlpha = 1 - smooth((t - .79) / .21);
-    // Кровь не разбрызгивается: 3 неровных, вязких потёка вниз по экрану.
-    for (let k = 0; k < 3; k++) {
-      const startX = fx.impact.x + (k - 1) * 5.2 * fx.scale;
-      const startY = fx.impact.y + 9 * fx.scale;
-      const delay = .08 + k * .11;
-      const dist = Math.min((.91 - startY / fx.height) * fx.height + fx.radius * .27, fx.radius * (.52 + k * .11));
-      const progress = smooth((t - delay) / (.76 - delay));
-      const reached = Math.max(0, dist * progress);
-      if (reached < .1) continue;
-      const xAt = n => startX + Math.sin(n * .028 + k * 1.7) * (2.8 + k) * fx.scale + n * (.012 * (k - 1));
-      const yAt = n => startY + n;
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      const steps = Math.max(4, Math.floor(reached / 6));
-      for (let i = 1; i <= steps; i++) {
-        const n = reached * i / steps;
-        ctx.lineTo(xAt(n), yAt(n));
-      }
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#4b0612'; ctx.lineWidth = (6 - k * 1.2) * fx.scale;
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(159,21,36,.94)'; ctx.lineWidth = (3.2 - k * .7) * fx.scale;
-      ctx.stroke();
-      // Узкий мокрый блик, без брызг.
-      ctx.strokeStyle = 'rgba(225,74,74,.65)'; ctx.lineWidth = .8 * fx.scale;
-      ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(xAt(reached), yAt(reached), (3.6 - k * .35) * fx.scale,
-        (5.2 + k) * fx.scale, 0, 0, TAU);
-      ctx.fillStyle = '#720d1d'; ctx.fill();
-    }
-    ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = 1 - smooth((t - .84) / .16);
-    hole(ctx, fx, t);
+    ctx.globalAlpha = 1 - smooth((t - .9) / .1);
+    bulletPuncture(ctx, fx);
     ctx.restore();
   }
+    // Жвачка: сектор чуть раздувается и дрожит; затем липкая плёнка
+  // разрывается на тянущиеся нити, остатки падают под силой тяжести.
   function bubble(ctx, fx, t) {
-    if (t < .5) {
+    const burstAt = .49;
+    if (t < burstAt) {
+      const f = t / burstAt;
+      const radiusScale = 1 + .07 * smooth(f);
+      const shake = (f > .28 ? Math.pow(f, 2) : 0) * 2.6 * fx.scale;
       ctx.save();
-      ctx.translate(fx.impact.x, fx.impact.y);
-      const expand = 1 + .11 * smooth(t / .5);
-      ctx.scale(expand, expand);
+      ctx.translate(fx.impact.x + Math.sin(f * 92) * shake, fx.impact.y + Math.cos(f * 69) * shake * .6);
+      ctx.scale(radiusScale * (1 + .004 * Math.sin(f * 67)), radiusScale * (1 - .005 * Math.cos(f * 78)));
       ctx.translate(-fx.impact.x, -fx.impact.y);
       drawImage(ctx, fx);
       ctx.restore();
       ctx.save();
-      ctx.strokeStyle = `rgba(186,242,255,${.3 + .4 * t})`;
-      ctx.lineWidth = 3 * fx.scale;
-      ctx.beginPath(); ctx.arc(fx.impact.x, fx.impact.y, (25 + 115 * t) * fx.scale, 0, TAU); ctx.stroke();
+      traceWedge(ctx, fx); ctx.clip();
+      ctx.fillStyle = `rgba(252,153,192,${.045 + .12 * f})`;
+      ctx.fillRect(0, 0, fx.width, fx.height);
       ctx.restore();
       return;
     }
-    const sec = (t - .5) * fx.duration / 1000;
-    for (const f of fx.fragments) {
-      const dx = f.vx * sec * 180 * fx.scale;
-      const dy = -40 * sec * fx.scale + f.vy * sec * 220 * fx.scale;
-      shard(ctx, fx, f, dx, dy, f.spin * sec * 1.3, clamp((1 - t) / .35));
+    const e = (t - burstAt) / (1 - burstAt);
+    const fall = 280 * fx.scale * e * e;
+    // Порвавшаяся мембрана с остатками изображения на упругих лоскутках.
+    for (let i = 0; i < fx.fragments.length; i += 4) {
+      const f = fx.fragments[i];
+      const d = (i % 7 + 1) / 7;
+      shard(ctx, fx, f, (f.centroid.x - fx.impact.x) * e * .20,
+        fall * (.6 + d) - e * 27 * fx.scale,
+        Math.sin(e * 6 + i) * e * .27, 1 - smooth((e - .7) / .3));
     }
-    particles(ctx, fx, sec, 'bubble');
+    ctx.save();
+    ctx.globalAlpha = 1 - smooth((e - .78) / .22);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU;
+      const span = fx.radius * (.16 + (i % 4) * .07);
+      const x = fx.impact.x + Math.cos(a) * span;
+      const y = fx.impact.y + Math.sin(a) * span;
+      const bx = x + Math.cos(a) * (18 + e * 45) * fx.scale;
+      const by = y + Math.sin(a) * e * 65 * fx.scale + e * e * 190 * fx.scale;
+      const lean = Math.sin(e * 8 + i) * (10 + 10 * e) * fx.scale;
+      ctx.beginPath();
+      ctx.moveTo(fx.impact.x + Math.cos(a) * 7 * fx.scale, fx.impact.y + Math.sin(a) * 7 * fx.scale);
+      ctx.bezierCurveTo(x - lean * .4, y - 24 * fx.scale,
+        bx + lean, by - 65 * (1 - e) * fx.scale, bx, by);
+      ctx.strokeStyle = i % 3 ? 'rgba(239,119,158,.83)' : 'rgba(255,195,217,.93)';
+      ctx.lineWidth = (2.5 + (i % 3) * 1.2) * fx.scale * (1 - .6 * e);
+      ctx.stroke();
+      ctx.fillStyle = '#ea86ac'; ctx.beginPath();
+      ctx.ellipse(bx, by, (2.6 + (i % 3)) * fx.scale, (3.8 + (i % 4)) * fx.scale, 0, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
   }
-  // Неровная кривая разреза, по ней разрезаются пиксели самого сектора.
+  // Ровная диагональная линия вместо кривой Безье.
   function slashPath(ctx, fx) {
-    const { x, y, w, h } = fx.bounds;
-    const cy = fx.impact.y;
-    ctx.moveTo(x - 30, cy + h * .16);
-    ctx.bezierCurveTo(x + w * .31, cy - h * .19, x + w * .36, cy + h * .16, x + w * .54, cy - h * .04);
-    ctx.bezierCurveTo(x + w * .72, cy - h * .25, x + w * .86, cy + h * .11, x + w + 30, cy - h * .11);
+    const { x, w, h } = fx.bounds;
+    const centerY = fx.impact.y;
+    ctx.moveTo(x - 45, centerY + h * .13);
+    ctx.lineTo(x + w + 45, centerY - h * .13);
   }
   function slash(ctx, fx, t) {
     if (t < .28) drawImage(ctx, fx);
@@ -358,8 +424,7 @@
       slashPath(ctx, fx);
       ctx.lineTo(x + w + 50, y - fx.height);
       ctx.lineTo(x - 50, y - fx.height);
-      ctx.closePath();
-      ctx.clip();
+      ctx.closePath(); ctx.clip();
       drawImage(ctx, fx, 1 - smooth((t - .8) / .2));
       ctx.restore();
       ctx.save();
@@ -369,8 +434,7 @@
       slashPath(ctx, fx);
       ctx.lineTo(x + w + 50, y + fx.height * 2);
       ctx.lineTo(x - 50, y + fx.height * 2);
-      ctx.closePath();
-      ctx.clip();
+      ctx.closePath(); ctx.clip();
       drawImage(ctx, fx, 1 - smooth((t - .75) / .25));
       ctx.restore();
     }
@@ -378,13 +442,52 @@
       ctx.save();
       ctx.globalAlpha = 1 - smooth((t - .37) / .2);
       ctx.strokeStyle = 'rgba(253,255,255,.95)';
-      ctx.lineWidth = (3 + Math.sin(t * 35) * .8) * fx.scale;
-      ctx.shadowColor = '#a1e7f0'; ctx.shadowBlur = 18 * fx.scale;
+      ctx.lineWidth = 2.4 * fx.scale;
+      ctx.shadowColor = '#a1e7f0'; ctx.shadowBlur = 12 * fx.scale;
       ctx.beginPath(); slashPath(ctx, fx); ctx.stroke();
       ctx.restore();
     }
   }
-  function glitch(ctx, fx, t) {
+  // Единственная радиальная трещина от ступицы до края сектора.
+  // Часть, которая визуально выше, скользит по второй и отпадает вниз.
+  function split(ctx, fx, t) {
+    const mid = fx.startAngle + fx.angle * .5;
+    const a = [{ start: fx.startAngle, angle: fx.angle / 2 },
+      { start: mid, angle: fx.angle / 2 }];
+    const upperIndex = Math.sin(a[0].start + a[0].angle / 2) <
+      Math.sin(a[1].start + a[1].angle / 2) ? 0 : 1;
+    const move = smooth((t - .28) / .65);
+    for (let i = 0; i < 2; i++) {
+      const upper = i === upperIndex;
+      ctx.save();
+      if (upper && t >= .28) {
+        // Краткое скольжение по нижней части, затем ускоренное падение.
+        const slip = smooth((t - .28) / .27);
+        const fall = Math.pow(clamp((t - .43) / .57), 2);
+        ctx.translate(slip * 28 * fx.scale, slip * 8 * fx.scale + fall * 480 * fx.scale);
+        ctx.translate(fx.cx, fx.cy);
+        ctx.rotate(-slip * .08 + fall * .34);
+        ctx.translate(-fx.cx, -fx.cy);
+      }
+      ctx.beginPath(); ctx.moveTo(fx.cx, fx.cy);
+      ctx.arc(fx.cx, fx.cy, fx.radius + fx.scale, a[i].start, a[i].start + a[i].angle);
+      ctx.closePath(); ctx.clip();
+      drawImage(ctx, fx, upper ? 1 - smooth((t - .84) / .16) : 1 - smooth((t - .68) / .32));
+      ctx.restore();
+    }
+    if (t < .55) {
+      const len = easeOut(t / .3);
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(fx.cx, fx.cy);
+      ctx.lineTo(fx.cx + Math.cos(mid) * fx.radius * len,
+        fx.cy + Math.sin(mid) * fx.radius * len);
+      ctx.strokeStyle = '#1b1020'; ctx.lineWidth = 4 * fx.scale;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,249,246,.85)'; ctx.lineWidth = 1.25 * fx.scale;
+      ctx.stroke(); ctx.restore();
+    }
+  }
+    function glitch(ctx, fx, t) {
     const { x, y, w, h } = fx.bounds;
     const bands = 21;
     for (let i = 0; i < bands; i++) {
@@ -430,19 +533,8 @@
     ctx.translate(-fx.impact.x, -fx.impact.y);
     drawImage(ctx, fx, 1 - smooth((t - .68) / .32));
     ctx.restore();
-    for (const p of fx.sparks) {
-      if (p.delay > t * 1.2) continue;
-      const a = angle * .9 + p.a;
-      const rad = (1 - t) * fx.radius * (.12 + p.speed * .75);
-      ctx.save();
-      ctx.globalAlpha = .6 * (1 - t);
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(fx.impact.x + Math.cos(a) * rad,
-        fx.impact.y + Math.sin(a) * rad, p.size * fx.scale, 0, TAU);
-      ctx.fill(); ctx.restore();
-    }
   }
-  const animations = { fold, glass, blast, shot, bubble, slash, glitch, pixels, vortex };
+  const animations = { fold, glass, blast, shot, bubble, slash, split, glitch, pixels, vortex };
   class WheelSectorEffects {
     constructor(canvas) {
       this.canvas = canvas;
