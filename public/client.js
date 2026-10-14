@@ -2,10 +2,10 @@ const socket = io();
 
 // 1. ПАЛИТРЫ СЕКТОРОВ КОЛЕСА ПОД КАЖДУЮ ТЕМУ
 const THEME_WHEEL_PALETTES = {
-  anime: ['#ff2a5f', '#00e5ff', '#ffe600', '#7b2cbf', '#00f59b', '#ff6d00', '#3a86ff', '#ff007f'],
+  anime: ['#bb6279', '#5b91a7', '#bba46e', '#846f9c', '#669b86', '#b18360', '#6e85b0', '#a66c91'],
   casino: ['#8c2d38', '#1f4e3d', '#b8922f', '#2b3a4a', '#5e232a', '#2e5948', '#967117', '#382c1e'],
-  terminal: ['#11421d', '#1b662e', '#0d2e15', '#24823b', '#175225', '#2b9c46'],
-  paper: ['#d9381e', '#262626', '#d97706', '#2563eb', '#15803d', '#7c2d12', '#4f46e5', '#b91c1c'],
+  terminal: ['#345c40', '#487656', '#294935', '#61876a', '#3c684a', '#729b7e'],
+  paper: ['#b96860', '#69635f', '#bb9462', '#798fa5', '#759481', '#9b7866', '#8e85a5', '#a77579'],
   nordic: ['#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb', '#a3be8c', '#ebcb8b', '#d08770', '#bf616a']
 };
 
@@ -148,6 +148,15 @@ const winnerPoints = document.getElementById('winner-points');
 const aliveCounter = document.getElementById('alive-counter');
 const wheelCanvas = document.getElementById('wheel-canvas');
 const wheelCtx = wheelCanvas.getContext('2d');
+const wheelStage = document.getElementById('wheel-stage');
+const wheelPointer = document.getElementById('wheel-pointer');
+const wheelLegend = document.getElementById('wheel-legend');
+const wheelTooltip = document.getElementById('wheel-slice-tooltip');
+const wheelCard = document.querySelector('.wheel-card');
+const btnWheelFocus = document.getElementById('btn-wheel-focus');
+const wheelFocusBackdrop = document.getElementById('wheel-focus-backdrop');
+let wheelPixelRatio = 1;
+const motionReduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 const wheelStatusBox = document.getElementById('wheel-status-box');
 const hostWheelControls = document.getElementById('host-wheel-controls');
 const btnSpinWheel = document.getElementById('btn-spin-wheel');
@@ -168,6 +177,7 @@ function applyTheme(themeName) {
   localStorage.setItem('auction_theme', themeName);
   if (themeSelect.value !== themeName) themeSelect.value = themeName;
   drawWheel();
+  renderWheelLegend();
 }
 
 applyTheme(currentTheme);
@@ -253,7 +263,12 @@ socket.on('state_update', (state) => {
   renderSidebar(state);
   renderMainArea(state);
 
+  if (state.phase === 'POOL' && wheelCard.classList.contains('is-focused')) {
+    setWheelFocus(false);
+  }
+  renderWheelLegend();
   if (!isAnimatingWheel) {
+    resizeWheelCanvas();
     drawWheel();
   }
 
@@ -680,81 +695,244 @@ function getCurrentWheelSlices() {
   }));
 }
 
-function drawWheel() {
-  const width = wheelCanvas.width;
-  const height = wheelCanvas.height;
-  const cx = width / 2;
-  const cy = height / 2;
-  const radius = Math.min(cx, cy) - 18;
+// Масштабируем bitmap под реальный размер на странице и DPR: в увеличенном режиме
+// текст остаётся чётким. Логические координаты — CSS-пиксели, углы не меняются.
+function resizeWheelCanvas() {
+  const side = Math.round(wheelStage.getBoundingClientRect().width);
+  if (side <= 0) return;
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const pixels = Math.round(side * ratio);
+  if (wheelCanvas.width !== pixels || wheelCanvas.height !== pixels || wheelPixelRatio !== ratio) {
+    wheelCanvas.width = pixels;
+    wheelCanvas.height = pixels;
+    wheelPixelRatio = ratio;
+  }
+  wheelCtx.setTransform(wheelPixelRatio, 0, 0, wheelPixelRatio, 0, 0);
+}
 
+function getWheelGeometry() {
+  const width = wheelCanvas.width / wheelPixelRatio;
+  const height = wheelCanvas.height / wheelPixelRatio;
+  const scale = Math.min(width, height) / 540;
+  return { width, height, cx: width / 2, cy: height / 2,
+    radius: Math.min(width, height) / 2 - 18 * scale, scale };
+}
+
+// Измеряем текст на Canvas, переносим длинные названия и подрезаем лишь при
+// физической нехватке площади. Полная строка всегда доступна в легенде/подсказке.
+function fitWheelLines(text, maxWidth, maxLines, fontSize) {
+  wheelCtx.font = `800 ${fontSize}px Manrope, sans-serif`;
+  const words = String(text).trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+
+  for (const word of words) {
+    const attempt = line ? `${line} ${word}` : word;
+    if (wheelCtx.measureText(attempt).width <= maxWidth) {
+      line = attempt;
+      continue;
+    }
+    if (line) { lines.push(line); line = ''; }
+    // У вариантов могут быть очень длинные слова без пробелов.
+    for (const char of Array.from(word)) {
+      if (wheelCtx.measureText(line + char).width > maxWidth && line) {
+        lines.push(line);
+        line = '';
+      }
+      line += char;
+    }
+  }
+  if (line) lines.push(line);
+  const complete = lines.length <= maxLines;
+  if (!complete) {
+    lines.length = maxLines;
+    let end = Array.from(lines[maxLines - 1] || '');
+    while (end.length && wheelCtx.measureText(end.join('') + '…').width > maxWidth) end.pop();
+    lines[maxLines - 1] = end.join('') + '…';
+  }
+  return { lines, complete };
+}
+
+function drawWheelLabel(slice, index, angle, midAngle, geometry) {
+  const { radius, scale } = geometry;
+  const radialWidth = radius - 78 * scale;
+  const crossWidth = 2 * radius * 0.56 * Math.sin(Math.min(angle / 2, Math.PI / 2)) - 9 * scale;
+  if (crossWidth < 10 * scale || radialWidth < 25) return; // Полное имя есть в легенде.
+
+  // На крупных секторах предпочитаем хорошо различимые буквы вместо попытки
+  // уместить все 80 символов ценой слишком мелкого шрифта.
+  const minSize = crossWidth >= 38 * scale ? 15 : (crossWidth >= 22 * scale ? 13 : 11);
+  const minFont = minSize * scale;
+  let chosen = null;
+  const label = `${slice.title} (${slice.totalPoints})`;
+  for (let size = 20; size >= minSize; size--) {
+    const fontSize = size * scale;
+    const lineHeight = fontSize * 1.18;
+    const maxLines = Math.min(3, Math.floor(crossWidth / lineHeight));
+    if (maxLines < 1) continue;
+    const fit = fitWheelLines(label, radialWidth, maxLines, fontSize);
+    chosen = { ...fit, fontSize, lineHeight };
+    if (fit.complete) break;
+  }
+  if (!chosen || chosen.fontSize < minFont - 0.01) return;
+
+  // Узкому сектору не навязываем нечитаемые обрезки длинных слов:
+  // маленький номер однозначно сопоставляется с полным названием в легенде.
+  if (!chosen.complete && crossWidth < 23 * scale) {
+    chosen = { lines: [String(index + 1)], fontSize: 13 * scale, lineHeight: 15 * scale };
+  }
+
+  wheelCtx.save();
+  wheelCtx.translate(geometry.cx, geometry.cy);
+  wheelCtx.rotate(midAngle);
+  const reverse = Math.cos(midAngle) < 0;
+  if (reverse) wheelCtx.rotate(Math.PI);
+  const x = (radius + 48 * scale) / 2 * (reverse ? -1 : 1);
+  wheelCtx.textAlign = 'center';
+  wheelCtx.textBaseline = 'middle';
+  wheelCtx.font = `800 ${chosen.fontSize}px Manrope, sans-serif`;
+  wheelCtx.lineJoin = 'round';
+  wheelCtx.strokeStyle = 'rgba(14, 18, 24, 0.88)';
+  wheelCtx.lineWidth = Math.max(2.6 * scale, chosen.fontSize * 0.19);
+  wheelCtx.fillStyle = '#ffffff';
+  chosen.lines.forEach((line, i) => {
+    const y = (i - (chosen.lines.length - 1) / 2) * chosen.lineHeight;
+    wheelCtx.strokeText(line, x, y);
+    wheelCtx.fillText(line, x, y);
+  });
+  wheelCtx.restore();
+}
+
+function renderWheelLegend(slices = getCurrentWheelSlices()) {
+  wheelLegend.replaceChildren();
+  const palette = THEME_WHEEL_PALETTES[currentTheme] || THEME_WHEEL_PALETTES.anime;
+  const fragment = document.createDocumentFragment();
+  slices.forEach((slice, idx) => {
+    const item = document.createElement('div');
+    item.className = 'wheel-legend-item';
+    item.setAttribute('role', 'listitem');
+    const swatch = document.createElement('span');
+    swatch.className = 'wheel-legend-swatch';
+    swatch.style.backgroundColor = palette[idx % palette.length];
+    const content = document.createElement('div');
+    content.className = 'wheel-legend-text';
+    const name = document.createElement('div');
+    name.className = 'wheel-legend-name';
+    name.textContent = `${idx + 1}. ${slice.title}`;
+    const stats = document.createElement('div');
+    stats.className = 'wheel-legend-stats';
+    stats.textContent = `${slice.totalPoints} очк. · ${(slice.share * 100).toFixed(1)}% сектора вылета`;
+    content.append(name, stats);
+    item.append(swatch, content);
+    fragment.appendChild(item);
+  });
+  wheelLegend.appendChild(fragment);
+}
+
+function drawWheel() {
+  resizeWheelCanvas();
+  const geometry = getWheelGeometry();
+  const { width, height, cx, cy, radius, scale } = geometry;
   wheelCtx.clearRect(0, 0, width, height);
 
   const slices = getCurrentWheelSlices();
   if (slices.length === 0) return;
-
   const palette = THEME_WHEEL_PALETTES[currentTheme] || THEME_WHEEL_PALETTES.anime;
-
   let currentAngle = wheelRotation;
 
   slices.forEach((slice, index) => {
     const sliceAngle = slice.share * Math.PI * 2;
     const endAngle = currentAngle + sliceAngle;
-
-    // Сектор
     wheelCtx.beginPath();
     wheelCtx.moveTo(cx, cy);
     wheelCtx.arc(cx, cy, radius, currentAngle, endAngle);
     wheelCtx.closePath();
-
     wheelCtx.fillStyle = palette[index % palette.length];
     wheelCtx.fill();
-
-    wheelCtx.lineWidth = 2;
-    wheelCtx.strokeStyle = '#0a0a0f';
+    wheelCtx.lineWidth = 2 * scale;
+    wheelCtx.strokeStyle = 'rgba(14, 18, 24, 0.88)';
     wheelCtx.stroke();
 
-    // Подпись внутри сектора (если сектор достаточно широкий)
-    if (sliceAngle > 0.085) {
-      wheelCtx.save();
-      wheelCtx.translate(cx, cy);
-      wheelCtx.rotate(currentAngle + sliceAngle / 2);
-      wheelCtx.textAlign = 'right';
-      wheelCtx.textBaseline = 'middle';
-      wheelCtx.fillStyle = '#ffffff';
-      wheelCtx.font = 'bold 14px Manrope, sans-serif';
-      wheelCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-      wheelCtx.shadowBlur = 4;
-
-      const maxLabel = slice.title.length > 20 ? slice.title.slice(0, 18) + '…' : slice.title;
-      wheelCtx.fillText(`${maxLabel} (${slice.totalPoints})`, radius - 18, 0);
-      wheelCtx.restore();
-    }
-
+    drawWheelLabel(slice, index, sliceAngle, currentAngle + sliceAngle / 2, geometry);
     currentAngle = endAngle;
   });
 
-  // Внешний обод колеса
   wheelCtx.beginPath();
   wheelCtx.arc(cx, cy, radius, 0, Math.PI * 2);
-  wheelCtx.lineWidth = 5;
-  wheelCtx.strokeStyle = '#111111';
+  wheelCtx.lineWidth = 5 * scale;
+  wheelCtx.strokeStyle = '#15191e';
   wheelCtx.stroke();
 
-  // Центральная втулка
   wheelCtx.beginPath();
-  wheelCtx.arc(cx, cy, 28, 0, Math.PI * 2);
-  wheelCtx.fillStyle = '#14161f';
+  wheelCtx.arc(cx, cy, 28 * scale, 0, Math.PI * 2);
+  wheelCtx.fillStyle = '#222831';
   wheelCtx.fill();
-  wheelCtx.lineWidth = 3;
+  wheelCtx.lineWidth = 3 * scale;
   wheelCtx.strokeStyle = '#ffffff';
   wheelCtx.stroke();
 }
+
+function setWheelFocus(shouldFocus) {
+  wheelCard.classList.toggle('is-focused', shouldFocus);
+  wheelFocusBackdrop.classList.toggle('hidden', !shouldFocus);
+  document.body.classList.toggle('wheel-focus-open', shouldFocus);
+  btnWheelFocus.setAttribute('aria-pressed', String(shouldFocus));
+  btnWheelFocus.setAttribute('aria-label', shouldFocus ? 'Уменьшить колесо' : 'Увеличить колесо');
+  btnWheelFocus.title = shouldFocus ? 'Вернуться к обычному виду (Esc)' : 'Развернуть колесо на весь экран';
+  btnWheelFocus.textContent = shouldFocus ? '↙ Свернуть' : '⛶ Развернуть';
+  wheelTooltip.classList.add('hidden');
+  resizeWheelCanvas();
+  drawWheel();
+  btnWheelFocus.focus({ preventScroll: true });
+}
+
+btnWheelFocus.addEventListener('click', () => setWheelFocus(!wheelCard.classList.contains('is-focused')));
+wheelFocusBackdrop.addEventListener('click', () => setWheelFocus(false));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && wheelCard.classList.contains('is-focused')) setWheelFocus(false);
+});
+
+// Показываем полные названия при наведении на сектор, без изменения игрового состояния.
+wheelCanvas.addEventListener('pointermove', (event) => {
+  if (isAnimatingWheel) { wheelTooltip.classList.add('hidden'); return; }
+  const rect = wheelCanvas.getBoundingClientRect();
+  const geometry = getWheelGeometry();
+  const x = (event.clientX - rect.left) * geometry.width / rect.width - geometry.cx;
+  const y = (event.clientY - rect.top) * geometry.height / rect.height - geometry.cy;
+  const r = Math.hypot(x, y);
+  if (r > geometry.radius || r < 28 * geometry.scale) {
+    wheelTooltip.classList.add('hidden');
+    return;
+  }
+  const fraction = (((Math.atan2(y, x) - wheelRotation) / (2 * Math.PI)) % 1 + 1) % 1;
+  const slices = getCurrentWheelSlices();
+  let cumulative = 0;
+  const found = slices.find((slice) => { cumulative += slice.share; return fraction < cumulative; });
+  if (!found) { wheelTooltip.classList.add('hidden'); return; }
+  wheelTooltip.textContent = `${found.title} — ${found.totalPoints} очк.`;
+  wheelTooltip.classList.remove('hidden');
+  const posX = event.clientX - rect.left;
+  wheelTooltip.style.left = `${Math.max(wheelTooltip.offsetWidth / 2 + 8, Math.min(rect.width - wheelTooltip.offsetWidth / 2 - 8, posX))}px`;
+  wheelTooltip.style.top = `${Math.max(42, event.clientY - rect.top)}px`;
+});
+wheelCanvas.addEventListener('pointerleave', () => wheelTooltip.classList.add('hidden'));
+
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => { resizeWheelCanvas(); if (!isAnimatingWheel) drawWheel(); }).observe(wheelStage);
+} else {
+  window.addEventListener('resize', drawWheel);
+}
+if (document.fonts) document.fonts.ready.then(drawWheel);
 
 // Событие синхронного запуска колеса от сервера
 socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, durationSec }) => {
   initAudio();
   isAnimatingWheel = true;
   activeSpinSlices = slices;
+  wheelTooltip.classList.add('hidden');
+  wheelStage.classList.remove('spin-finished');
+  wheelStage.classList.add('is-spinning');
+  renderWheelLegend(slices);
   wheelStatusBox.textContent = 'Колесо крутится... Кто покинет аукцион?';
 
   const twoPi = Math.PI * 2;
@@ -804,6 +982,13 @@ socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, 
     const currentSliceIdx = getSliceIndexAtPointer(wheelRotation);
     if (currentSliceIdx !== lastSliceIdx) {
       playTickSound();
+      if (!motionReduced.matches && wheelPointer.animate) {
+        wheelPointer.animate([
+          { transform: 'translateY(-50%) rotate(-9deg)' },
+          { transform: 'translateY(-50%) rotate(3deg)', offset: 0.45 },
+          { transform: 'translateY(-50%) rotate(0deg)' }
+        ], { duration: 160, easing: 'ease-out' });
+      }
       lastSliceIdx = currentSliceIdx;
     }
 
@@ -812,6 +997,9 @@ socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, 
     } else {
       isAnimatingWheel = false;
       activeSpinSlices = null;
+      wheelStage.classList.remove('is-spinning');
+      wheelStage.classList.add('spin-finished');
+      renderWheelLegend();
       playEliminatedSound();
       wheelStatusBox.textContent = `❌ Выбывает вариант: «${eliminatedTitle}»!`;
     }

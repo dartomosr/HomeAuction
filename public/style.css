@@ -5,26 +5,26 @@
 /* ТЕМА 1: ANIME POP (Persona / Manga / Arcade) — по умолчанию */
 :root,
 html[data-theme="anime"] {
-  --bg-main: #0f111a;
-  --bg-pattern: radial-gradient(#25293e 1.5px, transparent 1.5px);
-  --bg-pattern-size: 16px 16px;
-  --bg-card: #181b28;
-  --bg-elevated: #222738;
-  --bg-strip: #ff2a5f;
-  --text-strip: #ffffff;
-  --text-main: #f7f8fc;
-  --text-muted: #9aa3bf;
-  --accent-primary: #ff2a5f;
+  --bg-main: #171b26;
+  --bg-pattern: radial-gradient(rgba(120, 133, 158, 0.16) 1px, transparent 1px);
+  --bg-pattern-size: 18px 18px;
+  --bg-card: #202533;
+  --bg-elevated: #2c3445;
+  --bg-strip: #99576d;
+  --text-strip: #fff2f4;
+  --text-main: #eceef4;
+  --text-muted: #adb5c6;
+  --accent-primary: #c16b83;
   --accent-primary-text: #ffffff;
-  --accent-secondary: #00e5ff;
-  --accent-secondary-text: #0a0c12;
-  --accent-warn: #ffe600;
-  --accent-success: #00f59b;
-  --border-color: #00e5ff;
-  --border-width: 2px;
-  --radius: 2px;
-  --shadow: 5px 5px 0px #000000;
-  --shadow-btn: 3px 3px 0px #000000;
+  --accent-secondary: #75acb7;
+  --accent-secondary-text: #141c24;
+  --accent-warn: #cfb675;
+  --accent-success: #80b7a0;
+  --border-color: #526478;
+  --border-width: 1px;
+  --radius: 4px;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.26);
+  --shadow-btn: 0 3px 8px rgba(0, 0, 0, 0.26);
   --font-display: 'Russo One', sans-serif;
   --font-body: 'Manrope', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -59,31 +59,31 @@ html[data-theme="casino"] {
 
 /* ТЕМА 3: CYBER TERMINAL (CRT Монитор / Хакерская консоль) */
 html[data-theme="terminal"] {
-  --bg-main: #050805;
+  --bg-main: #101712;
   --bg-pattern: repeating-linear-gradient(
     0deg,
-    rgba(32, 255, 102, 0.03) 0px,
-    rgba(32, 255, 102, 0.03) 1px,
+    rgba(135, 177, 146, 0.025) 0px,
+    rgba(135, 177, 146, 0.025) 1px,
     transparent 1px,
-    transparent 4px
+    transparent 5px
   );
-  --bg-pattern-size: 100% 4px;
-  --bg-card: #091009;
-  --bg-elevated: #0f1c0f;
-  --bg-strip: #142e18;
-  --text-strip: #26ff6a;
-  --text-main: #26ff6a;
-  --text-muted: #1b8c42;
-  --accent-primary: #26ff6a;
-  --accent-primary-text: #040804;
-  --accent-secondary: #ffb000;
-  --accent-secondary-text: #040804;
-  --accent-warn: #ffb000;
-  --accent-success: #26ff6a;
-  --border-color: #1f9e49;
+  --bg-pattern-size: 100% 5px;
+  --bg-card: #152119;
+  --bg-elevated: #1c2c22;
+  --bg-strip: #22372a;
+  --text-strip: #b0d3b9;
+  --text-main: #a9cdb4;
+  --text-muted: #789e84;
+  --accent-primary: #86b995;
+  --accent-primary-text: #0f1b13;
+  --accent-secondary: #bc9c73;
+  --accent-secondary-text: #171b13;
+  --accent-warn: #c3a37a;
+  --accent-success: #80b28e;
+  --border-color: #40684d;
   --border-width: 1px;
-  --radius: 0px;
-  --shadow: 0 0 0 1px rgba(38, 255, 106, 0.15);
+  --radius: 2px;
+  --shadow: 0 0 0 1px rgba(112, 167, 126, 0.11);
   --shadow-btn: none;
   --font-display: 'JetBrains Mono', monospace;
   --font-body: 'JetBrains Mono', monospace;
@@ -92,26 +92,26 @@ html[data-theme="terminal"] {
 
 /* ТЕМА 4: MANGA PAPER (Светлая — Бумага, тушь и киноварь) */
 html[data-theme="paper"] {
-  --bg-main: #efe9dc;
-  --bg-pattern: radial-gradient(#d0c7b4 1.5px, transparent 1.5px);
-  --bg-pattern-size: 18px 18px;
-  --bg-card: #faf7f0;
-  --bg-elevated: #ece5d5;
-  --bg-strip: #18181b;
-  --text-strip: #faf7f0;
-  --text-main: #18181b;
-  --text-muted: #5c5852;
-  --accent-primary: #d9381e;
+  --bg-main: #e9e4db;
+  --bg-pattern: radial-gradient(rgba(118, 109, 99, 0.14) 1px, transparent 1px);
+  --bg-pattern-size: 21px 21px;
+  --bg-card: #f4f1eb;
+  --bg-elevated: #e8e2d8;
+  --bg-strip: #484540;
+  --text-strip: #fbf9f5;
+  --text-main: #302f2d;
+  --text-muted: #746f69;
+  --accent-primary: #b35f56;
   --accent-primary-text: #ffffff;
-  --accent-secondary: #18181b;
+  --accent-secondary: #626c77;
   --accent-secondary-text: #ffffff;
-  --accent-warn: #d97706;
-  --accent-success: #15803d;
-  --border-color: #18181b;
-  --border-width: 2px;
-  --radius: 2px;
-  --shadow: 4px 4px 0px #18181b;
-  --shadow-btn: 3px 3px 0px #18181b;
+  --accent-warn: #b68d58;
+  --accent-success: #648b71;
+  --border-color: #9a9287;
+  --border-width: 1px;
+  --radius: 4px;
+  --shadow: 0 6px 16px rgba(65, 57, 47, 0.13);
+  --shadow-btn: 0 2px 6px rgba(65, 57, 47, 0.17);
   --font-display: 'Russo One', sans-serif;
   --font-body: 'Manrope', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -699,6 +699,32 @@ body {
   width: calc(100% + 36px);
 }
 
+.wheel-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wheel-focus-button {
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  background: rgba(127, 127, 127, 0.11);
+  color: inherit;
+  padding: 5px 9px;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wheel-focus-button:hover,
+.wheel-focus-button:focus-visible {
+  background: rgba(127, 127, 127, 0.25);
+  outline-offset: 3px;
+}
+
 .wheel-stage {
   position: relative;
   width: 100%;
@@ -708,15 +734,19 @@ body {
   justify-content: center;
   align-items: center;
   margin: 10px 0 16px 0;
+  isolation: isolate;
 }
 
 #wheel-canvas {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: block;
+  cursor: help;
 }
 
-/* Указатель справа (на 0 радиан / 3 часа) */
+/* Указатель справа (на 0 радиан / 3 часа): остриё направлено ВЛЕВО, к колесу. */
 .wheel-pointer {
   position: absolute;
   right: -6px;
@@ -727,9 +757,168 @@ body {
   border-top: 18px solid transparent;
   border-bottom: 18px solid transparent;
   border-right: 34px solid var(--accent-primary);
-  filter: drop-shadow(-3px 3px 0px #000);
+  filter: drop-shadow(-3px 3px 0px rgba(0, 0, 0, 0.8));
   z-index: 10;
-  transform: translateY(-50%) rotate(180deg);
+  pointer-events: none;
+}
+
+/* Дополнительные эффекты живут исключительно в браузере и не влияют на результат вращения. */
+.wheel-stage::before {
+  content: '';
+  position: absolute;
+  inset: -2%;
+  border-radius: 50%;
+  border: 3px dashed var(--accent-secondary);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wheel-stage.is-spinning::before {
+  opacity: 0.62;
+  animation: wheel-orbit 2.1s linear infinite;
+}
+
+.wheel-stage.is-spinning #wheel-canvas {
+  animation: wheel-glow 0.85s ease-in-out infinite alternate;
+}
+
+.wheel-stage.spin-finished #wheel-canvas {
+  animation: wheel-result-pulse 0.85s ease-out;
+}
+
+@keyframes wheel-orbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes wheel-glow {
+  from { filter: drop-shadow(0 0 3px var(--accent-primary)); }
+  to { filter: drop-shadow(0 0 18px var(--accent-secondary)); }
+}
+
+@keyframes wheel-result-pulse {
+  0% { filter: drop-shadow(0 0 0 transparent); }
+  40% { filter: drop-shadow(0 0 27px var(--accent-warn)); }
+  100% { filter: drop-shadow(0 0 0 transparent); }
+}
+
+.wheel-slice-tooltip {
+  position: absolute;
+  z-index: 12;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  max-width: min(310px, calc(100vw - 48px));
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.wheel-legend-wrap {
+  width: 100%;
+  margin-top: 14px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.wheel-legend-title {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.4px;
+  margin-bottom: 9px;
+  color: var(--text-muted);
+}
+
+.wheel-legend {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.wheel-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 8px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  font-size: 0.84rem;
+}
+
+.wheel-legend-swatch {
+  flex: 0 0 19px;
+  width: 19px;
+  height: 19px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+
+.wheel-legend-text { min-width: 0; overflow-wrap: anywhere; }
+.wheel-legend-name { font-weight: 800; }
+.wheel-legend-stats { font-size: 0.76rem; color: var(--text-muted); }
+
+/* Увеличение колеса не требует перерисовки страницы или изменения игровой логики. */
+.wheel-focus-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.83);
+  backdrop-filter: blur(5px);
+}
+
+body.wheel-focus-open { overflow: hidden; }
+
+.wheel-card.is-focused {
+  position: fixed;
+  inset: 12px;
+  z-index: 100;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 18px;
+  align-items: center;
+  box-shadow: 0 14px 65px rgba(0, 0, 0, 0.45);
+}
+
+.wheel-card.is-focused .wheel-stage {
+  flex: 0 0 auto;
+  width: min(100%, calc(100dvh - 245px), 900px);
+  max-width: none;
+  min-width: 0;
+}
+
+.wheel-card.is-focused .wheel-status,
+.wheel-card.is-focused .wheel-controls,
+.wheel-card.is-focused .wheel-legend-wrap {
+  width: min(100%, 900px);
+}
+
+.wheel-card.is-focused .wheel-legend {
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  max-height: 220px;
+}
+
+@media (max-width: 540px) {
+  .wheel-header-actions { gap: 6px; }
+  .wheel-focus-button { padding: 4px 6px; font-size: 0.72rem; }
+  .wheel-card.is-focused { inset: 5px; padding: 12px; }
+  .wheel-card.is-focused .card-header-strip { width: calc(100% + 24px); margin: -12px -12px 12px; }
+  .wheel-card.is-focused .wheel-stage { width: min(100%, calc(100dvh - 200px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel-stage.is-spinning::before,
+  .wheel-stage.is-spinning #wheel-canvas,
+  .wheel-stage.spin-finished #wheel-canvas { animation: none; }
 }
 
 .wheel-status {

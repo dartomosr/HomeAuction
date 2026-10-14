@@ -225,12 +225,19 @@
           <div class="card wheel-card">
             <div class="card-header-strip">
               <span>КОЛЕСО НА ВЫБЫВАНИЕ</span>
-              <span id="alive-counter">Осталось: 0</span>
+              <div class="wheel-header-actions">
+                <span id="alive-counter">Осталось: 0</span>
+                <button type="button" id="btn-wheel-focus" class="wheel-focus-button"
+                        aria-label="Увеличить колесо" aria-pressed="false" title="Развернуть колесо на весь экран">
+                  ⛶ Развернуть
+                </button>
+              </div>
             </div>
 
-            <div class="wheel-stage">
-              <div class="wheel-pointer" title="Сектор под указателем выбывает"></div>
-              <canvas id="wheel-canvas" width="540" height="540"></canvas>
+            <div id="wheel-stage" class="wheel-stage">
+              <div id="wheel-pointer" class="wheel-pointer" title="Сектор под указателем выбывает"></div>
+              <canvas id="wheel-canvas" width="540" height="540" aria-label="Колесо вариантов. Полные названия показаны под колесом."></canvas>
+              <div id="wheel-slice-tooltip" class="wheel-slice-tooltip hidden" role="tooltip"></div>
             </div>
 
             <div id="wheel-status-box" class="wheel-status">
@@ -245,6 +252,12 @@
               <button type="button" id="btn-auto-spin" class="btn btn-outline">
                 Авто-крутка до победителя
               </button>
+            </div>
+
+            <!-- Названия без обрезки, даже если сектор слишком узкий для подписи -->
+            <div class="wheel-legend-wrap">
+              <div class="wheel-legend-title">ВАРИАНТЫ НА КОЛЕСЕ</div>
+              <div id="wheel-legend" class="wheel-legend" role="list"></div>
             </div>
           </div>
 
@@ -298,6 +311,9 @@
       </section>
     </main>
   </div>
+
+  <!-- Затемнение страницы в режиме увеличенного колеса -->
+  <div id="wheel-focus-backdrop" class="wheel-focus-backdrop hidden" aria-hidden="true"></div>
 
   <!-- Всплывающие уведомления -->
   <div id="toast-container" class="toast-container"></div>
