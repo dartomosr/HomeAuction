@@ -7,7 +7,7 @@
   <!-- Шрифты под разные стили: Russo One (Аниме/Аркада), JetBrains Mono (Терминал/Цифры), Manrope (Базовый) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Manrope:wght@500;700;800&family=Russo+One&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&family=IBM+Plex+Mono:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&family=Manrope:wght@500;700;800&family=Playfair+Display:wght@600;700&family=Rubik:wght@400;500;600;700;800&family=Russo+One&family=Space+Grotesk:wght@500;700&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -27,7 +27,7 @@
         <select id="theme-select" class="input-select">
           <option value="anime">Anime Pop (Persona / Manga)</option>
           <option value="casino">Gold Noir (Закрытый клуб)</option>
-          <option value="terminal">Cyber Terminal (CRT Green)</option>
+          <option value="terminal">Cyber Terminal (Rosé Pine)</option>
           <option value="paper">Manga Paper (Бумага и тушь)</option>
           <option value="nordic">Nordic Slate (Хвойный)</option>
         </select>
@@ -36,6 +36,18 @@
       <button id="btn-sound" class="btn btn-icon" title="Вкл/Выкл звук колеса">
         Звук: ВКЛ
       </button>
+
+      <div class="animation-top-control">
+        <button id="btn-toggle-effects" type="button" class="btn btn-icon" aria-pressed="true">Эффекты: ВКЛ</button>
+        <details id="effects-settings" class="effects-settings">
+          <summary class="btn btn-icon">⚙ Анимации выбывания</summary>
+          <div class="effects-popover">
+            <strong>Случайный эффект выбывания</strong>
+            <p>Выберите, какие эффекты могут выпасть. Если всё отключено — обычное сворачивание.</p>
+            <div id="effects-checkboxes" class="effects-checkboxes"></div>
+          </div>
+        </details>
+      </div>
 
       <div id="my-profile-chip" class="profile-chip hidden">
         <span id="my-name-display">Игрок</span>
@@ -119,7 +131,7 @@
 
           <div class="form-group">
             <label for="set-spin-duration">Время прокрутки колеса (сек):</label>
-            <input type="number" id="set-spin-duration" class="input-text" min="2" max="15" step="0.5" value="5.5" />
+            <input type="number" id="set-spin-duration" class="input-text" min="2" max="500" step="0.5" value="5.5" />
           </div>
 
           <div class="form-group checkbox-group">
@@ -140,7 +152,10 @@
               Сбросить в пул (оставить лоты)
             </button>
             <button type="button" id="btn-reset-clear" class="btn btn-danger btn-sm">
-              Полный сброс (очистить всё)
+              Очистить лоты и ставки
+            </button>
+            <button type="button" id="btn-reset-hard" class="btn btn-danger btn-sm">
+              Полный сброс комнаты (включая игроков и настройки)
             </button>
           </div>
         </form>
@@ -228,8 +243,8 @@
               <div class="wheel-header-actions">
                 <span id="alive-counter">Осталось: 0</span>
                 <button type="button" id="btn-wheel-focus" class="wheel-focus-button"
-                        aria-label="Увеличить колесо" aria-pressed="false" title="Развернуть колесо на весь экран">
-                  ⛶ Развернуть
+                        aria-label="Уменьшить колесо" aria-pressed="true" title="Переключить размер колеса (без скрытия интерфейса)">
+                  ↙ Свернуть
                 </button>
               </div>
             </div>
@@ -237,6 +252,7 @@
             <div id="wheel-stage" class="wheel-stage">
               <div id="wheel-pointer" class="wheel-pointer" title="Сектор под указателем выбывает"></div>
               <canvas id="wheel-canvas" width="540" height="540" aria-label="Колесо вариантов. Полные названия показаны под колесом."></canvas>
+              <canvas id="wheel-particles" width="540" height="540" aria-hidden="true"></canvas>
               <div id="wheel-slice-tooltip" class="wheel-slice-tooltip hidden" role="tooltip"></div>
             </div>
 
@@ -312,8 +328,8 @@
     </main>
   </div>
 
-  <!-- Затемнение страницы в режиме увеличенного колеса -->
-  <div id="wheel-focus-backdrop" class="wheel-focus-backdrop hidden" aria-hidden="true"></div>
+  <!-- Плашка выбывшего варианта, не перехватывает управление игрой -->
+  <div id="elimination-fx-layer" class="elimination-fx-layer" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Всплывающие уведомления -->
   <div id="toast-container" class="toast-container"></div>

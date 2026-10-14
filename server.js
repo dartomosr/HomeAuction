@@ -10,16 +10,16 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Начальные настройки используются в том числе для полного сброса комнаты.
+const DEFAULT_SETTINGS = Object.freeze({ maxPoints: 100, maxItems: 3, keepZeroItems: false,
+  zeroItemWeight: 0.5, spinDuration: 5.5 });
+let pendingSpinTimer = null;
+let spinGeneration = 0;
+
 // Состояние аукциона в оперативной памяти
 const state = {
   phase: 'POOL', // 'POOL' (добавление и тайные ставки) | 'REVEAL' (колесо) | 'FINISHED' (финал)
-  settings: {
-    maxPoints: 100,       // N очков каждому участнику
-    maxItems: 3,          // N вариантов от каждого участника
-    keepZeroItems: false, // Оставлять ли варианты с 0 очков на колесе
-    zeroItemWeight: 0.5,  // Базовый вес для вариантов с 0 очков
-    spinDuration: 5.5     // Длительность прокрутки колеса (сек)
-  },
+  settings: { ...DEFAULT_SETTINGS },
   hostToken: null,
   players: new Map(), // token -> { token, socketId, name, isHost, ready, online }
   items: [],          // { id, title, createdByToken, allocations: { [token]: pts }, eliminated: false, mergedInto: null }
@@ -253,7 +253,7 @@ io.on('connection', (socket) => {
     const maxItems = Math.max(1, Math.min(50, parseInt(newSettings.maxItems, 10) || 3));
     const keepZeroItems = Boolean(newSettings.keepZeroItems);
     const zeroItemWeight = Math.max(0.01, Math.min(100, parseFloat(newSettings.zeroItemWeight) || 0.5));
-    const spinDuration = Math.max(2, Math.min(100, parseFloat(newSettings.spinDuration) || 5.5));
+    const spinDuration = Math.max(2, Math.min(500, parseFloat(newSettings.spinDuration) || 5.5));
 
     // Если уменьшили лимит очков, сбросим ставки тем, кто превысил новый лимит
     if (state.phase === 'POOL' && maxPoints < state.settings.maxPoints) {
@@ -431,7 +431,8 @@ io.on('connection', (socket) => {
     broadcastState();
 
     const durationSec = state.settings.spinDuration;
-    const extraSpins = 6 + Math.floor(Math.random() * 3); // 6–8 полных оборотов
+    // Для длинных прокруток сохраняем ощущение вращения, а не многоминутную неподвижность.
+    const extraSpins = Math.max(6, Math.round(durationSec * 0.85)) + Math.floor(Math.random() * 3);
 
     io.emit('wheel_spin', {
       slices,
@@ -442,7 +443,10 @@ io.on('connection', (socket) => {
       durationSec
     });
 
-    setTimeout(() => {
+    const thisSpin = ++spinGeneration;
+    pendingSpinTimer = setTimeout(() => {
+      if (thisSpin !== spinGeneration) return;
+      pendingSpinTimer = null;
       eliminatedItem.eliminated = true;
       state.wheel.isSpinning = false;
       state.wheel.history.push({
@@ -465,8 +469,28 @@ io.on('connection', (socket) => {
     }, durationSec * 1000 + 400);
   });
 
+  // Полная очистка комнаты без остановки Node.js / Cloudflare tunnel.
+  // Игроки выходят на экран входа; первый заново вошедший становится ведущим.
+  // Уничтожаем отложенный результат прошлой прокрутки во избежание гонок.
+  socket.on('hard_reset_auction', () => {
+    const player = state.players.get(currentToken);
+    if (!player || player.socketId !== socket.id || !player.isHost) return;
+    spinGeneration++;
+    if (pendingSpinTimer) clearTimeout(pendingSpinTimer);
+    pendingSpinTimer = null;
+    state.phase = 'POOL';
+    state.settings = { ...DEFAULT_SETTINGS };
+    state.hostToken = null;
+    state.players.clear();
+    state.items = [];
+    state.wheel = { predeterminedWinnerId: null, isSpinning: false, history: [], winner: null };
+    // Не доверяем старым токенам после полного сброса.
+    for (const sock of io.sockets.sockets.values()) sock.data.auctionToken = null;
+    io.emit('auction_hard_reset');
+  });
+
   // Сброс аукциона для новой игры Хостом
-  socket.on('reset_auction', ({ clearItems }) => {
+  socket.on('reset_auction', ({ clearItems } = {}) => {
     const player = state.players.get(currentToken);
     if (!player || !player.isHost || state.wheel.isSpinning) return;
 

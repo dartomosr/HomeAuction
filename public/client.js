@@ -4,7 +4,7 @@ const socket = io();
 const THEME_WHEEL_PALETTES = {
   anime: ['#bb6279', '#5b91a7', '#bba46e', '#846f9c', '#669b86', '#b18360', '#6e85b0', '#a66c91'],
   casino: ['#8c2d38', '#1f4e3d', '#b8922f', '#2b3a4a', '#5e232a', '#2e5948', '#967117', '#382c1e'],
-  terminal: ['#345c40', '#487656', '#294935', '#61876a', '#3c684a', '#729b7e'],
+  terminal: ['#ebbcba', '#9ccfd8', '#f6c177', '#c4a7e7', '#31748f', '#eb6f92', '#908caa', '#b9b4ce'],
   paper: ['#b96860', '#69635f', '#bb9462', '#798fa5', '#759481', '#9b7866', '#8e85a5', '#a77579'],
   nordic: ['#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb', '#a3be8c', '#ebcb8b', '#d08770', '#bf616a']
 };
@@ -16,6 +16,39 @@ let myName = localStorage.getItem('auction_name') || '';
 let soundEnabled = localStorage.getItem('auction_sound') !== 'off';
 let currentTheme = localStorage.getItem('auction_theme') || 'anime';
 let autoSpinActive = false;
+let autoSpinTimer = null;
+let activeSpinFrame = null;
+let eliminationFxTimer = null;
+const SPIN_COMMENTS = [
+  'Колесо решает судьбу лота — чьи шансы не выдержат?',
+  'Круг замыкается. Не всем суждено пройти дальше…',
+  'Ставки сделаны, исход скрыт за оборотами.',
+  'Ещё один оборот — и один участник покинет гонку.',
+  'Стрелка ищет следующего выбывшего. Напряжение растёт!',
+  'Сектора мелькают… Чья история здесь закончится?',
+  'Удача любит интригу. Колесо уже в пути!',
+  'Очки влияют на риск, но в этот момент всё решает случай.',
+  'Подождите вердикта колеса: выбор уже сделан.'
+];
+const ELIMINATION_EFFECTS = [
+  ['fold', '0 · Обычное сворачивание'],
+  ['glass', '1 · Разбитое стекло'],
+  ['blast', '2 · Взрыв'],
+  ['shot', '3 · Выстрел'],
+  ['bubble', '4 · Лопнувший пузырь'],
+  ['slash', '5 · Кривой разрез'],
+  ['glitch', '6 · Цифровой сбой'],
+  ['pixels', '7 · Пиксельный распад'],
+  ['vortex', '8 · Вихрь']
+];
+let effectsEnabled = localStorage.getItem('auction_effects_enabled') !== 'off';
+let enabledEffects;
+try {
+  const storedEffects = JSON.parse(localStorage.getItem('auction_effect_list'));
+  enabledEffects = Array.isArray(storedEffects) ? storedEffects.filter(v => ELIMINATION_EFFECTS.some(([id]) => id === v)) : ELIMINATION_EFFECTS.map(([id]) => id);
+} catch (_) {
+  enabledEffects = ELIMINATION_EFFECTS.map(([id]) => id);
+}
 
 // Состояние анимации колеса
 let wheelRotation = 0; // Текущий угол поворота в радианах
@@ -154,8 +187,15 @@ const wheelLegend = document.getElementById('wheel-legend');
 const wheelTooltip = document.getElementById('wheel-slice-tooltip');
 const wheelCard = document.querySelector('.wheel-card');
 const btnWheelFocus = document.getElementById('btn-wheel-focus');
-const wheelFocusBackdrop = document.getElementById('wheel-focus-backdrop');
+const wheelParticles = document.getElementById('wheel-particles');
+const particleCtx = wheelParticles.getContext('2d');
+const fxLayer = document.getElementById('elimination-fx-layer');
+const effectsCheckboxes = document.getElementById('effects-checkboxes');
+const effectsSettings = document.getElementById('effects-settings');
+const btnToggleEffects = document.getElementById('btn-toggle-effects');
+const btnResetHard = document.getElementById('btn-reset-hard');
 let wheelPixelRatio = 1;
+let wheelLabelFont = getComputedStyle(document.body).fontFamily;
 const motionReduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 const wheelStatusBox = document.getElementById('wheel-status-box');
 const hostWheelControls = document.getElementById('host-wheel-controls');
@@ -170,10 +210,160 @@ const btnMerge = document.getElementById('btn-merge');
 const revealItemsTbody = document.getElementById('reveal-items-tbody');
 const eliminationHistory = document.getElementById('elimination-history');
 
+// Выбор эффектов хранится только в браузере: вероятности на сервере не меняются.
+function renderEffectsControls() {
+  effectsCheckboxes.replaceChildren();
+  for (const [id, label] of ELIMINATION_EFFECTS) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'fx-checkbox-row';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = id;
+    checkbox.checked = enabledEffects.includes(id);
+    checkbox.disabled = !effectsEnabled;
+    checkbox.addEventListener('change', () => {
+      enabledEffects = checkbox.checked
+        ? [...new Set([...enabledEffects, id])]
+        : enabledEffects.filter(effect => effect !== id);
+      localStorage.setItem('auction_effect_list', JSON.stringify(enabledEffects));
+    });
+    wrapper.append(checkbox, document.createTextNode(label));
+    effectsCheckboxes.appendChild(wrapper);
+  }
+  btnToggleEffects.textContent = effectsEnabled ? '✨ Эффекты: ВКЛ' : '◌ Эффекты: ВЫКЛ';
+  btnToggleEffects.setAttribute('aria-pressed', String(effectsEnabled));
+}
+btnToggleEffects.addEventListener('click', () => {
+  effectsEnabled = !effectsEnabled;
+  localStorage.setItem('auction_effects_enabled', effectsEnabled ? 'on' : 'off');
+  renderEffectsControls();
+});
+// Не оставляем раскрытое меню поверх колеса при клике в другом месте.
+document.addEventListener('click', (event) => {
+  if (!effectsSettings.contains(event.target)) effectsSettings.open = false;
+});
+renderEffectsControls();
+
+function playFxTone(effect) {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    const now = audioCtx.currentTime;
+    if (effect === 'glass') {
+      // Тихое синтезированное «дзынь» из нескольких коротких высоких тонов.
+      [790, 1120, 1540, 2110].forEach((hz, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(hz, now + i * 0.027);
+        gain.gain.setValueAtTime(0.001, now + i * 0.027);
+        gain.gain.linearRampToValueAtTime(0.025, now + i * 0.027 + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.23 + i * 0.055);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.027); osc.stop(now + 0.25 + i * 0.055);
+      });
+    } else if (['blast', 'shot', 'bubble', 'slash'].includes(effect)) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = effect === 'shot' ? 'square' : 'triangle';
+      osc.frequency.setValueAtTime(effect === 'bubble' ? 540 : 175, now);
+      osc.frequency.exponentialRampToValueAtTime(effect === 'bubble' ? 190 : 55, now + 0.2);
+      gain.gain.setValueAtTime(0.055, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.23);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.25);
+    }
+  } catch (_) {}
+}
+
+function showEliminationEffect(title) {
+  clearTimeout(eliminationFxTimer);
+  fxLayer.replaceChildren();
+  if (motionReduced.matches) return 'fold';
+  const list = effectsEnabled ? enabledEffects : [];
+  const id = list.length ? list[Math.floor(Math.random() * list.length)] : 'fold';
+  const outer = document.createElement('div');
+  outer.className = `elim-fx fx-${id}`;
+  const label = document.createElement('div');
+  label.className = 'elim-caption';
+  label.textContent = 'ВЫБЫВАЕТ ИЗ АУКЦИОНА';
+  const plate = document.createElement('div');
+  plate.className = 'elim-plate';
+  const name = document.createElement('span');
+  name.className = 'elim-name';
+  name.textContent = title;
+  plate.appendChild(name);
+  if (id === 'slash') {
+    // Обе половинки содержат тот же текст; для экранных читалок дубли скрыты.
+    const upper = plate.cloneNode(true);
+    const lower = plate.cloneNode(true);
+    upper.classList.add('slash-upper');
+    lower.classList.add('slash-lower');
+    upper.setAttribute('aria-hidden', 'true');
+    lower.setAttribute('aria-hidden', 'true');
+    plate.replaceWith();
+    outer.append(upper, lower);
+  } else {
+    outer.appendChild(plate);
+  }
+  if (id === 'glass' || id === 'blast' || id === 'pixels' || id === 'vortex' || id === 'bubble') {
+    const count = id === 'pixels' ? 34 : id === 'glass' ? 16 : 20;
+    const burst = document.createElement('div');
+    burst.className = 'elim-burst';
+    for (let i = 0; i < count; i++) {
+      const particle = document.createElement('i');
+      particle.style.setProperty('--n', i);
+      particle.style.setProperty('--angle', `${i * 360 / count + (i % 3) * 7}deg`);
+      particle.style.setProperty('--distance', `${65 + (i * 17) % 205}px`);
+      particle.style.setProperty('--delay', `${(i % 5) * 24}ms`);
+      particle.style.setProperty('--fall-x', `${((i % 7) - 3) * 41}px`);
+      burst.appendChild(particle);
+    }
+    outer.appendChild(burst);
+  }
+  if (id === 'shot') {
+    const mark = document.createElement('div'); mark.className = 'shot-hole';
+    const droplets = document.createElement('div'); droplets.className = 'shot-droplets';
+    for (let i = 0; i < 9; i++) {
+      const drop = document.createElement('i');
+      drop.style.setProperty('--angle', `${i * 40}deg`);
+      drop.style.setProperty('--distance', `${18 + (i * 13) % 58}px`);
+      droplets.appendChild(drop);
+    }
+    outer.append(mark, droplets);
+  }
+  if (id === 'glass') {
+    const cracks = document.createElement('div');
+    cracks.className = 'glass-cracks';
+    outer.appendChild(cracks);
+  }
+  outer.prepend(label);
+  fxLayer.appendChild(outer);
+  playFxTone(id);
+  eliminationFxTimer = setTimeout(() => outer.remove(), 2500);
+  return id;
+}
+
+function resetClientVisualState() {
+  autoSpinActive = false;
+  clearTimeout(autoSpinTimer);
+  autoSpinTimer = null;
+  if (activeSpinFrame !== null) cancelAnimationFrame(activeSpinFrame);
+  activeSpinFrame = null;
+  clearTimeout(eliminationFxTimer);
+  fxLayer.replaceChildren();
+  wheelRotation = 0;
+  isAnimatingWheel = false;
+  activeSpinSlices = null;
+  wheelStage.classList.remove('is-spinning', 'spin-finished');
+  particleCtx.clearRect(0, 0, wheelParticles.width, wheelParticles.height);
+  wheelStatusBox.textContent = 'Колесо готово к новому аукциону';
+}
+
 // 5. ИНИЦИАЛИЗАЦИЯ ТЕМЫ И ЗВУКА
 function applyTheme(themeName) {
   currentTheme = themeName;
   document.documentElement.setAttribute('data-theme', themeName);
+  wheelLabelFont = getComputedStyle(document.body).fontFamily;
   localStorage.setItem('auction_theme', themeName);
   if (themeSelect.value !== themeName) themeSelect.value = themeName;
   drawWheel();
@@ -238,6 +428,18 @@ socket.on('toast_error', (msg) => {
   showToast(msg);
 });
 
+socket.on('auction_hard_reset', () => {
+  resetClientVisualState();
+  appState = null;
+  myToken = null;
+  localStorage.removeItem('auction_token');
+  screenApp.classList.add('hidden');
+  screenJoin.classList.remove('hidden');
+  myProfileChip.classList.add('hidden');
+  phaseBadge.textContent = 'КОМНАТА ОЧИЩЕНА';
+  showToast('Комната полностью очищена. Войдите заново, сервер продолжает работать.');
+});
+
 // 7. ПОЛУЧЕНИЕ ОБНОВЛЕНИЯ СОСТОЯНИЯ ОТ СЕРВЕРА
 socket.on('state_update', (state) => {
   const prevPhase = appState ? appState.phase : null;
@@ -263,9 +465,6 @@ socket.on('state_update', (state) => {
   renderSidebar(state);
   renderMainArea(state);
 
-  if (state.phase === 'POOL' && wheelCard.classList.contains('is-focused')) {
-    setWheelFocus(false);
-  }
   renderWheelLegend();
   if (!isAnimatingWheel) {
     resizeWheelCanvas();
@@ -282,11 +481,13 @@ socket.on('state_update', (state) => {
   ) {
     const aliveCount = state.items.filter((i) => !i.eliminated).length;
     if (aliveCount > 1) {
-      setTimeout(() => {
-        if (autoSpinActive && !appState.wheel.isSpinning) {
+      clearTimeout(autoSpinTimer);
+      autoSpinTimer = setTimeout(() => {
+        autoSpinTimer = null;
+        if (autoSpinActive && appState && appState.phase === 'REVEAL' && !appState.wheel.isSpinning && !isAnimatingWheel) {
           socket.emit('spin_wheel');
         }
-      }, 950);
+      }, 2400);
     } else {
       autoSpinActive = false;
     }
@@ -374,6 +575,12 @@ btnResetClear.addEventListener('click', () => {
   if (confirm('Очистить все варианты и начать с чистого листа?')) {
     autoSpinActive = false;
     socket.emit('reset_auction', { clearItems: true });
+  }
+});
+
+btnResetHard.addEventListener('click', () => {
+  if (confirm('Полностью очистить комнату, участников, ставки, лоты, историю и настройки? Все участники попадут на экран входа. Сервер и туннель останутся работать.')) {
+    socket.emit('hard_reset_auction');
   }
 });
 
@@ -631,6 +838,15 @@ function renderRevealView(state) {
       tdStatus.textContent = 'В игре';
     }
 
+    // Оттенки показывают силу поддержки и текущий риск, не заменяя точные числа.
+    const weightRate = Math.min(1, it.effectivePoints / Math.max(1, ...sortedItems.map(x => x.effectivePoints)));
+    const winRate = Math.max(0, Math.min(1, it.winProbability / 100));
+    const riskRate = Math.max(0, Math.min(1, it.roundElimShare / 100));
+    tr.style.setProperty('--weight-alpha', (0.025 + weightRate * 0.15).toFixed(3));
+    tdWinProb.classList.add('chance-cell');
+    tdWinProb.style.setProperty('--prob-alpha', (0.06 + winRate * 0.32).toFixed(3));
+    tdElimShare.classList.add('risk-cell');
+    tdElimShare.style.setProperty('--risk-alpha', (0.04 + riskRate * 0.26).toFixed(3));
     tr.append(tdTitle, tdTotal, tdMy, tdWinProb, tdElimShare, tdStatus);
     revealItemsTbody.appendChild(tr);
   });
@@ -646,6 +862,8 @@ function renderRevealView(state) {
     state.wheel.history.forEach((h) => {
       const li = document.createElement('li');
       li.textContent = `${h.title} (${h.totalPoints} очк.)`;
+      const peak = Math.max(1, ...state.wheel.history.map(item => item.totalPoints));
+      li.style.setProperty('--history-alpha', (0.055 + h.totalPoints / peak * 0.2).toFixed(3));
       eliminationHistory.appendChild(li);
     });
   }
@@ -707,7 +925,12 @@ function resizeWheelCanvas() {
     wheelCanvas.height = pixels;
     wheelPixelRatio = ratio;
   }
+  if (wheelParticles.width !== pixels || wheelParticles.height !== pixels) {
+    wheelParticles.width = pixels;
+    wheelParticles.height = pixels;
+  }
   wheelCtx.setTransform(wheelPixelRatio, 0, 0, wheelPixelRatio, 0, 0);
+  particleCtx.setTransform(wheelPixelRatio, 0, 0, wheelPixelRatio, 0, 0);
 }
 
 function getWheelGeometry() {
@@ -721,7 +944,7 @@ function getWheelGeometry() {
 // Измеряем текст на Canvas, переносим длинные названия и подрезаем лишь при
 // физической нехватке площади. Полная строка всегда доступна в легенде/подсказке.
 function fitWheelLines(text, maxWidth, maxLines, fontSize) {
-  wheelCtx.font = `800 ${fontSize}px Manrope, sans-serif`;
+  wheelCtx.font = `800 ${fontSize}px ${wheelLabelFont}`;
   const words = String(text).trim().split(/\s+/).filter(Boolean);
   const lines = [];
   let line = '';
@@ -790,7 +1013,7 @@ function drawWheelLabel(slice, index, angle, midAngle, geometry) {
   const x = (radius + 48 * scale) / 2 * (reverse ? -1 : 1);
   wheelCtx.textAlign = 'center';
   wheelCtx.textBaseline = 'middle';
-  wheelCtx.font = `800 ${chosen.fontSize}px Manrope, sans-serif`;
+  wheelCtx.font = `800 ${chosen.fontSize}px ${wheelLabelFont}`;
   wheelCtx.lineJoin = 'round';
   wheelCtx.strokeStyle = 'rgba(14, 18, 24, 0.88)';
   wheelCtx.lineWidth = Math.max(2.6 * scale, chosen.fontSize * 0.19);
@@ -872,25 +1095,21 @@ function drawWheel() {
   wheelCtx.stroke();
 }
 
+// По умолчанию большое колесо встроено в обычную страницу, с боковой панелью,
+// историями и всеми настройками. Переключатель меняет только сетку и масштаб.
 function setWheelFocus(shouldFocus) {
+  document.body.classList.toggle('wheel-layout-expanded', shouldFocus);
   wheelCard.classList.toggle('is-focused', shouldFocus);
-  wheelFocusBackdrop.classList.toggle('hidden', !shouldFocus);
-  document.body.classList.toggle('wheel-focus-open', shouldFocus);
   btnWheelFocus.setAttribute('aria-pressed', String(shouldFocus));
   btnWheelFocus.setAttribute('aria-label', shouldFocus ? 'Уменьшить колесо' : 'Увеличить колесо');
-  btnWheelFocus.title = shouldFocus ? 'Вернуться к обычному виду (Esc)' : 'Развернуть колесо на весь экран';
+  btnWheelFocus.title = shouldFocus ? 'Вернуться к компактной сетке' : 'Сделать колесо больше';
   btnWheelFocus.textContent = shouldFocus ? '↙ Свернуть' : '⛶ Развернуть';
+  localStorage.setItem('auction_wheel_expanded', shouldFocus ? 'yes' : 'no');
   wheelTooltip.classList.add('hidden');
-  resizeWheelCanvas();
-  drawWheel();
-  btnWheelFocus.focus({ preventScroll: true });
+  requestAnimationFrame(() => { resizeWheelCanvas(); if (!isAnimatingWheel) drawWheel(); });
 }
-
 btnWheelFocus.addEventListener('click', () => setWheelFocus(!wheelCard.classList.contains('is-focused')));
-wheelFocusBackdrop.addEventListener('click', () => setWheelFocus(false));
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && wheelCard.classList.contains('is-focused')) setWheelFocus(false);
-});
+setWheelFocus(localStorage.getItem('auction_wheel_expanded') !== 'no');
 
 // Показываем полные названия при наведении на сектор, без изменения игрового состояния.
 wheelCanvas.addEventListener('pointermove', (event) => {
@@ -924,6 +1143,35 @@ if (typeof ResizeObserver !== 'undefined') {
 }
 if (document.fonts) document.fonts.ready.then(drawWheel);
 
+// Canvas-партиклы фронтенда: следы, искры и орбиты поверх колеса.
+// Положение вычисляется по времени, серверная математика не затрагивается.
+function drawSpinParticles(now, progress) {
+  const { width, height, cx, cy, radius, scale } = getWheelGeometry();
+  particleCtx.clearRect(0, 0, width, height);
+  if (motionReduced.matches) return;
+  const base = now / 1000;
+  const opacity = Math.min(0.9, 0.2 + Math.sin(Math.PI * progress) * 0.55);
+  const colors = getComputedStyle(document.documentElement);
+  const main = colors.getPropertyValue('--accent-primary').trim() || '#d987a2';
+  const alt = colors.getPropertyValue('--accent-secondary').trim() || '#83bbaa';
+  for (let i = 0; i < 44; i++) {
+    const a = (i / 44) * Math.PI * 2 + base * (i % 3 === 0 ? -1.2 : 0.9);
+    const r = radius * (0.8 + Math.sin(i * 6.31 + base * 2) * 0.2);
+    const x = cx + Math.cos(a) * r;
+    const y = cy + Math.sin(a) * r;
+    const size = (i % 6 === 0 ? 3.7 : 1.9) * scale;
+    particleCtx.globalAlpha = opacity * (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(base * 3 + i)));
+    particleCtx.fillStyle = i % 3 === 0 ? main : alt;
+    particleCtx.shadowColor = particleCtx.fillStyle;
+    particleCtx.shadowBlur = 7 * scale;
+    particleCtx.beginPath();
+    particleCtx.arc(x, y, size, 0, Math.PI * 2);
+    particleCtx.fill();
+  }
+  particleCtx.shadowBlur = 0;
+  particleCtx.globalAlpha = 1;
+}
+
 // Событие синхронного запуска колеса от сервера
 socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, durationSec }) => {
   initAudio();
@@ -933,7 +1181,10 @@ socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, 
   wheelStage.classList.remove('spin-finished');
   wheelStage.classList.add('is-spinning');
   renderWheelLegend(slices);
-  wheelStatusBox.textContent = 'Колесо крутится... Кто покинет аукцион?';
+  wheelStatusBox.textContent = SPIN_COMMENTS[Math.floor(Math.random() * SPIN_COMMENTS.length)];
+  if (activeSpinFrame !== null) cancelAnimationFrame(activeSpinFrame);
+  clearTimeout(autoSpinTimer);
+  autoSpinTimer = null;
 
   const twoPi = Math.PI * 2;
   const startRotation = wheelRotation % twoPi;
@@ -967,17 +1218,33 @@ socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, 
 
   let lastSliceIdx = getSliceIndexAtPointer(startRotation);
 
-  function easeOutQuart(t) {
-    return 1 - Math.pow(1 - t, 4);
+  // При длительности 500 с крутим с постоянной скоростью, замедление —
+  // только в последние максимум 8 секунд (иначе easeOutQuart почти остановит
+  // колесо уже на середине длительного аукциона).
+  function easeSpin(t) {
+    const slowdown = Math.min(0.35, 8000 / durationMs);
+    const linearTime = 1 - slowdown;
+    const linearDistance = 3 * linearTime / (3 * linearTime + slowdown);
+    if (t < linearTime) return (t / linearTime) * linearDistance;
+    const stopT = (t - linearTime) / slowdown;
+    return linearDistance + (1 - linearDistance) * (1 - Math.pow(1 - stopT, 3));
   }
+  let lastCanvasFrame = -Infinity;
 
   function animateFrame(now) {
     const elapsed = now - startTime;
     const progress = Math.min(1, elapsed / durationMs);
-    const eased = easeOutQuart(progress);
+    // Для долгих сессий ограничиваем частоту тяжёлой Canvas-перерисовки.
+    if (durationMs > 30000 && now - lastCanvasFrame < 32 && progress < 1) {
+      activeSpinFrame = requestAnimationFrame(animateFrame);
+      return;
+    }
+    lastCanvasFrame = now;
+    const eased = easeSpin(progress);
 
     wheelRotation = startRotation + totalDelta * eased;
     drawWheel();
+    drawSpinParticles(now, progress);
 
     const currentSliceIdx = getSliceIndexAtPointer(wheelRotation);
     if (currentSliceIdx !== lastSliceIdx) {
@@ -993,17 +1260,19 @@ socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, 
     }
 
     if (progress < 1) {
-      requestAnimationFrame(animateFrame);
+      activeSpinFrame = requestAnimationFrame(animateFrame);
     } else {
+      activeSpinFrame = null;
+      particleCtx.clearRect(0, 0, wheelParticles.width, wheelParticles.height);
       isAnimatingWheel = false;
       activeSpinSlices = null;
       wheelStage.classList.remove('is-spinning');
       wheelStage.classList.add('spin-finished');
       renderWheelLegend();
-      playEliminatedSound();
+      if (showEliminationEffect(eliminatedTitle) === 'fold') playEliminatedSound();
       wheelStatusBox.textContent = `❌ Выбывает вариант: «${eliminatedTitle}»!`;
     }
   }
 
-  requestAnimationFrame(animateFrame);
+  activeSpinFrame = requestAnimationFrame(animateFrame);
 });
