@@ -7,7 +7,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-if not exist "node_modules\socket.io" (
+if not exist "node_modules\socket.io\package.json" (
   echo Installing project dependencies...
   call npm ci
   if errorlevel 1 (

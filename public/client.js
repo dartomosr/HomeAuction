@@ -18,7 +18,8 @@ let currentTheme = localStorage.getItem('auction_theme') || 'anime';
 let autoSpinActive = false;
 let autoSpinTimer = null;
 let activeSpinFrame = null;
-let eliminationFxTimer = null;
+let activeElimination = null;
+let lastFxType = null;
 const SPIN_COMMENTS = [
   'Колесо решает судьбу лота — чьи шансы не выдержат?',
   'Круг замыкается. Не всем суждено пройти дальше…',
@@ -189,7 +190,8 @@ const wheelCard = document.querySelector('.wheel-card');
 const btnWheelFocus = document.getElementById('btn-wheel-focus');
 const wheelParticles = document.getElementById('wheel-particles');
 const particleCtx = wheelParticles.getContext('2d');
-const fxLayer = document.getElementById('elimination-fx-layer');
+const fxCanvas = document.getElementById('wheel-fx-canvas');
+const wheelFx = new WheelSectorEffects(fxCanvas);
 const effectsCheckboxes = document.getElementById('effects-checkboxes');
 const effectsSettings = document.getElementById('effects-settings');
 const btnToggleEffects = document.getElementById('btn-toggle-effects');
@@ -244,102 +246,105 @@ document.addEventListener('click', (event) => {
 });
 renderEffectsControls();
 
+// Негромкие локальные звуки без внешних аудиофайлов. Для стекла —
+// короткий сухой треск (фильтрованный шум) и несколько высоких звонов.
 function playFxTone(effect) {
-  if (!soundEnabled || !audioCtx) return;
+  if (!soundEnabled || !audioCtx || effect === 'fold') return;
   try {
     const now = audioCtx.currentTime;
+    if (['glass', 'shot', 'blast', 'bubble', 'slash'].includes(effect)) {
+      const duration = effect === 'glass' ? .32 : effect === 'blast' ? .49 : .17;
+      const sampleRate = audioCtx.sampleRate;
+      const buffer = audioCtx.createBuffer(1, Math.ceil(sampleRate * duration), sampleRate);
+      const channel = buffer.getChannelData(0);
+      let smoothed = 0;
+      for (let i = 0; i < channel.length; i++) {
+        const t = i / sampleRate;
+        const noise = (Math.random() * 2 - 1);
+        smoothed = smoothed * .74 + noise * .26;
+        const envelope = Math.pow(1 - t / duration, effect === 'glass' ? 3.4 : 1.8);
+        channel[i] = (noise * .55 + smoothed * .45) * envelope;
+      }
+      const noiseSource = audioCtx.createBufferSource();
+      noiseSource.buffer = buffer;
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = effect === 'glass' ? 'highpass' : 'lowpass';
+      filter.frequency.value = effect === 'glass' ? 1700 : effect === 'shot' ? 1800 : 600;
+      const gain = audioCtx.createGain();
+      gain.gain.value = effect === 'glass' ? .055 : effect === 'shot' ? .075 : .065;
+      noiseSource.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+      noiseSource.start(now); noiseSource.stop(now + duration);
+    }
     if (effect === 'glass') {
-      // Тихое синтезированное «дзынь» из нескольких коротких высоких тонов.
-      [790, 1120, 1540, 2110].forEach((hz, i) => {
+      [830, 1230, 1910, 2560].forEach((frequency, i) => {
+        const start = now + i * .024;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(hz, now + i * 0.027);
-        gain.gain.setValueAtTime(0.001, now + i * 0.027);
-        gain.gain.linearRampToValueAtTime(0.025, now + i * 0.027 + 0.008);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.23 + i * 0.055);
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+        gain.gain.setValueAtTime(.018, start);
+        gain.gain.exponentialRampToValueAtTime(.0001, start + .19 + i * .04);
         osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(now + i * 0.027); osc.stop(now + 0.25 + i * 0.055);
+        osc.start(start); osc.stop(start + .23 + i * .04);
       });
-    } else if (['blast', 'shot', 'bubble', 'slash'].includes(effect)) {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = effect === 'shot' ? 'square' : 'triangle';
-      osc.frequency.setValueAtTime(effect === 'bubble' ? 540 : 175, now);
-      osc.frequency.exponentialRampToValueAtTime(effect === 'bubble' ? 190 : 55, now + 0.2);
-      gain.gain.setValueAtTime(0.055, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.23);
-      osc.connect(gain); gain.connect(audioCtx.destination);
-      osc.start(now); osc.stop(now + 0.25);
     }
   } catch (_) {}
 }
 
-function showEliminationEffect(title) {
-  clearTimeout(eliminationFxTimer);
-  fxLayer.replaceChildren();
+// Сектор разрушается именно на Canvas колеса. Нет ни всплывающих окон,
+// ни дубля названия поверх страницы. Цвет/текст превращаются в части сектора.
+function showEliminationEffect(title, eliminatedId, slices, fxSeed) {
+  wheelFx.cancel();
+  activeElimination = null;
   if (motionReduced.matches) return 'fold';
+  const index = slices.findIndex(s => s.id === eliminatedId) >= 0
+    ? slices.findIndex(s => s.id === eliminatedId)
+    : slices.findIndex(s => s.title === title);
+  if (index < 0) return 'fold';
+
   const list = effectsEnabled ? enabledEffects : [];
-  const id = list.length ? list[Math.floor(Math.random() * list.length)] : 'fold';
-  const outer = document.createElement('div');
-  outer.className = `elim-fx fx-${id}`;
-  const label = document.createElement('div');
-  label.className = 'elim-caption';
-  label.textContent = 'ВЫБЫВАЕТ ИЗ АУКЦИОНА';
-  const plate = document.createElement('div');
-  plate.className = 'elim-plate';
-  const name = document.createElement('span');
-  name.className = 'elim-name';
-  name.textContent = title;
-  plate.appendChild(name);
-  if (id === 'slash') {
-    // Обе половинки содержат тот же текст; для экранных читалок дубли скрыты.
-    const upper = plate.cloneNode(true);
-    const lower = plate.cloneNode(true);
-    upper.classList.add('slash-upper');
-    lower.classList.add('slash-lower');
-    upper.setAttribute('aria-hidden', 'true');
-    lower.setAttribute('aria-hidden', 'true');
-    plate.replaceWith();
-    outer.append(upper, lower);
-  } else {
-    outer.appendChild(plate);
+  // Результат случайный, но воспроизводимый на клиентах с одинаковыми галочками.
+  const id = list.length ? list[(fxSeed >>> 0) % list.length] : 'fold';
+  const geometry = getWheelGeometry();
+  if (!geometry.width || !geometry.height) return 'fold';
+  const spinSlices = slices.map(s => ({ ...s }));
+  // Сохраняем геометрию предыдущего раунда до окончания эффекта.
+  activeElimination = { index, slices: spinSlices };
+  wheelStage.classList.add('is-eliminating');
+  wheelStage.classList.remove('spin-finished');
+  lastFxType = id;
+  try {
+    wheelFx.start({
+      wheelCanvas, geometry, index, slices: spinSlices, rotation: wheelRotation,
+      kind: id, seed: fxSeed, duration: id === 'shot' ? 3100 : id === 'glass' ? 2900 : 2450,
+      onComplete: () => {
+        activeElimination = null;
+        wheelStage.classList.remove('is-eliminating');
+        drawWheel();
+        renderWheelLegend();
+        // Автоматическая прокрутка начинается после эффекта, а не поверх него.
+        if (autoSpinActive && appState?.me?.isHost && appState.phase === 'REVEAL' &&
+            !appState.wheel.isSpinning && appState.items.filter(i => !i.eliminated).length > 1) {
+          clearTimeout(autoSpinTimer);
+          autoSpinTimer = setTimeout(() => {
+            autoSpinTimer = null;
+            if (autoSpinActive && !isAnimatingWheel && !activeElimination &&
+                appState?.phase === 'REVEAL' && !appState.wheel.isSpinning) socket.emit('spin_wheel');
+          }, 650);
+        }
+        if (appState) renderMainArea(appState);
+      }
+    });
+    drawWheel();
+    playFxTone(id);
+  } catch (err) {
+    console.error('Ошибка эффекта сектора', err);
+    wheelFx.cancel();
+    activeElimination = null;
+    wheelStage.classList.remove('is-eliminating');
+    drawWheel();
+    return 'fold';
   }
-  if (id === 'glass' || id === 'blast' || id === 'pixels' || id === 'vortex' || id === 'bubble') {
-    const count = id === 'pixels' ? 34 : id === 'glass' ? 16 : 20;
-    const burst = document.createElement('div');
-    burst.className = 'elim-burst';
-    for (let i = 0; i < count; i++) {
-      const particle = document.createElement('i');
-      particle.style.setProperty('--n', i);
-      particle.style.setProperty('--angle', `${i * 360 / count + (i % 3) * 7}deg`);
-      particle.style.setProperty('--distance', `${65 + (i * 17) % 205}px`);
-      particle.style.setProperty('--delay', `${(i % 5) * 24}ms`);
-      particle.style.setProperty('--fall-x', `${((i % 7) - 3) * 41}px`);
-      burst.appendChild(particle);
-    }
-    outer.appendChild(burst);
-  }
-  if (id === 'shot') {
-    const mark = document.createElement('div'); mark.className = 'shot-hole';
-    const droplets = document.createElement('div'); droplets.className = 'shot-droplets';
-    for (let i = 0; i < 9; i++) {
-      const drop = document.createElement('i');
-      drop.style.setProperty('--angle', `${i * 40}deg`);
-      drop.style.setProperty('--distance', `${18 + (i * 13) % 58}px`);
-      droplets.appendChild(drop);
-    }
-    outer.append(mark, droplets);
-  }
-  if (id === 'glass') {
-    const cracks = document.createElement('div');
-    cracks.className = 'glass-cracks';
-    outer.appendChild(cracks);
-  }
-  outer.prepend(label);
-  fxLayer.appendChild(outer);
-  playFxTone(id);
-  eliminationFxTimer = setTimeout(() => outer.remove(), 2500);
   return id;
 }
 
@@ -349,12 +354,13 @@ function resetClientVisualState() {
   autoSpinTimer = null;
   if (activeSpinFrame !== null) cancelAnimationFrame(activeSpinFrame);
   activeSpinFrame = null;
-  clearTimeout(eliminationFxTimer);
-  fxLayer.replaceChildren();
+  wheelFx.cancel();
+  activeElimination = null;
+  wheelStage.classList.remove('is-eliminating');
   wheelRotation = 0;
   isAnimatingWheel = false;
   activeSpinSlices = null;
-  wheelStage.classList.remove('is-spinning', 'spin-finished');
+  wheelStage.classList.remove('is-spinning', 'spin-finished', 'is-eliminating');
   particleCtx.clearRect(0, 0, wheelParticles.width, wheelParticles.height);
   wheelStatusBox.textContent = 'Колесо готово к новому аукциону';
 }
@@ -465,8 +471,8 @@ socket.on('state_update', (state) => {
   renderSidebar(state);
   renderMainArea(state);
 
-  renderWheelLegend();
-  if (!isAnimatingWheel) {
+  if (!activeElimination) renderWheelLegend();
+  if (!isAnimatingWheel && !activeElimination) {
     resizeWheelCanvas();
     drawWheel();
   }
@@ -477,14 +483,14 @@ socket.on('state_update', (state) => {
     state.me.isHost &&
     state.phase === 'REVEAL' &&
     !state.wheel.isSpinning &&
-    !isAnimatingWheel
+    !isAnimatingWheel && !activeElimination
   ) {
     const aliveCount = state.items.filter((i) => !i.eliminated).length;
     if (aliveCount > 1) {
       clearTimeout(autoSpinTimer);
       autoSpinTimer = setTimeout(() => {
         autoSpinTimer = null;
-        if (autoSpinActive && appState && appState.phase === 'REVEAL' && !appState.wheel.isSpinning && !isAnimatingWheel) {
+        if (autoSpinActive && appState && appState.phase === 'REVEAL' && !appState.wheel.isSpinning && !isAnimatingWheel && !activeElimination) {
           socket.emit('spin_wheel');
         }
       }, 2400);
@@ -768,7 +774,7 @@ function renderRevealView(state) {
   // Кнопки управления колесом для Хоста
   if (state.me.isHost && state.phase === 'REVEAL') {
     hostWheelControls.classList.remove('hidden');
-    btnSpinWheel.disabled = state.wheel.isSpinning || isAnimatingWheel || aliveItems.length < 1;
+    btnSpinWheel.disabled = state.wheel.isSpinning || isAnimatingWheel || Boolean(activeElimination) || aliveItems.length < 1;
     btnAutoSpin.textContent = autoSpinActive ? 'Остановить авто-крутку' : 'Авто-крутка до победителя';
   } else {
     hostWheelControls.classList.add('hidden');
@@ -881,20 +887,21 @@ btnMerge.addEventListener('click', () => {
 
 btnSpinWheel.addEventListener('click', () => {
   initAudio();
-  socket.emit('spin_wheel');
+  if (!activeElimination) socket.emit('spin_wheel');
 });
 
 btnAutoSpin.addEventListener('click', () => {
   initAudio();
   autoSpinActive = !autoSpinActive;
   btnAutoSpin.textContent = autoSpinActive ? 'Остановить авто-крутку' : 'Авто-крутка до победителя';
-  if (autoSpinActive && appState && !appState.wheel.isSpinning && !isAnimatingWheel) {
+  if (autoSpinActive && appState && !appState.wheel.isSpinning && !isAnimatingWheel && !activeElimination) {
     socket.emit('spin_wheel');
   }
 });
 
 // 11. ОТРИСОВКА И СИНХРОННАЯ АНИМАЦИЯ КОЛЕСА НА CANVAS
 function getCurrentWheelSlices() {
+  if (activeElimination) return activeElimination.slices;
   if (isAnimatingWheel && activeSpinSlices) {
     return activeSpinSlices;
   }
@@ -918,6 +925,13 @@ function getCurrentWheelSlices() {
 function resizeWheelCanvas() {
   const side = Math.round(wheelStage.getBoundingClientRect().width);
   if (side <= 0) return;
+  // При смене размера во время эффекта старые координаты Canvas становятся
+  // некорректными: безопасно завершаем только визуализацию, не игровой раунд.
+  if (activeElimination && wheelFx.active && Math.abs(wheelFx.active.width - side) > 1) {
+    wheelFx.cancel();
+    activeElimination = null;
+    wheelStage.classList.remove('is-eliminating');
+  }
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const pixels = Math.round(side * ratio);
   if (wheelCanvas.width !== pixels || wheelCanvas.height !== pixels || wheelPixelRatio !== ratio) {
@@ -1066,6 +1080,10 @@ function drawWheel() {
   slices.forEach((slice, index) => {
     const sliceAngle = slice.share * Math.PI * 2;
     const endAngle = currentAngle + sliceAngle;
+    if (activeElimination && activeElimination.index === index) {
+      currentAngle = endAngle;
+      return;
+    }
     wheelCtx.beginPath();
     wheelCtx.moveTo(cx, cy);
     wheelCtx.arc(cx, cy, radius, currentAngle, endAngle);
@@ -1106,14 +1124,14 @@ function setWheelFocus(shouldFocus) {
   btnWheelFocus.textContent = shouldFocus ? '↙ Свернуть' : '⛶ Развернуть';
   localStorage.setItem('auction_wheel_expanded', shouldFocus ? 'yes' : 'no');
   wheelTooltip.classList.add('hidden');
-  requestAnimationFrame(() => { resizeWheelCanvas(); if (!isAnimatingWheel) drawWheel(); });
+  requestAnimationFrame(() => { resizeWheelCanvas(); if (!isAnimatingWheel && !activeElimination) drawWheel(); });
 }
 btnWheelFocus.addEventListener('click', () => setWheelFocus(!wheelCard.classList.contains('is-focused')));
 setWheelFocus(localStorage.getItem('auction_wheel_expanded') !== 'no');
 
 // Показываем полные названия при наведении на сектор, без изменения игрового состояния.
 wheelCanvas.addEventListener('pointermove', (event) => {
-  if (isAnimatingWheel) { wheelTooltip.classList.add('hidden'); return; }
+  if (isAnimatingWheel || activeElimination) { wheelTooltip.classList.add('hidden'); return; }
   const rect = wheelCanvas.getBoundingClientRect();
   const geometry = getWheelGeometry();
   const x = (event.clientX - rect.left) * geometry.width / rect.width - geometry.cx;
@@ -1137,7 +1155,7 @@ wheelCanvas.addEventListener('pointermove', (event) => {
 wheelCanvas.addEventListener('pointerleave', () => wheelTooltip.classList.add('hidden'));
 
 if (typeof ResizeObserver !== 'undefined') {
-  new ResizeObserver(() => { resizeWheelCanvas(); if (!isAnimatingWheel) drawWheel(); }).observe(wheelStage);
+  new ResizeObserver(() => { resizeWheelCanvas(); if (!isAnimatingWheel && !activeElimination) drawWheel(); }).observe(wheelStage);
 } else {
   window.addEventListener('resize', drawWheel);
 }
@@ -1173,7 +1191,7 @@ function drawSpinParticles(now, progress) {
 }
 
 // Событие синхронного запуска колеса от сервера
-socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, durationSec }) => {
+socket.on('wheel_spin', ({ slices, eliminatedId, eliminatedTitle, targetFraction, extraSpins, durationSec }) => {
   initAudio();
   isAnimatingWheel = true;
   activeSpinSlices = slices;
@@ -1182,6 +1200,7 @@ socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, 
   wheelStage.classList.add('is-spinning');
   renderWheelLegend(slices);
   wheelStatusBox.textContent = SPIN_COMMENTS[Math.floor(Math.random() * SPIN_COMMENTS.length)];
+  if (activeElimination) { wheelFx.cancel(); activeElimination = null; wheelStage.classList.remove('is-eliminating'); }
   if (activeSpinFrame !== null) cancelAnimationFrame(activeSpinFrame);
   clearTimeout(autoSpinTimer);
   autoSpinTimer = null;
@@ -1268,8 +1287,9 @@ socket.on('wheel_spin', ({ slices, eliminatedTitle, targetFraction, extraSpins, 
       activeSpinSlices = null;
       wheelStage.classList.remove('is-spinning');
       wheelStage.classList.add('spin-finished');
-      renderWheelLegend();
-      if (showEliminationEffect(eliminatedTitle) === 'fold') playEliminatedSound();
+      renderWheelLegend(slices);
+      const seed = (Math.floor(targetFraction * 0x7fffffff) ^ (eliminatedId?.length || 13) * 2654435761) >>> 0;
+      if (showEliminationEffect(eliminatedTitle, eliminatedId, slices, seed) === 'fold') playEliminatedSound();
       wheelStatusBox.textContent = `❌ Выбывает вариант: «${eliminatedTitle}»!`;
     }
   }

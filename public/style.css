@@ -1073,124 +1073,21 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
   overflow-wrap: anywhere;
 }
 
-/* Плашка выбывания. Все эффекты находятся поверх страницы и не блокируют клики. */
-.elimination-fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 120; overflow: hidden; }
-.elim-fx {
-  --fx-time: 2.2s;
-  position: absolute; left: 50%; top: 39%; transform: translate(-50%, -50%);
-  width: min(700px, calc(100vw - 30px)); height: 200px;
-  text-align: center; perspective: 1000px;
-  filter: drop-shadow(0 15px 18px rgba(0,0,0,.30));
+/* Эффекты выполняются непосредственно над сектором внутри колеса.
+   FX Canvas расположен над колесом, но под стрелкой и не закрывает интерфейс. */
+#wheel-fx-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
 }
-.elim-caption {
-  font: 800 clamp(.75rem, 2.1vw, 1rem) var(--font-display);
-  color: var(--accent-warn); letter-spacing: .09em;
-  text-shadow: 0 2px 5px var(--bg-main);
-  margin-bottom: 12px;
-  animation: elim-caption-appear .3s ease-out both;
+.wheel-stage.is-eliminating #wheel-canvas {
+  animation: none;
 }
-.elim-plate {
-  position: relative;
-  display: flex; justify-content: center; align-items: center;
-  min-height: 125px; padding: 18px 24px; width: 100%;
-  background: var(--bg-card); border: 3px solid var(--accent-primary);
-  box-shadow: 0 0 0 6px var(--bg-elevated), 0 14px 38px rgba(0,0,0,.32);
-  border-radius: var(--radius);
-  overflow-wrap: anywhere;
-  backface-visibility: hidden;
-}
-.elim-name { font: 700 clamp(1.1rem, 3.5vw, 2.4rem) var(--font-display); line-height: 1.3; max-height: 110px; overflow: hidden; }
-.elim-burst { position: absolute; inset: 55px 0 0; pointer-events: none; }
-.elim-burst i {
-  position: absolute; left: 50%; top: 40%; width: 12px; height: 12px;
-  border-radius: 3px; background: var(--accent-warn); opacity: 0;
-  transform: rotate(var(--angle));
-}
-@keyframes elim-caption-appear { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
-@keyframes fx-fold { 0%,20%{opacity:1;transform:scale(1) rotate(0)} 60%{opacity:1;transform:scaleX(.16) scaleY(.9) rotate(-6deg)} 100%{opacity:0;transform:scale(.02) rotate(-15deg)} }
-.fx-fold .elim-plate { animation: fx-fold 1.6s ease-in .35s both; }
-
-/* Стекло: ломаные трещины + осколки и падение панели вниз */
-.fx-glass .elim-plate { animation: fx-glass 2.15s cubic-bezier(.25,.3,.8,.9) .3s forwards; }
-.glass-cracks {
-  position: absolute; left: 50%; top: 48%; height: 145px; width: 180px;
-  transform: translate(-50%,-10%); opacity: 0;
-  background: repeating-conic-gradient(from 9deg at 52% 45%, transparent 0deg 27deg, rgba(245,247,255,.95) 27deg 28deg, transparent 28deg 52deg);
-  clip-path: polygon(50% 0, 98% 16%, 100% 82%, 50% 100%, 0 80%, 0 18%);
-  filter: drop-shadow(0 0 4px white);
-  animation: glass-crack-show 1.4s ease-out .35s both;
-}
-.fx-glass .elim-burst i {
-  width: 17px; height: 25px;
-  border: 1px solid rgba(255,255,255,.7);
-  background: linear-gradient(115deg, rgba(220,252,255,.7), rgba(127,186,215,.17));
-  clip-path: polygon(50% 0, 100% 100%, 0 75%);
-  animation: glass-shard 1.7s ease-in var(--delay) both;
-}
-@keyframes glass-crack-show { 0%,15%{opacity:0} 19%,65%{opacity:.95} 100%{opacity:0; transform: translate(-50%,150%)} }
-@keyframes fx-glass { 0%,20%{opacity:1; transform:translateY(0) rotate(0)} 35%{clip-path:polygon(0 0,100% 0,100% 100%,0 100%)} 100%{opacity:0;transform:translateY(110vh) rotate(17deg);clip-path:polygon(15% 0,99% 19%,76% 100%,0 78%)} }
-@keyframes glass-shard { 0%,25% { opacity:0; transform:rotate(var(--angle)) translate(0); } 32% { opacity:1; } 100% { opacity:0; transform:translateX(var(--fall-x)) translateY(calc(100vh + var(--distance))) rotate(460deg); } }
-
-/* Взрыв: яркая вспышка из центра и разноцветные искры */
-.fx-blast .elim-plate { animation: fx-blast 1.5s ease-in .35s both; }
-.fx-blast::before {
-  content:''; position:absolute; z-index:-1; left:50%; top:57%; width:160px; height:160px;
-  background: radial-gradient(circle, rgba(255,255,255,.9), rgba(255,193,96,.75) 24%, rgba(230,103,89,.5) 42%, transparent 70%);
-  transform:translate(-50%,-50%) scale(0); animation: blast-flash 1.1s ease-out .35s both;
-}
-.fx-blast .elim-burst i { background: var(--accent-primary); border-radius:50%; animation: blast-spark 1.2s ease-out calc(.4s + var(--delay)) both; }
-.fx-blast .elim-burst i:nth-child(odd) { background: var(--accent-warn); }
-@keyframes fx-blast { 0%,18%{transform:scale(1);opacity:1} 25%{transform:scale(1.12);opacity:1} 48%{transform:scale(1.7) rotate(5deg);opacity:0} 100%{opacity:0} }
-@keyframes blast-flash { 0%{opacity:0;transform:translate(-50%,-50%) scale(0)} 18%{opacity:1;transform:translate(-50%,-50%) scale(2.3)} 100%{opacity:0;transform:translate(-50%,-50%) scale(4.6)} }
-@keyframes blast-spark { 0%{opacity:0; transform:rotate(var(--angle)) translateY(0)} 15%{opacity:1} 100%{opacity:0;transform:rotate(var(--angle)) translateY(calc(var(--distance)*-1)) scale(.2)} }
-
-/* Выстрел: точка пробития + деликатные красные брызги */
-.fx-shot .elim-plate { animation: shot-plate 1.9s both; }
-.shot-hole { position:absolute; top:49%; left:54%; width:30px; height:30px; border:6px solid #902f48; border-radius:50%; background:#1d1823; box-shadow:0 0 12px #a2424a; opacity:0; animation:shot-hit .28s .38s forwards; }
-.shot-droplets { position:absolute; top:55%;left:54%; }
-.shot-droplets i { position:absolute;width:8px;height:14px;border-radius:70% 30% 50% 50%;background:#9b4558;opacity:0;animation:shot-drop 1s .42s both; }
-@keyframes shot-hit { 0%{opacity:0;transform:scale(4)} 100%{opacity:1;transform:scale(1)} }
-@keyframes shot-drop { 0%{opacity:0; transform:rotate(var(--angle)) translateY(0)} 30%{opacity:.75} 100%{opacity:0; transform:rotate(var(--angle)) translateY(calc(var(--distance)*-1))} }
-@keyframes shot-plate { 0%,20%{transform:translateX(0);opacity:1} 23%{transform:translateX(13px) rotate(2deg)} 28%{transform:translateX(-5px) rotate(-1deg)} 68%{opacity:1} 100%{opacity:0;transform:translateY(85px) rotate(-8deg)} }
-
-/* Пузырь растёт вокруг таблички и эффектно лопается. */
-.fx-bubble::before { content:''; position:absolute; left:50%;top:58%;width:140px;height:140px;border-radius:50%;border:6px solid rgba(155,210,225,.8);box-shadow:inset 0 0 28px rgba(175,230,245,.4),0 0 26px rgba(175,230,245,.3);transform:translate(-50%,-50%) scale(.3);animation:bubble-ring 1.25s .18s both; }
-.fx-bubble .elim-plate { animation:bubble-plate 1.65s .12s both; }
-.fx-bubble .elim-burst i { background:rgba(191,240,255,.9);border-radius:50%;animation:blast-spark .9s ease-out calc(.75s + var(--delay)) both; }
-@keyframes bubble-ring { 0%{opacity:0;transform:translate(-50%,-50%) scale(.3)} 35%{opacity:1} 72%{opacity:1;transform:translate(-50%,-50%) scale(2.2)} 77%{opacity:0;transform:translate(-50%,-50%) scale(2.4)} 100%{opacity:0} }
-@keyframes bubble-plate { 0%,50%{opacity:1;transform:scale(1)} 73%{opacity:1;transform:scale(1.15)} 81%{opacity:0;transform:scale(1.5)} 100%{opacity:0} }
-
-/* Кривой разрез: две части содержат одинаковый текст, но показывают
-   только непересекающиеся половины через ломаный clip-path. */
-.fx-slash .elim-plate { position:absolute; left:0; top:39px; }
-.fx-slash .slash-upper { clip-path:polygon(0 0,100% 0,100% 39%,80% 51%,62% 43%,45% 59%,27% 45%,0 54%);animation:slash-upper 1.8s ease-in .4s both; }
-.fx-slash .slash-lower { clip-path:polygon(0 54%,27% 45%,45% 59%,62% 43%,80% 51%,100% 39%,100% 100%,0 100%);animation:slash-lower 1.8s ease-in .4s both; }
-.fx-slash::after { content:'';position:absolute;left:10%;top:90px;width:80%;height:4px;background:linear-gradient(90deg,transparent,#fff,var(--accent-primary),transparent);box-shadow:0 0 13px #fff;transform:rotate(-5deg) scaleX(0);animation:slash-trail .8s ease-in .28s both; }
-@keyframes slash-upper { 0%,30%{opacity:1;transform:translate(0,0) rotate(0)} 100%{opacity:0;transform:translate(-55px,95px) rotate(-21deg)} }
-@keyframes slash-lower { 0%,30%{opacity:1;transform:translate(0,0) rotate(0)} 100%{opacity:0;transform:translate(75px,145px) rotate(11deg)} }
-@keyframes slash-trail { 0%{opacity:0;transform:rotate(-5deg) scaleX(0)} 20%{opacity:1;transform:rotate(-5deg) scaleX(1)} 100%{opacity:0;transform:rotate(-5deg) scaleX(1)} }
-
-/* Новые эффекты: терминальный сбой, растворение, вихрь. */
-.fx-glitch .elim-plate { animation:fx-glitch 1.9s steps(7,end) .25s both; }
-.fx-glitch .elim-name { text-shadow:3px 0 #e5679e,-3px 0 #75bed1; }
-@keyframes fx-glitch { 0%{opacity:1;transform:translateX(0)} 15%{transform:translateX(9px) skewX(12deg)} 30%{transform:translateX(-15px) skewX(-9deg)} 45%{clip-path:inset(15% 0 35%);transform:translateX(22px)} 60%{clip-path:inset(40% 0 18%);transform:translateX(-25px)} 75%{opacity:.7;filter:brightness(2)} 100%{opacity:0;transform:scaleX(0)} }
-.fx-pixels .elim-plate { animation:pixels-plate 1.85s steps(15,end) .3s both; }
-.fx-pixels .elim-burst i { width:8px;height:8px; background:var(--accent-secondary);border-radius:0;animation:blast-spark 1.5s ease-out calc(.42s + var(--delay)) both; }
-@keyframes pixels-plate { 0%,20%{opacity:1;filter:none} 60%{opacity:.6;filter:blur(2px);transform:translateY(-12px) scale(.9)} 100%{opacity:0;filter:blur(16px);transform:translateY(-90px) scale(.6)} }
-.fx-vortex .elim-plate { animation:fx-vortex 2s cubic-bezier(.6,0,.9,1) .25s both; }
-.fx-vortex .elim-burst i {background:var(--accent-secondary); border-radius:50%; animation:vortex-spark 1.7s ease-in var(--delay) both; }
-@keyframes vortex-spark { 0%{opacity:0;transform:rotate(var(--angle)) translateY(0)} 20%{opacity:1} 100%{opacity:0;transform:rotate(calc(var(--angle) + 840deg)) translateY(-5px) scale(.1)} }
-@keyframes fx-vortex { 0%,12%{opacity:1;transform:rotate(0) scale(1)} 100%{opacity:0;transform:rotate(880deg) scale(0)} }
-
 @media (max-width: 650px) {
   .animation-top-control { width: 100%; }
-  .effects-popover { left:0; right:auto; }
-  .elim-fx { top:45%; }
-  .elim-plate { min-height:100px; padding:12px; }
-  .elim-name { max-height:100px; }
-  .shot-droplets,.shot-hole { left:50%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .elim-fx, .elim-fx * { animation:none !important; }
-  .elimination-fx-layer { display:none; }
+  .effects-popover { left: 0; right: auto; }
 }

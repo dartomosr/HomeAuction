@@ -253,6 +253,7 @@
               <div id="wheel-pointer" class="wheel-pointer" title="Сектор под указателем выбывает"></div>
               <canvas id="wheel-canvas" width="540" height="540" aria-label="Колесо вариантов. Полные названия показаны под колесом."></canvas>
               <canvas id="wheel-particles" width="540" height="540" aria-hidden="true"></canvas>
+              <canvas id="wheel-fx-canvas" width="540" height="540" aria-hidden="true"></canvas>
               <div id="wheel-slice-tooltip" class="wheel-slice-tooltip hidden" role="tooltip"></div>
             </div>
 
@@ -328,13 +329,11 @@
     </main>
   </div>
 
-  <!-- Плашка выбывшего варианта, не перехватывает управление игрой -->
-  <div id="elimination-fx-layer" class="elimination-fx-layer" aria-live="polite" aria-atomic="true"></div>
-
   <!-- Всплывающие уведомления -->
   <div id="toast-container" class="toast-container"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="wheel-effects.js"></script>
   <script src="client.js"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@ if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   echo 'Node.js and npm are required.' >&2
   exit 1
 fi
-if [[ ! -d node_modules/socket.io ]]; then
+if [[ ! -f node_modules/socket.io/package.json ]]; then
   npm ci
 fi
 node server.js &
