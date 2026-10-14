@@ -204,7 +204,20 @@
             </div>
           </div>
 
-          <p id="pool-points-policy" class="pool-policy-note"></p>
+          <!-- Правила распределения показываются отдельными карточками,
+               так же заметно, как собственный остаток очков. -->
+          <div class="balance-boxes allocation-rules-boxes" aria-label="Правила распределения очков">
+            <div class="stat-box allocation-rule-box">
+              <span class="stat-label">НА СВОИ И ЧУЖИЕ ВАРИАНТЫ</span>
+              <div class="stat-value"><span id="pool-flexible-points">100</span> <small>очк.</small></div>
+              <span id="pool-flexible-note" class="allocation-rule-note">Все очки доступны свободно</span>
+            </div>
+            <div class="stat-box allocation-rule-box">
+              <span class="stat-label">ТОЛЬКО НА ЧУЖИЕ ВАРИАНТЫ</span>
+              <div class="stat-value"><span id="pool-foreign-points">—</span><small id="pool-foreign-unit"></small></div>
+              <span id="pool-foreign-note" class="allocation-rule-note">Ограничения отключены</span>
+            </div>
+          </div>
           <div class="pool-actions">
             <button type="button" id="btn-distribute-even" class="btn btn-outline">
               Раскидать поровну
@@ -301,11 +314,6 @@
               </button>
             </div>
 
-            <!-- Названия без обрезки, даже если сектор слишком узкий для подписи -->
-            <div class="wheel-legend-wrap">
-              <div class="wheel-legend-title">ВАРИАНТЫ НА КОЛЕСЕ</div>
-              <div id="wheel-legend" class="wheel-legend" role="list"></div>
-            </div>
           </div>
 
           <!-- Таблица результатов, вероятностей и слияния дубликатов -->
@@ -346,6 +354,12 @@
                   <tbody id="reveal-items-tbody"></tbody>
                 </table>
               </div>
+            </div>
+
+            <!-- Полные названия живых секторов — отдельная панель справа, над историей -->
+            <div class="card wheel-legend-wrap">
+              <div class="card-header-strip">ВАРИАНТЫ НА КОЛЕСЕ</div>
+              <div id="wheel-legend" class="wheel-legend" role="list"></div>
             </div>
 
             <!-- Лог выбывания -->

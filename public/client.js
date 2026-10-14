@@ -156,7 +156,11 @@ const setRestrictOwn = document.getElementById('set-restrict-own');
 const setForeignOnly = document.getElementById('set-foreign-only');
 const ownLimitGroup = document.getElementById('own-limit-group');
 const pointsSplitPreview = document.getElementById('points-split-preview');
-const poolPointsPolicy = document.getElementById('pool-points-policy');
+const poolFlexiblePoints = document.getElementById('pool-flexible-points');
+const poolFlexibleNote = document.getElementById('pool-flexible-note');
+const poolForeignPoints = document.getElementById('pool-foreign-points');
+const poolForeignUnit = document.getElementById('pool-foreign-unit');
+const poolForeignNote = document.getElementById('pool-foreign-note');
 const hostSettingsForm = document.getElementById('host-settings-form');
 const setMaxPoints = document.getElementById('set-max-points');
 const setMaxItems = document.getElementById('set-max-items');
@@ -660,9 +664,15 @@ function renderPoolView(state) {
   myItemsCountEl.textContent = state.me.myItemsCount;
   myMaxItemsEl.textContent = state.settings.maxItems;
   const reserve = state.settings.restrictOwnPoints ? state.settings.foreignOnlyPoints : 0;
-  poolPointsPolicy.textContent = reserve
-    ? `Из ${state.settings.maxPoints} очков: до ${state.settings.maxPoints - reserve} можно вложить в свои варианты, ${reserve} зарезервированы для чужих. Неиспользованные очки не обязательны к распределению.`
-    : `Без ограничений: все ${state.settings.maxPoints} очков можно вложить в любые варианты.`;
+  poolFlexiblePoints.textContent = state.settings.maxPoints - reserve;
+  poolFlexibleNote.textContent = reserve
+    ? 'Максимум, доступный для собственных лотов'
+    : 'Все очки доступны для любых ставок';
+  poolForeignPoints.textContent = reserve ? reserve : '—';
+  poolForeignUnit.textContent = reserve ? ' очк.' : '';
+  poolForeignNote.textContent = reserve
+    ? 'Резерв: можно тратить только на чужие лоты'
+    : 'Ограничения отключены';
 
   const isLocked = state.me.ready;
   inputItemTitle.disabled = isLocked || state.me.myItemsCount >= state.settings.maxItems;
@@ -714,6 +724,9 @@ function renderPoolView(state) {
       ? Math.max(0, ownLimit - (state.me.mySpentOwnPoints - item.myPoints))
       : state.settings.maxPoints;
     const maxPossibleForThisItem = Math.max(0, Math.min(item.myPoints + state.me.remainingPoints, allowedByOwnership));
+    // Шкала у КАЖДОГО ползунка всегда от 0 до N, как в предыдущей версии.
+    // Иначе изменение остатка очков меняет диапазоны других ползунков,
+    // визуально сдвигая их значения без изменения самих ставок.
 
     // Кнопки быстрого шага (-10, -1, ползунок, числовое поле, +1, +10, MAX)
     const makeStepBtn = (label, delta) => {
@@ -735,7 +748,7 @@ function renderPoolView(state) {
     slider.type = 'range';
     slider.className = 'pts-slider';
     slider.min = 0;
-    slider.max = maxPossibleForThisItem;
+    slider.max = state.settings.maxPoints;
     slider.value = item.myPoints;
     slider.disabled = isLocked;
     slider.addEventListener('input', () => {

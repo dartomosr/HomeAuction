@@ -1117,3 +1117,21 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
 
 .fx-master-row { display:flex; align-items:center; gap:8px; font-weight:800; font-size:.83rem; margin:8px 0 10px; cursor:pointer; }
 .fx-master-row input { width:16px; height:16px; accent-color:var(--accent-primary); }
+
+/* v5: правила ставок оформлены такими же карточками, как личный баланс. */
+.allocation-rules-boxes { width: 100%; }
+.allocation-rule-box { flex: 1 1 215px; min-width: min(215px, 100%); }
+.allocation-rule-box .stat-value { line-height: 1.3; }
+.allocation-rule-note { display: block; font-size: .77rem; color: var(--text-muted); line-height: 1.45; margin-top: 4px; }
+
+/* v5: список секторов находится в правом столбце между пулом и историей. */
+.reveal-side { min-width: 0; }
+.reveal-side .wheel-legend-wrap {
+  width: 100%;
+  margin-top: 0;
+  border-top: none;
+  padding-top: 18px;
+}
+.reveal-side .wheel-legend { grid-template-columns: minmax(0, 1fr); max-height: 310px; }
+body.wheel-layout-expanded .reveal-side .wheel-legend-wrap { width: 100%; }
+body.wheel-layout-expanded .reveal-side .wheel-legend { grid-template-columns: minmax(0, 1fr); max-height: 310px; }
