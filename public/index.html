@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="anime">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Аукцион на выбывание</title>
+  <!-- Шрифты под разные стили: Russo One (Аниме/Аркада), JetBrains Mono (Терминал/Цифры), Manrope (Базовый) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Manrope:wght@500;700;800&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Верхняя панель -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-box">
+        <span class="logo-tag">ROYAL</span>
+        <span class="logo-title">АУКЦИОН НА ВЫБЫВАНИЕ</span>
+      </div>
+      <span id="phase-badge" class="badge badge-phase">ОЖИДАНИЕ ВХОДА</span>
+    </div>
+
+    <div class="topbar-right">
+      <div class="theme-picker">
+        <label for="theme-select">Тема:</label>
+        <select id="theme-select" class="input-select">
+          <option value="anime">Anime Pop (Persona / Manga)</option>
+          <option value="casino">Gold Noir (Закрытый клуб)</option>
+          <option value="terminal">Cyber Terminal (CRT Green)</option>
+          <option value="paper">Manga Paper (Бумага и тушь)</option>
+          <option value="nordic">Nordic Slate (Хвойный)</option>
+        </select>
+      </div>
+
+      <button id="btn-sound" class="btn btn-icon" title="Вкл/Выкл звук колеса">
+        Звук: ВКЛ
+      </button>
+
+      <div id="my-profile-chip" class="profile-chip hidden">
+        <span id="my-name-display">Игрок</span>
+        <span id="my-host-badge" class="host-tag hidden">ХОСТ</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Экран входа -->
+  <main id="screen-join" class="join-wrapper">
+    <div class="card join-card">
+      <div class="card-header-strip">ВХОД В КОМНАТУ</div>
+      <h2>Представьтесь для участия</h2>
+      <p class="muted-text">
+        Первый вошедший участник автоматически получает права Ведущего (Хоста).
+        При перезагрузке страницы ваши очки и варианты сохраняются.
+      </p>
+      <form id="form-join" class="join-form">
+        <input
+          type="text"
+          id="input-name"
+          class="input-text"
+          placeholder="Ваш никнейм..."
+          maxlength="24"
+          required
+          autocomplete="off"
+        />
+        <button type="submit" class="btn btn-primary btn-lg">ВОЙТИ В АУКЦИОН</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Основной интерфейс аукциона -->
+  <div id="screen-app" class="app-layout hidden">
+    <!-- Левая колонка: Участники и Настройки Хоста -->
+    <aside class="sidebar">
+      <!-- Список участников -->
+      <section class="card">
+        <div class="card-header-strip">
+          <span>УЧАСТНИКИ</span>
+          <span id="ready-counter">0 / 0 готовы</span>
+        </div>
+        <ul id="players-list" class="players-list"></ul>
+        <div class="sidebar-hint">
+          Пул вариантов и ставки автоматически вскроются, когда <strong>все</strong> участники нажмут «Готов».
+        </div>
+      </section>
+
+      <!-- Панель настроек (видна только Хосту, а остальным — в режиме чтения) -->
+      <section class="card">
+        <div class="card-header-strip">
+          <span>ПРАВИЛА И НАСТРОЙКИ (N)</span>
+        </div>
+
+        <div id="settings-readonly" class="settings-summary">
+          <div class="stat-row">
+            <span>Очков у каждого (N):</span>
+            <strong id="ro-max-points">100</strong>
+          </div>
+          <div class="stat-row">
+            <span>Вариантов от игрока:</span>
+            <strong id="ro-max-items">3</strong>
+          </div>
+          <div class="stat-row">
+            <span>Варианты с 0 очков:</span>
+            <strong id="ro-keep-zero">Удаляются</strong>
+          </div>
+        </div>
+
+        <!-- Редактируемая форма только для Хоста -->
+        <form id="host-settings-form" class="host-settings hidden">
+          <div class="form-group">
+            <label for="set-max-points">Очков каждому игроку (N):</label>
+            <input type="number" id="set-max-points" class="input-text" min="1" max="100000" value="100" />
+          </div>
+
+          <div class="form-group">
+            <label for="set-max-items">Макс. вариантов от игрока (N):</label>
+            <input type="number" id="set-max-items" class="input-text" min="1" max="50" value="3" />
+          </div>
+
+          <div class="form-group">
+            <label for="set-spin-duration">Время прокрутки колеса (сек):</label>
+            <input type="number" id="set-spin-duration" class="input-text" min="2" max="15" step="0.5" value="5.5" />
+          </div>
+
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="set-keep-zero" />
+            <label for="set-keep-zero">Оставлять на колесе варианты с 0 очков</label>
+          </div>
+
+          <div id="zero-weight-group" class="form-group hidden">
+            <label for="set-zero-weight">Базовый вес для 0 очков:</label>
+            <input type="number" id="set-zero-weight" class="input-text" min="0.05" max="100" step="0.05" value="0.5" />
+          </div>
+
+          <button type="submit" class="btn btn-secondary btn-block">Применить настройки</button>
+
+          <hr class="divider" />
+          <div class="host-reset-group">
+            <button type="button" id="btn-reset-keep" class="btn btn-outline btn-sm">
+              Сбросить в пул (оставить лоты)
+            </button>
+            <button type="button" id="btn-reset-clear" class="btn btn-danger btn-sm">
+              Полный сброс (очистить всё)
+            </button>
+          </div>
+        </form>
+      </section>
+    </aside>
+
+    <!-- Правая основная рабочая зона -->
+    <main class="main-area">
+      <!-- ФАЗА 1: ТАЙНЫЙ ПУЛ И РАСПРЕДЕЛЕНИЕ ОЧКОВ -->
+      <section id="view-pool" class="phase-section">
+        <!-- Панель личного баланса и кнопки ГОТОВ -->
+        <div class="card pool-dashboard">
+          <div class="balance-boxes">
+            <div class="stat-box">
+              <span class="stat-label">МОЙ ОСТАТОК ОЧКОВ</span>
+              <div class="stat-value">
+                <span id="my-remaining-points">100</span>
+                <small>/ <span id="my-max-points">100</span></small>
+              </div>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">ДОБАВЛЕНО МНОЙ ЛОТОВ</span>
+              <div class="stat-value">
+                <span id="my-items-count">0</span>
+                <small>/ <span id="my-max-items">3</span></small>
+              </div>
+            </div>
+          </div>
+
+          <div class="pool-actions">
+            <button type="button" id="btn-distribute-even" class="btn btn-outline">
+              Раскидать поровну
+            </button>
+            <button type="button" id="btn-clear-points" class="btn btn-outline">
+              Обнулить мои ставки
+            </button>
+            <button type="button" id="btn-ready" class="btn btn-primary btn-ready">
+              Я ГОТОВ
+            </button>
+          </div>
+        </div>
+
+        <!-- Добавление нового варианта в общий список -->
+        <div class="card add-item-card">
+          <form id="form-add-item" class="add-item-form">
+            <input
+              type="text"
+              id="input-item-title"
+              class="input-text"
+              placeholder="Введите название варианта в общий анонимный пул..."
+              maxlength="80"
+              autocomplete="off"
+            />
+            <button type="submit" id="btn-add-item" class="btn btn-secondary">
+              + ДОБАВИТЬ ВАРИАНТ
+            </button>
+          </form>
+        </div>
+
+        <!-- Общий список вариантов -->
+        <div class="card">
+          <div class="card-header-strip">
+            <span>ОБЩИЙ АНОНИМНЫЙ СПИСОК ВАРИАНТОВ</span>
+            <span class="sub-hint">Чужие очки скрыты до готовности всех игроков</span>
+          </div>
+          <div id="pool-items-list" class="pool-items-grid"></div>
+        </div>
+      </section>
+
+      <!-- ФАЗА 2 И 3: ВСКРЫТИЕ ПУЛА И КОЛЕСО НА ВЫБЫВАНИЕ -->
+      <section id="view-reveal" class="phase-section hidden">
+        <!-- Баннер финального победителя -->
+        <div id="winner-banner" class="card winner-banner hidden">
+          <div class="winner-tag">ПОСЛЕДНИЙ ВЫЖИВШИЙ — ПОБЕДИТЕЛЬ АУКЦИОНА!</div>
+          <h1 id="winner-title">Название победителя</h1>
+          <p id="winner-points">Суммарная поддержка: 0 очков</p>
+        </div>
+
+        <div class="reveal-grid">
+          <!-- Блок с Колесом на выбывание -->
+          <div class="card wheel-card">
+            <div class="card-header-strip">
+              <span>КОЛЕСО НА ВЫБЫВАНИЕ</span>
+              <span id="alive-counter">Осталось: 0</span>
+            </div>
+
+            <div class="wheel-stage">
+              <div class="wheel-pointer" title="Сектор под указателем выбывает"></div>
+              <canvas id="wheel-canvas" width="540" height="540"></canvas>
+            </div>
+
+            <div id="wheel-status-box" class="wheel-status">
+              Чем больше у варианта очков, тем уже его сектор вылета на колесе!
+            </div>
+
+            <!-- Кнопки вращения (только для Хоста) -->
+            <div id="host-wheel-controls" class="wheel-controls hidden">
+              <button type="button" id="btn-spin-wheel" class="btn btn-primary btn-lg">
+                КРУТИТЬ НА ВЫБЫВАНИЕ
+              </button>
+              <button type="button" id="btn-auto-spin" class="btn btn-outline">
+                Авто-крутка до победителя
+              </button>
+            </div>
+          </div>
+
+          <!-- Таблица результатов, вероятностей и слияния дубликатов -->
+          <div class="reveal-side">
+            <!-- Инструмент объединения дубликатов (только для Хоста до первого вращения) -->
+            <div id="host-merge-card" class="card merge-card hidden">
+              <div class="card-header-strip">ОБЪЕДИНЕНИЕ ДУБЛИКАТОВ (ХОСТ)</div>
+              <p class="muted-text small-text">
+                Если игроки добавили одинаковые по смыслу варианты, объедините их перед стартом колеса — очки сложатся.
+              </p>
+              <div class="merge-controls">
+                <select id="merge-source" class="input-select"></select>
+                <span class="merge-arrow">➔ влить в ➔</span>
+                <select id="merge-target" class="input-select"></select>
+                <button type="button" id="btn-merge" class="btn btn-secondary btn-sm">
+                  Объединить
+                </button>
+              </div>
+            </div>
+
+            <!-- Сводная таблица открытого пула -->
+            <div class="card">
+              <div class="card-header-strip">
+                <span>ОТКРЫТЫЙ ПУЛ И ТОЧНЫЕ ВЕРОЯТНОСТИ</span>
+              </div>
+              <div class="table-scroll">
+                <table class="reveal-table">
+                  <thead>
+                    <tr>
+                      <th>Вариант</th>
+                      <th>Всего очков</th>
+                      <th>Мои</th>
+                      <th title="Итоговая математическая вероятность стать последним выжившим">Шанс победы</th>
+                      <th title="Размер сектора выбывания в текущем раунде">Риск вылета</th>
+                      <th>Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reveal-items-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Лог выбывания -->
+            <div class="card">
+              <div class="card-header-strip">ИСТОРИЯ ВЫБЫВАНИЯ</div>
+              <ol id="elimination-history" class="history-list"></ol>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Всплывающие уведомления -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>

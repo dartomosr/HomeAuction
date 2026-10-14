@@ -1,0 +1,837 @@
+/* =========================================================
+   1. ПЕРЕМЕННЫЕ ТЕМ (5 НЕЗАВИСИМЫХ СТИЛЕЙ)
+   ========================================================= */
+
+/* ТЕМА 1: ANIME POP (Persona / Manga / Arcade) — по умолчанию */
+:root,
+html[data-theme="anime"] {
+  --bg-main: #0f111a;
+  --bg-pattern: radial-gradient(#25293e 1.5px, transparent 1.5px);
+  --bg-pattern-size: 16px 16px;
+  --bg-card: #181b28;
+  --bg-elevated: #222738;
+  --bg-strip: #ff2a5f;
+  --text-strip: #ffffff;
+  --text-main: #f7f8fc;
+  --text-muted: #9aa3bf;
+  --accent-primary: #ff2a5f;
+  --accent-primary-text: #ffffff;
+  --accent-secondary: #00e5ff;
+  --accent-secondary-text: #0a0c12;
+  --accent-warn: #ffe600;
+  --accent-success: #00f59b;
+  --border-color: #00e5ff;
+  --border-width: 2px;
+  --radius: 2px;
+  --shadow: 5px 5px 0px #000000;
+  --shadow-btn: 3px 3px 0px #000000;
+  --font-display: 'Russo One', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 2: GOLD NOIR (Закрытый клуб / Классический аукцион) */
+html[data-theme="casino"] {
+  --bg-main: #0c1311;
+  --bg-pattern: linear-gradient(135deg, rgba(212, 175, 55, 0.04) 25%, transparent 25%);
+  --bg-pattern-size: 28px 28px;
+  --bg-card: #131d1a;
+  --bg-elevated: #1b2824;
+  --bg-strip: #241c10;
+  --text-strip: #e5c158;
+  --text-main: #f2ece1;
+  --text-muted: #98a39d;
+  --accent-primary: #d4af37;
+  --accent-primary-text: #111111;
+  --accent-secondary: #8c2d38;
+  --accent-secondary-text: #ffffff;
+  --accent-warn: #e5c158;
+  --accent-success: #3ca370;
+  --border-color: #3d3522;
+  --border-width: 1px;
+  --radius: 6px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-btn: 0 2px 6px rgba(0, 0, 0, 0.4);
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 3: CYBER TERMINAL (CRT Монитор / Хакерская консоль) */
+html[data-theme="terminal"] {
+  --bg-main: #050805;
+  --bg-pattern: repeating-linear-gradient(
+    0deg,
+    rgba(32, 255, 102, 0.03) 0px,
+    rgba(32, 255, 102, 0.03) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  --bg-pattern-size: 100% 4px;
+  --bg-card: #091009;
+  --bg-elevated: #0f1c0f;
+  --bg-strip: #142e18;
+  --text-strip: #26ff6a;
+  --text-main: #26ff6a;
+  --text-muted: #1b8c42;
+  --accent-primary: #26ff6a;
+  --accent-primary-text: #040804;
+  --accent-secondary: #ffb000;
+  --accent-secondary-text: #040804;
+  --accent-warn: #ffb000;
+  --accent-success: #26ff6a;
+  --border-color: #1f9e49;
+  --border-width: 1px;
+  --radius: 0px;
+  --shadow: 0 0 0 1px rgba(38, 255, 106, 0.15);
+  --shadow-btn: none;
+  --font-display: 'JetBrains Mono', monospace;
+  --font-body: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 4: MANGA PAPER (Светлая — Бумага, тушь и киноварь) */
+html[data-theme="paper"] {
+  --bg-main: #efe9dc;
+  --bg-pattern: radial-gradient(#d0c7b4 1.5px, transparent 1.5px);
+  --bg-pattern-size: 18px 18px;
+  --bg-card: #faf7f0;
+  --bg-elevated: #ece5d5;
+  --bg-strip: #18181b;
+  --text-strip: #faf7f0;
+  --text-main: #18181b;
+  --text-muted: #5c5852;
+  --accent-primary: #d9381e;
+  --accent-primary-text: #ffffff;
+  --accent-secondary: #18181b;
+  --accent-secondary-text: #ffffff;
+  --accent-warn: #d97706;
+  --accent-success: #15803d;
+  --border-color: #18181b;
+  --border-width: 2px;
+  --radius: 2px;
+  --shadow: 4px 4px 0px #18181b;
+  --shadow-btn: 3px 3px 0px #18181b;
+  --font-display: 'Russo One', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 5: NORDIC SLATE (Спокойная хвойно-сланцевая) */
+html[data-theme="nordic"] {
+  --bg-main: #14191f;
+  --bg-pattern: none;
+  --bg-pattern-size: auto;
+  --bg-card: #1c232b;
+  --bg-elevated: #252f3a;
+  --bg-strip: #252f3a;
+  --text-strip: #a3be8c;
+  --text-main: #e5e9f0;
+  --text-muted: #8896a8;
+  --accent-primary: #88c0d0;
+  --accent-primary-text: #14191f;
+  --accent-secondary: #a3be8c;
+  --accent-secondary-text: #14191f;
+  --accent-warn: #ebcb8b;
+  --accent-success: #a3be8c;
+  --border-color: #323f4e;
+  --border-width: 1px;
+  --radius: 8px;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  --shadow-btn: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* =========================================================
+   2. БАЗОВЫЙ СБРОС И ОБЩИЕ ЭЛЕМЕНТЫ
+   ========================================================= */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-main);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  line-height: 1.45;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.muted-text {
+  color: var(--text-muted);
+}
+
+.small-text {
+  font-size: 0.85rem;
+}
+
+/* =========================================================
+   3. ШАПКА САЙТА (TOPBAR)
+   ========================================================= */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--bg-card);
+  border-bottom: var(--border-width) solid var(--border-color);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.logo-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-tag {
+  background: var(--accent-primary);
+  color: var(--accent-primary-text);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  padding: 3px 8px;
+  letter-spacing: 1px;
+  transform: skewX(-10deg);
+  border: 1px solid var(--border-color);
+}
+
+.logo-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.5px;
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.theme-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: var(--border-width) solid var(--border-color);
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  font-weight: 700;
+}
+
+.host-tag {
+  background: var(--accent-warn);
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+/* =========================================================
+   4. КАРТОЧКИ, КНОПКИ И ПОЛЯ ВВОДА
+   ========================================================= */
+.card {
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.card-header-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-strip);
+  color: var(--text-strip);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.6px;
+  padding: 7px 12px;
+  margin: -18px -18px 16px -18px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.sub-hint {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.input-text,
+.input-select {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.input-text:focus,
+.input-select:focus {
+  border-color: var(--accent-primary);
+}
+
+.btn {
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  letter-spacing: 0.4px;
+  padding: 9px 16px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.1s ease, filter 0.15s ease;
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translate(-1px, -1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: var(--accent-primary-text);
+}
+
+.btn-secondary {
+  background: var(--accent-secondary);
+  color: var(--accent-secondary-text);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-main);
+}
+
+.btn-danger {
+  background: #c92a2a;
+  color: #ffffff;
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 1rem;
+}
+
+.btn-sm {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* =========================================================
+   5. ЭКРАН ВХОДА (JOIN SCREEN)
+   ========================================================= */
+.join-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px);
+  padding: 20px;
+}
+
+.join-card {
+  width: 100%;
+  max-width: 460px;
+}
+
+.join-card h2 {
+  font-family: var(--font-display);
+  margin-bottom: 8px;
+}
+
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+/* =========================================================
+   6. ОСНОВНАЯ СЕТКА ПРИЛОЖЕНИЯ (SIDEBAR + MAIN)
+   ========================================================= */
+.app-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 22px;
+  max-width: 1440px;
+  margin: 22px auto;
+  padding: 0 20px;
+}
+
+@media (max-width: 980px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Список участников */
+.players-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.player-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.player-item.is-offline {
+  opacity: 0.5;
+}
+
+.player-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.player-status {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+
+.status-ready {
+  background: var(--accent-success);
+  color: #000;
+}
+
+.status-wait {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.sidebar-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border-color);
+  padding-top: 10px;
+}
+
+/* Настройки Хоста */
+.settings-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.host-settings {
+  border-top: 1px dashed var(--border-color);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.checkbox-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.divider {
+  border: none;
+  border-top: 1px dashed var(--border-color);
+  margin: 8px 0;
+}
+
+.host-reset-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* =========================================================
+   7. ФАЗА 1: ТАЙНЫЙ ПУЛ И РАСПРЕДЕЛЕНИЕ ОЧКОВ
+   ========================================================= */
+.pool-dashboard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.balance-boxes {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.stat-box {
+  background: var(--bg-elevated);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  min-width: 170px;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--accent-primary);
+}
+
+.stat-value small {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.pool-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-ready.is-ready {
+  background: var(--accent-success);
+  color: #000;
+}
+
+.add-item-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .add-item-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pool-items-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pool-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+}
+
+.pool-item-card.has-my-points {
+  border-color: var(--accent-primary);
+}
+
+.pool-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.pool-item-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.pool-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pts-slider {
+  width: 130px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.pts-input {
+  width: 74px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* =========================================================
+   8. ФАЗА 2 И 3: КОЛЕСО НА ВЫБЫВАНИЕ И ТАБЛИЦА ШАНСОВ
+   ========================================================= */
+.winner-banner {
+  text-align: center;
+  background: var(--bg-elevated);
+  border: 3px solid var(--accent-warn);
+  padding: 24px;
+}
+
+.winner-tag {
+  display: inline-block;
+  background: var(--accent-warn);
+  color: #000;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  padding: 4px 12px;
+  margin-bottom: 10px;
+}
+
+.winner-banner h1 {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  color: var(--accent-primary);
+  margin-bottom: 6px;
+}
+
+.reveal-grid {
+  display: grid;
+  grid-template-columns: 580px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+@media (max-width: 1180px) {
+  .reveal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wheel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wheel-card .card-header-strip {
+  width: calc(100% + 36px);
+}
+
+.wheel-stage {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 10px 0 16px 0;
+}
+
+#wheel-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Указатель справа (на 0 радиан / 3 часа) */
+.wheel-pointer {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 18px solid transparent;
+  border-bottom: 18px solid transparent;
+  border-right: 34px solid var(--accent-primary);
+  filter: drop-shadow(-3px 3px 0px #000);
+  z-index: 10;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.wheel-status {
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+}
+
+.wheel-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Слияние дубликатов */
+.merge-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.merge-controls .input-select {
+  flex: 1;
+  min-width: 140px;
+}
+
+.merge-arrow {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent-primary);
+}
+
+/* Таблица открытого пула */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.reveal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.reveal-table th,
+.reveal-table td {
+  padding: 10px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.reveal-table th {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.reveal-table tr.is-eliminated {
+  opacity: 0.42;
+  text-decoration: line-through;
+}
+
+.reveal-table tr.is-winner {
+  background: rgba(255, 230, 0, 0.14);
+  font-weight: 800;
+}
+
+.history-list {
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+/* Уведомления (Toasts) */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 200;
+}
+
+.toast {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 2px solid var(--accent-primary);
+  box-shadow: var(--shadow);
+  padding: 12px 18px;
+  font-weight: 700;
+  border-radius: var(--radius);
+}
