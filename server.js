@@ -12,8 +12,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Начальные настройки используются в том числе для полного сброса комнаты.
 const DEFAULT_SETTINGS = Object.freeze({
-  maxPoints: 100,
-  maxItems: 3,
+  maxPoints: 50,
+  maxItems: 5,
   keepZeroItems: false,
   zeroItemWeight: 0.5,
   spinDuration: 5.5,
