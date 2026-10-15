@@ -184,6 +184,51 @@ body {
   border-color: var(--accent-primary);
 }
 
+input[type="checkbox"] {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin: 0;
+  display: inline-grid;
+  place-content: center;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: calc(var(--radius) * 0.65);
+  background: var(--bg-elevated);
+  color: var(--accent-primary-text);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="checkbox"]::before {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-1px) rotate(45deg) scale(0);
+  transition: transform 0.12s ease;
+}
+
+input[type="checkbox"]:checked {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+}
+
+input[type="checkbox"]:checked::before {
+  transform: translateY(-1px) rotate(45deg) scale(1);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent-secondary);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn {
   cursor: pointer;
   font-family: var(--font-display);
@@ -331,4 +376,3 @@ body {
 .wheel-legend::-webkit-scrollbar-thumb:hover {
   background: var(--accent-primary);
 }
-

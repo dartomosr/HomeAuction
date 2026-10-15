@@ -68,6 +68,15 @@ dom.setKeepZero.addEventListener('change', () => {
   dom.zeroWeightGroup.classList.toggle('hidden', !dom.setKeepZero.checked);
 });
 
+dom.btnToggleSettings.addEventListener('click', () => {
+  const isExpanded = dom.btnToggleSettings.getAttribute('aria-expanded') === 'true';
+  dom.btnToggleSettings.setAttribute('aria-expanded', String(!isExpanded));
+  dom.btnToggleSettings.setAttribute('aria-label', isExpanded ? 'Раскрыть настройки' : 'Свернуть настройки');
+  dom.btnToggleSettings.title = isExpanded ? 'Раскрыть настройки' : 'Свернуть настройки';
+  dom.btnToggleSettings.querySelector('span').textContent = isExpanded ? 'Раскрыть' : 'Свернуть';
+  dom.settingsContent.classList.toggle('is-collapsed', isExpanded);
+});
+
 dom.hostSettingsForm.addEventListener('submit', (e) => {
   e.preventDefault();
   socket.emit('update_settings', {
@@ -119,22 +128,6 @@ dom.btnAddFreeItem.addEventListener('click', () => {
   }
   socket.emit('add_item', { title, isFreeSlot: true });
   dom.inputItemTitle.value = '';
-});
-
-function submitHostFreeItem() {
-  const title = dom.hostFreeItemInput.value.trim();
-  if (!title) return;
-  socket.emit('add_item', { title, isFreeSlot: true });
-  dom.hostFreeItemInput.value = '';
-  showToast(`Добавлен лот вне лимита: «${title}»`);
-}
-
-dom.btnHostFreeAdd.addEventListener('click', submitHostFreeItem);
-dom.hostFreeItemInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    submitHostFreeItem();
-  }
 });
 
 // Раскидать очки поровну

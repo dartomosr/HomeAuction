@@ -308,7 +308,7 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
   border-radius: var(--radius);
 }
 .fx-checkbox-row:hover { outline: 1px solid var(--accent-secondary); }
-.fx-checkbox-row input { accent-color: var(--accent-primary); width: 16px; height: 16px; flex-shrink: 0; }
+.fx-checkbox-row input { width: 20px; height: 20px; flex-basis: 20px; }
 
 #wheel-particles {
   position: absolute; inset: 0; z-index: 3;
@@ -366,10 +366,10 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
 .pool-policy-note { margin: 7px 0 10px; }
 
 .fx-master-row { display:flex; align-items:center; gap:8px; font-weight:800; font-size:.83rem; margin:8px 0 10px; cursor:pointer; }
-.fx-master-row input { width:16px; height:16px; accent-color:var(--accent-primary); }
+.fx-master-row input { width:20px; height:20px; flex-basis:20px; }
 
-.allocation-rules-boxes { width: 100%; }
-.allocation-rule-box { flex: 1 1 215px; min-width: min(215px, 100%); }
+.allocation-rules-boxes { width: 100%; flex-wrap: nowrap; }
+.allocation-rule-box { flex: 1 1 170px; min-width: 0; }
 .allocation-rule-box .stat-value { line-height: 1.3; }
 .allocation-rule-note { display: block; font-size: .77rem; color: var(--text-muted); line-height: 1.45; margin-top: 4px; }
 
@@ -470,4 +470,3 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
     flex-shrink: 0;
   }
 }
-
