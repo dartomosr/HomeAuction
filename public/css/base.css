@@ -96,6 +96,31 @@ body {
   font-size: 0.85rem;
 }
 
+.theme-animation-control {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  font-size: 0.62rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.theme-animation-control input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+  border-radius: 3px;
+}
+
+.theme-animation-control input[type="checkbox"]::before {
+  width: 5px;
+  height: 8px;
+  border-width: 0 2px 2px 0;
+}
+
 .profile-chip {
   display: flex;
   align-items: center;

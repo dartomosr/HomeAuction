@@ -8,6 +8,7 @@ html[data-theme="anime"] {
   --bg-main: #171b26;
   --bg-pattern: radial-gradient(rgba(120, 133, 158, 0.16) 1px, transparent 1px);
   --bg-pattern-size: 18px 18px;
+  --bg-pattern-step: 18px;
   --bg-card: #202533;
   --bg-elevated: #2c3445;
   --bg-strip: #99576d;
@@ -35,6 +36,7 @@ html[data-theme="casino"] {
   --bg-main: #0c1311;
   --bg-pattern: linear-gradient(135deg, rgba(212, 175, 55, 0.04) 25%, transparent 25%);
   --bg-pattern-size: 28px 28px;
+  --bg-pattern-step: 28px;
   --bg-card: #131d1a;
   --bg-elevated: #1b2824;
   --bg-strip: #241c10;
@@ -55,6 +57,23 @@ html[data-theme="casino"] {
   --font-display: 'Playfair Display', Georgia, serif;
   --font-body: 'Manrope', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+}
+
+html[data-theme="anime"] body.has-animated-background-pattern,
+html[data-theme="casino"] body.has-animated-background-pattern {
+  animation: background-pattern-drift 12s linear infinite;
+}
+
+@keyframes background-pattern-drift {
+  from { background-position: 0 0; }
+  to { background-position: var(--bg-pattern-step) var(--bg-pattern-step); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="anime"] body.has-animated-background-pattern,
+  html[data-theme="casino"] body.has-animated-background-pattern {
+    animation: none;
+  }
 }
 
 /* ТЕМА 3: CYBER TERMINAL (Rosé Pine) */
@@ -249,4 +268,3 @@ html[data-theme="soft-moss"] {
   --font-body: 'Manrope', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
-

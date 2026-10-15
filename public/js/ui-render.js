@@ -47,6 +47,13 @@ function applyTheme(themeName) {
   if (!THEME_WHEEL_PALETTES[themeName]) themeName = 'anime';
   store.currentTheme = themeName;
   document.documentElement.setAttribute('data-theme', themeName);
+  const supportsPatternAnimation = themeName === 'anime' || themeName === 'casino';
+  dom.themeAnimationControl.classList.toggle('hidden', !supportsPatternAnimation);
+  dom.themeAnimationToggle.checked = store.themeAnimationEnabled;
+  document.body.classList.toggle(
+    'has-animated-background-pattern',
+    supportsPatternAnimation && store.themeAnimationEnabled
+  );
   store.wheelLabelFont = getComputedStyle(document.body).fontFamily;
   writeSetting('auction_theme', themeName);
   if (dom.themeSelect.value !== themeName) dom.themeSelect.value = themeName;

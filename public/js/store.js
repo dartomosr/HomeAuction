@@ -30,6 +30,7 @@ export const store = {
   myName: readSetting('auction_name', ''),
   soundEnabled: readSetting('auction_sound', 'on') !== 'off',
   currentTheme: readSetting('auction_theme', 'anime'),
+  themeAnimationEnabled: readSetting('auction_theme_animation', 'on') !== 'off',
   autoSpinActive: false,
   autoSpinTimer: null,
   activeSpinFrame: null,

@@ -2,6 +2,8 @@ import { store } from './store.js';
 
 export const dom = {
   themeSelect: document.getElementById('theme-select'),
+  themeAnimationControl: document.getElementById('theme-animation-control'),
+  themeAnimationToggle: document.getElementById('theme-animation-toggle'),
   btnSound: document.getElementById('btn-sound'),
   phaseBadge: document.getElementById('phase-badge'),
   myProfileChip: document.getElementById('my-profile-chip'),

@@ -35,6 +35,14 @@ renderEffectsControls();
 document.addEventListener('auction:theme-change', () => { drawWheel(); renderWheelLegend(); });
 applyTheme(store.currentTheme);
 dom.themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
+dom.themeAnimationToggle.addEventListener('change', () => {
+  store.themeAnimationEnabled = dom.themeAnimationToggle.checked;
+  writeSetting('auction_theme_animation', store.themeAnimationEnabled ? 'on' : 'off');
+  document.body.classList.toggle(
+    'has-animated-background-pattern',
+    store.themeAnimationEnabled && (store.currentTheme === 'anime' || store.currentTheme === 'casino')
+  );
+});
 
 updateSoundButton();
 
