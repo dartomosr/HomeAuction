@@ -1,0 +1,332 @@
+/* =========================================================
+   5. ЭКРАН ВХОДА (JOIN SCREEN)
+   ========================================================= */
+.join-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px);
+  padding: 20px;
+}
+
+.join-card {
+  width: 100%;
+  max-width: 460px;
+}
+
+.join-card h2 {
+  font-family: var(--font-display);
+  margin-bottom: 8px;
+}
+
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+/* =========================================================
+   6. ОСНОВНАЯ СЕТКА ПРИЛОЖЕНИЯ (SIDEBAR + MAIN)
+   ========================================================= */
+.app-layout {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 20px;
+  max-width: 1820px;
+  margin: 18px auto;
+  padding: 0 20px;
+}
+
+/* На этапе колеса страница НЕ прокручивается целиком — прокручиваются панели внутри */
+
+@media (max-width: 1079px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Список участников */
+.players-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.player-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+}
+
+.player-item.is-offline {
+  opacity: 0.5;
+}
+
+.player-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.player-right-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.player-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+
+.status-ready {
+  background: var(--accent-success);
+  color: #000;
+}
+
+.status-wait {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.sidebar-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border-color);
+  padding-top: 10px;
+}
+
+/* Настройки Хоста */
+.settings-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+}
+
+.host-settings {
+  border-top: 1px dashed var(--border-color);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.84rem;
+}
+
+.checkbox-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.divider {
+  border: none;
+  border-top: 1px dashed var(--border-color);
+  margin: 8px 0;
+}
+
+.host-reset-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* =========================================================
+   7. ФАЗА 1: ТАЙНЫЙ ПУЛ И РАСПРЕДЕЛЕНИЕ ОЧКОВ
+   ========================================================= */
+.pool-dashboard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.balance-boxes {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.stat-box {
+  background: var(--bg-elevated);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  min-width: 170px;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent-primary);
+}
+
+.stat-value small {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+}
+
+.pool-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-ready.is-ready {
+  background: var(--accent-success);
+  color: #000;
+}
+
+.add-item-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .add-item-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pool-items-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pool-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 13px 15px;
+  background: var(--bg-elevated);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+}
+
+.pool-item-card.has-my-points {
+  border-color: var(--accent-primary);
+}
+
+.pool-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.pool-item-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.pool-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pts-slider {
+  width: 130px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.pts-input {
+  width: 74px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   12. ЛОТЫ ВНЕ ЛИМИТА (+ ДОП) И КНОПКИ ДОБАВЛЕНИЯ
+   ========================================================= */
+.add-item-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-free-add {
+  border-style: dashed;
+  border-color: var(--accent-secondary);
+}
+
+.host-free-add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Плашка «+ ДОП» справа от названия варианта */
+.extra-lot-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--accent-secondary);
+  border: 1px dashed var(--accent-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.reveal-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

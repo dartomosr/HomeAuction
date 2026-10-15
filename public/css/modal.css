@@ -1,0 +1,113 @@
+/* =========================================================
+   9. МОДАЛЬНОЕ ОКНО ВСЕХ ДОБАВЛЕННЫХ ВАРИАНТОВ
+   ========================================================= */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.modal-window {
+  width: 100%;
+  max-width: 760px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.btn-modal-close {
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  border-color: currentColor;
+}
+
+.modal-subtitle {
+  margin-bottom: 12px;
+}
+
+.all-items-modal-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+}
+
+.all-item-row {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.all-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.all-item-title {
+  font-weight: 800;
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+
+.all-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.all-item-contributors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.contributor-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.contributor-chip.is-me {
+  border-color: var(--accent-primary);
+}
+
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 200;
+}
+
+.toast {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 2px solid var(--accent-primary);
+  box-shadow: var(--shadow);
+  padding: 12px 18px;
+  font-weight: 700;
+  border-radius: var(--radius);
+}
+

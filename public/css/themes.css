@@ -1,0 +1,252 @@
+/* =========================================================
+   1. ПЕРЕМЕННЫЕ ТЕМ (СТАНДАРТНЫЕ + МЕНЕЕ КОНТРАСТНЫЕ)
+   ========================================================= */
+
+/* ТЕМА 1: ANIME POP (Persona / Manga / Arcade) — по умолчанию */
+:root,
+html[data-theme="anime"] {
+  --bg-main: #171b26;
+  --bg-pattern: radial-gradient(rgba(120, 133, 158, 0.16) 1px, transparent 1px);
+  --bg-pattern-size: 18px 18px;
+  --bg-card: #202533;
+  --bg-elevated: #2c3445;
+  --bg-strip: #99576d;
+  --text-strip: #fff2f4;
+  --text-main: #eceef4;
+  --text-muted: #adb5c6;
+  --accent-primary: #c16b83;
+  --accent-primary-text: #ffffff;
+  --accent-secondary: #75acb7;
+  --accent-secondary-text: #141c24;
+  --accent-warn: #cfb675;
+  --accent-success: #80b7a0;
+  --border-color: #526478;
+  --border-width: 1px;
+  --radius: 4px;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.26);
+  --shadow-btn: 0 3px 8px rgba(0, 0, 0, 0.26);
+  --font-display: 'Unbounded', 'Russo One', sans-serif;
+  --font-body: 'Rubik', 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 2: GOLD NOIR (Закрытый клуб / Классический аукцион) */
+html[data-theme="casino"] {
+  --bg-main: #0c1311;
+  --bg-pattern: linear-gradient(135deg, rgba(212, 175, 55, 0.04) 25%, transparent 25%);
+  --bg-pattern-size: 28px 28px;
+  --bg-card: #131d1a;
+  --bg-elevated: #1b2824;
+  --bg-strip: #241c10;
+  --text-strip: #e5c158;
+  --text-main: #f2ece1;
+  --text-muted: #98a39d;
+  --accent-primary: #d4af37;
+  --accent-primary-text: #111111;
+  --accent-secondary: #8c2d38;
+  --accent-secondary-text: #ffffff;
+  --accent-warn: #e5c158;
+  --accent-success: #3ca370;
+  --border-color: #3d3522;
+  --border-width: 1px;
+  --radius: 6px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-btn: 0 2px 6px rgba(0, 0, 0, 0.4);
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 3: CYBER TERMINAL (Rosé Pine) */
+html[data-theme="terminal"] {
+  --bg-main: #191724;
+  --bg-pattern: repeating-linear-gradient(0deg, rgba(144,140,170,.025) 0px, rgba(144,140,170,.025) 1px, transparent 1px, transparent 6px);
+  --bg-pattern-size: 100% 6px;
+  --bg-card: #1f1d2e;
+  --bg-elevated: #26233a;
+  --bg-strip: #393552;
+  --text-strip: #e0def4;
+  --text-main: #e0def4;
+  --text-muted: #a8a3ba;
+  --accent-primary: #ebbcba;
+  --accent-primary-text: #191724;
+  --accent-secondary: #9ccfd8;
+  --accent-secondary-text: #191724;
+  --accent-warn: #f6c177;
+  --accent-success: #31748f;
+  --border-color: #524f67;
+  --border-width: 1px;
+  --radius: 5px;
+  --shadow: 0 6px 18px rgba(0,0,0,.24);
+  --shadow-btn: 0 2px 6px rgba(0,0,0,.24);
+  --font-display: 'Space Grotesk', 'JetBrains Mono', monospace;
+  --font-body: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 4: MANGA PAPER (Светлая — Бумага, тушь и киноварь) */
+html[data-theme="paper"] {
+  --bg-main: #e9e4db;
+  --bg-pattern: radial-gradient(rgba(118, 109, 99, 0.14) 1px, transparent 1px);
+  --bg-pattern-size: 21px 21px;
+  --bg-card: #f4f1eb;
+  --bg-elevated: #e8e2d8;
+  --bg-strip: #484540;
+  --text-strip: #fbf9f5;
+  --text-main: #302f2d;
+  --text-muted: #746f69;
+  --accent-primary: #b35f56;
+  --accent-primary-text: #ffffff;
+  --accent-secondary: #626c77;
+  --accent-secondary-text: #ffffff;
+  --accent-warn: #b68d58;
+  --accent-success: #648b71;
+  --border-color: #9a9287;
+  --border-width: 1px;
+  --radius: 4px;
+  --shadow: 0 6px 16px rgba(65, 57, 47, 0.13);
+  --shadow-btn: 0 2px 6px rgba(65, 57, 47, 0.17);
+  --font-display: 'Comfortaa', 'Russo One', sans-serif;
+  --font-body: 'Rubik', 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 5: NORDIC SLATE (Спокойная хвойно-сланцевая) */
+html[data-theme="nordic"] {
+  --bg-main: #14191f;
+  --bg-pattern: none;
+  --bg-pattern-size: auto;
+  --bg-card: #1c232b;
+  --bg-elevated: #252f3a;
+  --bg-strip: #252f3a;
+  --text-strip: #a3be8c;
+  --text-main: #e5e9f0;
+  --text-muted: #8896a8;
+  --accent-primary: #88c0d0;
+  --accent-primary-text: #14191f;
+  --accent-secondary: #a3be8c;
+  --accent-secondary-text: #14191f;
+  --accent-warn: #ebcb8b;
+  --accent-success: #a3be8c;
+  --border-color: #323f4e;
+  --border-width: 1px;
+  --radius: 8px;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  --shadow-btn: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ---------------------------------------------------------
+   МЕНЕЕ КОНТРАСТНЫЕ И ПРОСТЫЕ ТЕМЫ
+   --------------------------------------------------------- */
+
+/* ТЕМА 6: СУПЕР-ЧЁРНАЯ (OLED Black — минимальный контраст рамок, чистый черный) */
+html[data-theme="oled"] {
+  --bg-main: #000000;
+  --bg-pattern: none;
+  --bg-pattern-size: auto;
+  --bg-card: #070708;
+  --bg-elevated: #101012;
+  --bg-strip: #0d0d0f;
+  --text-strip: #a8adb5;
+  --text-main: #c7ccd4;
+  --text-muted: #6e737b;
+  --accent-primary: #5c7c99;
+  --accent-primary-text: #f0f4f8;
+  --accent-secondary: #3a4654;
+  --accent-secondary-text: #d6dde6;
+  --accent-warn: #8f7a54;
+  --accent-success: #4d7863;
+  --border-color: #1c1d21;
+  --border-width: 1px;
+  --radius: 6px;
+  --shadow: none;
+  --shadow-btn: none;
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 7: МЯГКИЙ ГРАФИТ (Dim Slate — приглушенная серо-синяя без резких бликов) */
+html[data-theme="dim-slate"] {
+  --bg-main: #181a1f;
+  --bg-pattern: none;
+  --bg-pattern-size: auto;
+  --bg-card: #20232a;
+  --bg-elevated: #282c34;
+  --bg-strip: #252930;
+  --text-strip: #b8c0cc;
+  --text-main: #c8cfd8;
+  --text-muted: #7f8794;
+  --accent-primary: #6b88a6;
+  --accent-primary-text: #f2f5f8;
+  --accent-secondary: #58697a;
+  --accent-secondary-text: #eef2f6;
+  --accent-warn: #a38c64;
+  --accent-success: #648c76;
+  --border-color: #323741;
+  --border-width: 1px;
+  --radius: 6px;
+  --shadow: none;
+  --shadow-btn: none;
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 8: ТЁПЛЫЙ КАМЕНЬ (Warm Stone — спокойная кофейно-пепельная) */
+html[data-theme="warm-stone"] {
+  --bg-main: #1c1a18;
+  --bg-pattern: none;
+  --bg-pattern-size: auto;
+  --bg-card: #24211f;
+  --bg-elevated: #2d2926;
+  --bg-strip: #2a2623;
+  --text-strip: #c4b9ae;
+  --text-main: #cfc6bc;
+  --text-muted: #8a8178;
+  --accent-primary: #947666;
+  --accent-primary-text: #f7f3f0;
+  --accent-secondary: #695e57;
+  --accent-secondary-text: #f2ece9;
+  --accent-warn: #a68b65;
+  --accent-success: #6c856f;
+  --border-color: #38332f;
+  --border-width: 1px;
+  --radius: 6px;
+  --shadow: none;
+  --shadow-btn: none;
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ТЕМА 9: ПРИГЛУШЁННЫЙ МОХ (Soft Moss — спокойная лесная) */
+html[data-theme="soft-moss"] {
+  --bg-main: #151917;
+  --bg-pattern: none;
+  --bg-pattern-size: auto;
+  --bg-card: #1c211e;
+  --bg-elevated: #242b27;
+  --bg-strip: #212824;
+  --text-strip: #b0bfb5;
+  --text-main: #c2cfc6;
+  --text-muted: #7a8a80;
+  --accent-primary: #668773;
+  --accent-primary-text: #f0f5f2;
+  --accent-secondary: #52695b;
+  --accent-secondary-text: #ebf2ee;
+  --accent-warn: #9c8c64;
+  --accent-success: #689477;
+  --border-color: #2f3833;
+  --border-width: 1px;
+  --radius: 6px;
+  --shadow: none;
+  --shadow-btn: none;
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+

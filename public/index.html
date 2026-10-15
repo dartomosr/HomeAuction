@@ -130,6 +130,10 @@
             <strong id="ro-max-items">5</strong>
           </div>
           <div class="stat-row">
+            <span>Лоты вне лимита (+ ДОП):</span>
+            <strong id="ro-free-items">Только Хост</strong>
+          </div>
+          <div class="stat-row">
             <span>На свои и чужие:</span>
             <strong id="ro-flexible-points">Без ограничений</strong>
           </div>
@@ -147,12 +151,17 @@
         <form id="host-settings-form" class="host-settings hidden">
           <div class="form-group">
             <label for="set-max-points">Очков каждому игроку (N):</label>
-            <input type="number" id="set-max-points" class="input-text" min="1" max="100000" value="100" />
+            <input type="number" id="set-max-points" class="input-text" min="1" max="100000" value="50" />
           </div>
 
           <div class="form-group">
             <label for="set-max-items">Макс. вариантов от игрока (N):</label>
-            <input type="number" id="set-max-items" class="input-text" min="1" max="50" value="3" />
+            <input type="number" id="set-max-items" class="input-text" min="1" max="50" value="5" />
+          </div>
+
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="set-allow-free-all" />
+            <label for="set-allow-free-all">Разрешить всем добавлять варианты вне лимита (+ ДОП)</label>
           </div>
 
           <div class="form-group checkbox-group">
@@ -162,7 +171,7 @@
           <div id="own-limit-group" class="form-group hidden">
             <label for="set-foreign-only">Очков исключительно для чужих вариантов (из N):</label>
             <input type="number" id="set-foreign-only" class="input-text" min="0" max="100" value="0" step="1" />
-            <p id="points-split-preview" class="settings-note">100 — на любые; 0 — только на чужие.</p>
+            <p id="points-split-preview" class="settings-note">50 — на любые; 0 — только на чужие.</p>
           </div>
 
           <div class="form-group checkbox-group">
@@ -176,6 +185,24 @@
           </div>
 
           <button type="submit" class="btn btn-secondary btn-block">Применить настройки</button>
+
+          <hr class="divider" />
+
+          <!-- Быстрое добавление лота вне лимита прямо из админ-панели Хоста -->
+          <div id="host-quick-free-box" class="form-group">
+            <label for="host-free-item-input">Добавить лот вне лимита (+ ДОП):</label>
+            <div class="host-free-add-row">
+              <input
+                type="text"
+                id="host-free-item-input"
+                class="input-text"
+                placeholder="Название бонусного лота..."
+                maxlength="80"
+                autocomplete="off"
+              />
+              <button type="button" id="btn-host-free-add" class="btn btn-outline btn-sm">+ ДОП</button>
+            </div>
+          </div>
 
           <hr class="divider" />
           <div class="host-reset-group">
@@ -203,8 +230,8 @@
             <div class="stat-box">
               <span class="stat-label">МОЙ ОСТАТОК ОЧКОВ</span>
               <div class="stat-value">
-                <span id="my-remaining-points">100</span>
-                <small>/ <span id="my-max-points">100</span></small>
+                <span id="my-remaining-points">50</span>
+                <small>/ <span id="my-max-points">50</span></small>
               </div>
             </div>
 
@@ -212,7 +239,7 @@
               <span class="stat-label">ДОБАВЛЕНО МНОЙ ЛОТОВ</span>
               <div class="stat-value">
                 <span id="my-items-count">0</span>
-                <small>/ <span id="my-max-items">3</span></small>
+                <small>/ <span id="my-max-items">5</span></small>
               </div>
             </div>
           </div>
@@ -221,7 +248,7 @@
           <div class="balance-boxes allocation-rules-boxes" aria-label="Правила распределения очков">
             <div class="stat-box allocation-rule-box">
               <span class="stat-label">НА СВОИ И ЧУЖИЕ ВАРИАНТЫ</span>
-              <div class="stat-value"><span id="pool-flexible-points">100</span> <small>очк.</small></div>
+              <div class="stat-value"><span id="pool-flexible-points">50</span> <small>очк.</small></div>
               <span id="pool-flexible-note" class="allocation-rule-note">Все очки доступны свободно</span>
             </div>
             <div class="stat-box allocation-rule-box">
@@ -254,9 +281,14 @@
               maxlength="80"
               autocomplete="off"
             />
-            <button type="submit" id="btn-add-item" class="btn btn-secondary">
-              + ДОБАВИТЬ ВАРИАНТ
-            </button>
+            <div class="add-item-buttons">
+              <button type="submit" id="btn-add-item" class="btn btn-secondary">
+                + ДОБАВИТЬ ВАРИАНТ
+              </button>
+              <button type="button" id="btn-add-free-item" class="btn btn-outline btn-free-add hidden" title="Добавить вариант бесплатно (без увеличения вашего счётчика лимита)">
+                + ДОП (ВНЕ ЛИМИТА)
+              </button>
+            </div>
           </form>
         </div>
 
@@ -399,6 +431,6 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="wheel-effects.js"></script>
-  <script src="client.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

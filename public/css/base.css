@@ -1,0 +1,334 @@
+/* =========================================================
+   2. БАЗОВЫЙ СБРОС И ОБЩИЕ ЭЛЕМЕНТЫ
+   ========================================================= */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-main);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  line-height: 1.45;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.muted-text {
+  color: var(--text-muted);
+}
+
+.small-text {
+  font-size: 0.85rem;
+}
+
+/* =========================================================
+   3. ШАПКА САЙТА (TOPBAR)
+   ========================================================= */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 22px;
+  background: var(--bg-card);
+  border-bottom: var(--border-width) solid var(--border-color);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logo-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-tag {
+  background: var(--accent-primary);
+  color: var(--accent-primary-text);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  padding: 3px 8px;
+  letter-spacing: 1px;
+  transform: skewX(-10deg);
+  border: 1px solid var(--border-color);
+}
+
+.logo-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.theme-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: var(--border-width) solid var(--border-color);
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  font-weight: 700;
+}
+
+.host-tag {
+  background: var(--accent-warn);
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+/* =========================================================
+   4. КАРТОЧКИ, КНОПКИ И ПОЛЯ ВВОДА
+   ========================================================= */
+.card {
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card-header-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  background: var(--bg-strip);
+  color: var(--text-strip);
+  font-family: var(--font-display);
+  font-size: 0.83rem;
+  letter-spacing: 0.5px;
+  padding: 7px 12px;
+  margin: -16px -16px 14px -16px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.card-header-strip > span:first-child {
+  line-height: 1.35;
+}
+
+.sub-hint {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.input-text,
+.input-select {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 8px 11px;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  outline: none;
+}
+
+.input-select optgroup {
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.input-select option {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+.input-text:focus,
+.input-select:focus {
+  border-color: var(--accent-primary);
+}
+
+.btn {
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.84rem;
+  letter-spacing: 0.3px;
+  padding: 8px 14px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.1s ease, filter 0.15s ease;
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translate(-1px, -1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: var(--accent-primary-text);
+}
+
+.btn-secondary {
+  background: var(--accent-secondary);
+  color: var(--accent-secondary-text);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-main);
+}
+
+.btn-danger {
+  background: #b83232;
+  color: #ffffff;
+}
+
+/* Специальная кнопка удаления ЧУЖОГО варианта Хостом (отличается от своей) */
+.btn-host-delete {
+  background: transparent;
+  color: var(--accent-warn);
+  border: 1px dashed var(--accent-warn);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  padding: 4px 8px;
+}
+
+.btn-host-delete:hover:not(:disabled) {
+  background: rgba(212, 175, 55, 0.16);
+}
+
+/* Кнопка кика игрока из лобби */
+.btn-kick-player {
+  background: transparent;
+  color: #e06c75;
+  border: 1px solid rgba(224, 108, 117, 0.45);
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.btn-kick-player:hover {
+  background: #b83232;
+  color: #ffffff;
+}
+
+.btn-lg {
+  padding: 11px 22px;
+  font-size: 0.96rem;
+}
+
+.btn-sm {
+  padding: 5px 9px;
+  font-size: 0.76rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+
+/* =========================================================
+   11. СТИЛИЗОВАННАЯ ПРОКРУТКА (ПОД ЦВЕТА ВЫБРАННОЙ ТЕМЫ)
+   ========================================================= */
+.reveal-side,
+.sidebar,
+.all-items-modal-list,
+.table-scroll,
+.effects-popover,
+.wheel-legend {
+  /* Для Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* Для Chrome, Edge, Яндекс.Браузера, Opera и Safari */
+.reveal-side::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,
+.all-items-modal-list::-webkit-scrollbar,
+.table-scroll::-webkit-scrollbar,
+.effects-popover::-webkit-scrollbar,
+.wheel-legend::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.reveal-side::-webkit-scrollbar-track,
+.sidebar::-webkit-scrollbar-track,
+.all-items-modal-list::-webkit-scrollbar-track,
+.table-scroll::-webkit-scrollbar-track,
+.effects-popover::-webkit-scrollbar-track,
+.wheel-legend::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reveal-side::-webkit-scrollbar-thumb,
+.sidebar::-webkit-scrollbar-thumb,
+.all-items-modal-list::-webkit-scrollbar-thumb,
+.table-scroll::-webkit-scrollbar-thumb,
+.effects-popover::-webkit-scrollbar-thumb,
+.wheel-legend::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 999px;
+}
+
+.reveal-side::-webkit-scrollbar-thumb:hover,
+.sidebar::-webkit-scrollbar-thumb:hover,
+.all-items-modal-list::-webkit-scrollbar-thumb:hover,
+.table-scroll::-webkit-scrollbar-thumb:hover,
+.effects-popover::-webkit-scrollbar-thumb:hover,
+.wheel-legend::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
