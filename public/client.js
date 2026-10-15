@@ -6,7 +6,12 @@ const THEME_WHEEL_PALETTES = {
   casino: ['#8c2d38', '#1f4e3d', '#b8922f', '#2b3a4a', '#5e232a', '#2e5948', '#967117', '#382c1e'],
   terminal: ['#ebbcba', '#9ccfd8', '#f6c177', '#c4a7e7', '#31748f', '#eb6f92', '#908caa', '#b9b4ce'],
   paper: ['#b96860', '#69635f', '#bb9462', '#798fa5', '#759481', '#9b7866', '#8e85a5', '#a77579'],
-  nordic: ['#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb', '#a3be8c', '#ebcb8b', '#d08770', '#bf616a']
+  nordic: ['#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb', '#a3be8c', '#ebcb8b', '#d08770', '#bf616a'],
+  // Менее контрастные и спокойные палитры
+  oled: ['#263545', '#3b2d38', '#253b34', '#3d3526', '#2e2b40', '#382924', '#24363d', '#333829'],
+  'dim-slate': ['#4a6278', '#6b5362', '#4c6b5f', '#73644c', '#585373', '#6e5249', '#49636e', '#5d664d'],
+  'warm-stone': ['#6e564b', '#545e63', '#6b624b', '#5e4f61', '#4d6153', '#705151', '#575548', '#63584c'],
+  'soft-moss': ['#486353', '#52606e', '#696149', '#5c4e63', '#466161', '#695049', '#566649', '#4d5763']
 };
 
 // 2. ЛОКАЛЬНОЕ СОСТОЯНИЕ БРАУЗЕРА
@@ -20,6 +25,7 @@ let autoSpinTimer = null;
 let activeSpinFrame = null;
 let activeElimination = null;
 let lastFxType = null;
+
 const SPIN_COMMENTS = [
   'Колесо решает судьбу лота — чьи шансы не выдержат?',
   'Круг замыкается. Не всем суждено пройти дальше…',
@@ -31,6 +37,7 @@ const SPIN_COMMENTS = [
   'Очки влияют на риск, но в этот момент всё решает случай.',
   'Подождите вердикта колеса: выбор уже сделан.'
 ];
+
 const ELIMINATION_EFFECTS = [
   ['fold', '0 · Обычное сворачивание'],
   ['glass', '1 · Разбитое стекло'],
@@ -43,11 +50,14 @@ const ELIMINATION_EFFECTS = [
   ['vortex', '8 · Вихрь'],
   ['split', '9 · Трещина и падающий верх']
 ];
+
 let effectsEnabled = localStorage.getItem('auction_effects_enabled') !== 'off';
 let enabledEffects;
 try {
   const storedEffects = JSON.parse(localStorage.getItem('auction_effect_list'));
-  enabledEffects = Array.isArray(storedEffects) ? storedEffects.filter(v => ELIMINATION_EFFECTS.some(([id]) => id === v)) : ELIMINATION_EFFECTS.map(([id]) => id);
+  enabledEffects = Array.isArray(storedEffects)
+    ? storedEffects.filter(v => ELIMINATION_EFFECTS.some(([id]) => id === v))
+    : ELIMINATION_EFFECTS.map(([id]) => id);
 } catch (_) {
   enabledEffects = ELIMINATION_EFFECTS.map(([id]) => id);
 }
@@ -139,6 +149,13 @@ const myProfileChip = document.getElementById('my-profile-chip');
 const myNameDisplay = document.getElementById('my-name-display');
 const myHostBadge = document.getElementById('my-host-badge');
 
+const btnAllItems = document.getElementById('btn-all-items');
+const allItemsCountEl = document.getElementById('all-items-count');
+const modalAllItems = document.getElementById('modal-all-items');
+const btnCloseAllItems = document.getElementById('btn-close-all-items');
+const modalAllItemsSubtitle = document.getElementById('modal-all-items-subtitle');
+const allItemsModalList = document.getElementById('all-items-modal-list');
+
 const screenJoin = document.getElementById('screen-join');
 const screenApp = document.getElementById('screen-app');
 const formJoin = document.getElementById('form-join');
@@ -204,8 +221,6 @@ const wheelStage = document.getElementById('wheel-stage');
 const wheelPointer = document.getElementById('wheel-pointer');
 const wheelLegend = document.getElementById('wheel-legend');
 const wheelTooltip = document.getElementById('wheel-slice-tooltip');
-const wheelCard = document.querySelector('.wheel-card');
-const btnWheelFocus = document.getElementById('btn-wheel-focus');
 const wheelParticles = document.getElementById('wheel-particles');
 const particleCtx = wheelParticles.getContext('2d');
 const fxCanvas = document.getElementById('wheel-fx-canvas');
@@ -233,7 +248,7 @@ const btnMerge = document.getElementById('btn-merge');
 const revealItemsTbody = document.getElementById('reveal-items-tbody');
 const eliminationHistory = document.getElementById('elimination-history');
 
-// Выбор эффектов хранится только в браузере: вероятности на сервере не меняются.
+// Настройка эффектов выбывания
 function renderEffectsControls() {
   effectsCheckboxes.replaceChildren();
   for (const [id, label] of ELIMINATION_EFFECTS) {
@@ -260,11 +275,13 @@ function renderEffectsControls() {
   btnToggleEffects.textContent = effectsEnabled ? '✨ Эффекты: ВКЛ' : '◌ Эффекты: ВЫКЛ';
   btnToggleEffects.setAttribute('aria-pressed', String(effectsEnabled));
 }
+
 function setAllEffects(enabled) {
   enabledEffects = enabled ? ELIMINATION_EFFECTS.map(([id]) => id) : [];
   localStorage.setItem('auction_effect_list', JSON.stringify(enabledEffects));
   renderEffectsControls();
 }
+
 effectsMasterToggle.addEventListener('change', () => setAllEffects(effectsMasterToggle.checked));
 effectsSelectAll.addEventListener('click', () => setAllEffects(true));
 effectsSelectNone.addEventListener('click', () => setAllEffects(false));
@@ -273,14 +290,12 @@ btnToggleEffects.addEventListener('click', () => {
   localStorage.setItem('auction_effects_enabled', effectsEnabled ? 'on' : 'off');
   renderEffectsControls();
 });
-// Не оставляем раскрытое меню поверх колеса при клике в другом месте.
+
 document.addEventListener('click', (event) => {
   if (!effectsSettings.contains(event.target)) effectsSettings.open = false;
 });
 renderEffectsControls();
 
-// Негромкие локальные звуки без внешних аудиофайлов. Для стекла —
-// короткий сухой треск (фильтрованный шум) и несколько высоких звонов.
 function playFxTone(effect) {
   if (!soundEnabled || !audioCtx || effect === 'fold') return;
   try {
@@ -324,8 +339,6 @@ function playFxTone(effect) {
   } catch (_) {}
 }
 
-// Сектор разрушается именно на Canvas колеса. Нет ни всплывающих окон,
-// ни дубля названия поверх страницы. Цвет/текст превращаются в части сектора.
 function showEliminationEffect(title, eliminatedId, slices, fxSeed) {
   wheelFx.cancel();
   activeElimination = null;
@@ -336,12 +349,10 @@ function showEliminationEffect(title, eliminatedId, slices, fxSeed) {
   if (index < 0) return 'fold';
 
   const list = effectsEnabled ? enabledEffects : [];
-  // Результат случайный, но воспроизводимый на клиентах с одинаковыми галочками.
   const id = list.length ? list[(fxSeed >>> 0) % list.length] : 'fold';
   const geometry = getWheelGeometry();
   if (!geometry.width || !geometry.height) return 'fold';
   const spinSlices = slices.map(s => ({ ...s }));
-  // Сохраняем геометрию предыдущего раунда до окончания эффекта.
   activeElimination = { index, slices: spinSlices };
   wheelStage.classList.add('is-eliminating');
   wheelStage.classList.remove('spin-finished');
@@ -355,7 +366,6 @@ function showEliminationEffect(title, eliminatedId, slices, fxSeed) {
         wheelStage.classList.remove('is-eliminating');
         drawWheel();
         renderWheelLegend();
-        // Автоматическая прокрутка начинается после эффекта, а не поверх него.
         if (autoSpinActive && appState?.me?.isHost && appState.phase === 'REVEAL' &&
             !appState.wheel.isSpinning && appState.items.filter(i => !i.eliminated).length > 1) {
           clearTimeout(autoSpinTimer);
@@ -389,10 +399,10 @@ function resetClientVisualState() {
   activeSpinFrame = null;
   wheelFx.cancel();
   activeElimination = null;
-  wheelStage.classList.remove('is-eliminating');
   wheelRotation = 0;
   isAnimatingWheel = false;
   activeSpinSlices = null;
+  document.body.classList.remove('is-wheel-phase');
   wheelStage.classList.remove('is-spinning', 'spin-finished', 'is-eliminating');
   particleCtx.clearRect(0, 0, wheelParticles.width, wheelParticles.height);
   wheelStatusBox.textContent = 'Колесо готово к новому аукциону';
@@ -400,6 +410,7 @@ function resetClientVisualState() {
 
 // 5. ИНИЦИАЛИЗАЦИЯ ТЕМЫ И ЗВУКА
 function applyTheme(themeName) {
+  if (!THEME_WHEEL_PALETTES[themeName]) themeName = 'anime';
   currentTheme = themeName;
   document.documentElement.setAttribute('data-theme', themeName);
   wheelLabelFont = getComputedStyle(document.body).fontFamily;
@@ -423,6 +434,118 @@ btnSound.addEventListener('click', () => {
   localStorage.setItem('auction_sound', soundEnabled ? 'on' : 'off');
   updateSoundButton();
 });
+
+// Всплывающее модальное окно «Все добавленные варианты»
+function openAllItemsModal() {
+  if (!appState) return;
+  renderAllItemsModal(appState);
+  modalAllItems.classList.remove('hidden');
+}
+
+function closeAllItemsModal() {
+  modalAllItems.classList.add('hidden');
+}
+
+btnAllItems.addEventListener('click', openAllItemsModal);
+btnCloseAllItems.addEventListener('click', closeAllItemsModal);
+modalAllItems.addEventListener('click', (e) => {
+  if (e.target === modalAllItems) closeAllItemsModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !modalAllItems.classList.contains('hidden')) {
+    closeAllItemsModal();
+  }
+});
+
+function renderAllItemsModal(state) {
+  const allItems = state.allItems || [];
+  allItemsCountEl.textContent = String(allItems.length);
+
+  const isRevealed = state.phase === 'REVEAL' || state.phase === 'FINISHED';
+  modalAllItemsSubtitle.textContent = isRevealed
+    ? 'Полный список всех предложенных вариантов (включая нулевые и объединённые) и кто сколько очков вложил:'
+    : 'Полный список всех добавленных вариантов в пуле (ставки других участников откроются на этапе колеса):';
+
+  allItemsModalList.replaceChildren();
+
+  if (allItems.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'muted-text';
+    empty.textContent = 'Пока не добавлено ни одного варианта.';
+    allItemsModalList.appendChild(empty);
+    return;
+  }
+
+  allItems.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'all-item-row';
+
+    const top = document.createElement('div');
+    top.className = 'all-item-top';
+
+    const title = document.createElement('span');
+    title.className = 'all-item-title';
+    title.textContent = `${index + 1}. ${item.title}`;
+
+    const badges = document.createElement('div');
+    badges.className = 'all-item-badges';
+
+    if (!isRevealed) {
+      if (item.myPoints > 0) {
+        const myBadge = document.createElement('span');
+        myBadge.className = 'badge';
+        myBadge.textContent = `Мои очки: ${item.myPoints}`;
+        badges.appendChild(myBadge);
+      }
+    } else {
+      const totalBadge = document.createElement('span');
+      totalBadge.className = 'badge';
+      totalBadge.textContent = `Всего: ${item.totalPoints} очк.`;
+      badges.appendChild(totalBadge);
+
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'badge';
+      if (item.isWinner) {
+        statusBadge.textContent = '🏆 Победитель';
+      } else if (item.isMerged) {
+        statusBadge.textContent = `Влит в «${item.mergedIntoTitle || 'другой лот'}»`;
+      } else if (item.droppedZero) {
+        statusBadge.textContent = '0 очков (не на колесе)';
+      } else if (item.eliminated) {
+        statusBadge.textContent = 'Выбыл';
+      } else {
+        statusBadge.textContent = 'На колесе';
+      }
+      badges.appendChild(statusBadge);
+    }
+
+    top.append(title, badges);
+    row.appendChild(top);
+
+    // На этапе колеса показываем кто именно сколько очков закинул в этот вариант
+    if (isRevealed) {
+      const contribWrap = document.createElement('div');
+      contribWrap.className = 'all-item-contributors';
+
+      if (!item.contributors || item.contributors.length === 0) {
+        const none = document.createElement('span');
+        none.className = 'muted-text small-text';
+        none.textContent = 'Никто не вложил очки (0 очк.)';
+        contribWrap.appendChild(none);
+      } else {
+        item.contributors.forEach((c) => {
+          const chip = document.createElement('span');
+          chip.className = `contributor-chip ${c.isMe ? 'is-me' : ''}`;
+          chip.textContent = `${c.name}: ${c.points} очк.`;
+          contribWrap.appendChild(chip);
+        });
+      }
+      row.appendChild(contribWrap);
+    }
+
+    allItemsModalList.appendChild(row);
+  });
+}
 
 // Уведомления
 function showToast(msg) {
@@ -461,20 +584,37 @@ socket.on('joined', ({ token }) => {
   screenJoin.classList.add('hidden');
   screenApp.classList.remove('hidden');
   myProfileChip.classList.remove('hidden');
+  btnAllItems.classList.remove('hidden');
 });
 
 socket.on('toast_error', (msg) => {
   showToast(msg);
 });
 
-socket.on('auction_hard_reset', () => {
+socket.on('kicked', ({ reason }) => {
   resetClientVisualState();
+  closeAllItemsModal();
   appState = null;
   myToken = null;
   localStorage.removeItem('auction_token');
   screenApp.classList.add('hidden');
   screenJoin.classList.remove('hidden');
   myProfileChip.classList.add('hidden');
+  btnAllItems.classList.add('hidden');
+  phaseBadge.textContent = 'УДАЛЕН ИЗ ЛОББИ';
+  showToast(reason || 'Хост удалил вас из лобби.');
+});
+
+socket.on('auction_hard_reset', () => {
+  resetClientVisualState();
+  closeAllItemsModal();
+  appState = null;
+  myToken = null;
+  localStorage.removeItem('auction_token');
+  screenApp.classList.add('hidden');
+  screenJoin.classList.remove('hidden');
+  myProfileChip.classList.add('hidden');
+  btnAllItems.classList.add('hidden');
   phaseBadge.textContent = 'КОМНАТА ОЧИЩЕНА';
   showToast('Комната полностью очищена. Войдите заново, сервер продолжает работать.');
 });
@@ -489,6 +629,14 @@ socket.on('state_update', (state) => {
   // Обновляем шапку
   myNameDisplay.textContent = state.me.name;
   myHostBadge.classList.toggle('hidden', !state.me.isHost);
+  allItemsCountEl.textContent = String((state.allItems || []).length);
+
+  if (!modalAllItems.classList.contains('hidden')) {
+    renderAllItemsModal(state);
+  }
+
+  const isWheelPhase = state.phase === 'REVEAL' || state.phase === 'FINISHED';
+  document.body.classList.toggle('is-wheel-phase', isWheelPhase);
 
   if (state.phase === 'POOL') {
     phaseBadge.textContent = 'ЭТАП 1: ТАЙНЫЙ ПУЛ';
@@ -547,19 +695,38 @@ function renderSidebar(state) {
     left.className = 'player-name-wrap';
     left.textContent = p.name + (p.isMe ? ' (Вы)' : '');
 
-if (p.isHost) {
+    if (p.isHost) {
       const hBadge = document.createElement('span');
       hBadge.className = 'host-tag';
       hBadge.textContent = 'HOST';
       left.appendChild(hBadge);
     }
 
+    const rightWrap = document.createElement('div');
+    rightWrap.className = 'player-right-wrap';
+
     const status = document.createElement('span');
     status.className = `player-status ${p.ready ? 'status-ready' : 'status-wait'}`;
     status.textContent = p.ready ? 'ГОТОВ' : 'ДУМАЕТ';
+    rightWrap.appendChild(status);
+
+    // Кнопка кика пользователя из лобби для Хоста
+    if (p.canKick && !state.wheel.isSpinning) {
+      const kickBtn = document.createElement('button');
+      kickBtn.type = 'button';
+      kickBtn.className = 'btn-kick-player';
+      kickBtn.textContent = '✕';
+      kickBtn.title = `Удалить игрока «${p.name}» из лобби`;
+      kickBtn.addEventListener('click', () => {
+        if (confirm(`Удалить участника «${p.name}» из лобби?`)) {
+          socket.emit('kick_player', { playerId: p.id });
+        }
+      });
+      rightWrap.appendChild(kickBtn);
+    }
 
     li.appendChild(left);
-    li.appendChild(status);
+    li.appendChild(rightWrap);
     playersListEl.appendChild(li);
   });
 
@@ -704,6 +871,7 @@ function renderPoolView(state) {
     titleSpan.textContent = item.title;
     left.appendChild(titleSpan);
 
+    // 1) Свой вариант: обычный красный крестик ✕
     if (item.canDelete && !isLocked) {
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
@@ -715,6 +883,20 @@ function renderPoolView(state) {
       });
       left.appendChild(delBtn);
     }
+    // 2) Чужой вариант (для Хоста): другой значок ⊘ Хост с пунктирной рамкой
+    else if (item.canHostDelete) {
+      const hostDelBtn = document.createElement('button');
+      hostDelBtn.type = 'button';
+      hostDelBtn.className = 'btn btn-host-delete btn-sm';
+      hostDelBtn.textContent = '⊘ Хост';
+      hostDelBtn.title = 'Удалить чужой вариант (право Хоста)';
+      hostDelBtn.addEventListener('click', () => {
+        if (confirm(`Удалить чужой вариант «${item.title}»?`)) {
+          socket.emit('delete_item', { itemId: item.id });
+        }
+      });
+      left.appendChild(hostDelBtn);
+    }
 
     const controls = document.createElement('div');
     controls.className = 'pool-item-controls';
@@ -724,11 +906,7 @@ function renderPoolView(state) {
       ? Math.max(0, ownLimit - (state.me.mySpentOwnPoints - item.myPoints))
       : state.settings.maxPoints;
     const maxPossibleForThisItem = Math.max(0, Math.min(item.myPoints + state.me.remainingPoints, allowedByOwnership));
-    // Шкала у КАЖДОГО ползунка всегда от 0 до N, как в предыдущей версии.
-    // Иначе изменение остатка очков меняет диапазоны других ползунков,
-    // визуально сдвигая их значения без изменения самих ставок.
 
-    // Кнопки быстрого шага (-10, -1, ползунок, числовое поле, +1, +10, MAX)
     const makeStepBtn = (label, delta) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -814,8 +992,6 @@ btnDistributeEven.addEventListener('click', () => {
     const leftover = total - allocation.reduce((sum, p) => sum + p, 0);
     for (let i = 0; i < leftover; i++) allocation[others[i % others.length]]++;
   }
-  // Сначала снимаем старые ставки, затем расставляем новые: сервер проверяет
-  // каждый запрос независимо, не позволяя промежуточному состоянию превысить N.
   items.forEach(it => { if (it.myPoints) socket.emit('set_points', { itemId: it.id, points: 0 }); });
   items.forEach((it, i) => { if (allocation[i]) socket.emit('set_points', { itemId: it.id, points: allocation[i] }); });
 });
@@ -936,7 +1112,6 @@ function renderRevealView(state) {
       tdStatus.textContent = 'В игре';
     }
 
-    // Оттенки показывают силу поддержки и текущий риск, не заменяя точные числа.
     const weightRate = Math.min(1, it.effectivePoints / Math.max(1, ...sortedItems.map(x => x.effectivePoints)));
     const winRate = Math.max(0, Math.min(1, it.winProbability / 100));
     const riskRate = Math.max(0, Math.min(1, it.roundElimShare / 100));
@@ -1027,13 +1202,10 @@ function getCurrentWheelSlices() {
   }));
 }
 
-// Масштабируем bitmap под реальный размер на странице и DPR: в увеличенном режиме
-// текст остаётся чётким. Логические координаты — CSS-пиксели, углы не меняются.
 function resizeWheelCanvas() {
-  const side = Math.round(wheelStage.getBoundingClientRect().width);
+  const rect = wheelStage.getBoundingClientRect();
+  const side = Math.round(Math.min(rect.width, rect.height || rect.width));
   if (side <= 0) return;
-  // При смене размера во время эффекта старые координаты Canvas становятся
-  // некорректными: безопасно завершаем только визуализацию, не игровой раунд.
   if (activeElimination && wheelFx.active && Math.abs(wheelFx.active.width - side) > 1) {
     wheelFx.cancel();
     activeElimination = null;
@@ -1058,12 +1230,16 @@ function getWheelGeometry() {
   const width = wheelCanvas.width / wheelPixelRatio;
   const height = wheelCanvas.height / wheelPixelRatio;
   const scale = Math.min(width, height) / 540;
-  return { width, height, cx: width / 2, cy: height / 2,
-    radius: Math.min(width, height) / 2 - 18 * scale, scale };
+  return {
+    width,
+    height,
+    cx: width / 2,
+    cy: height / 2,
+    radius: Math.min(width, height) / 2 - 18 * scale,
+    scale
+  };
 }
 
-// Измеряем текст на Canvas, переносим длинные названия и подрезаем лишь при
-// физической нехватке площади. Полная строка всегда доступна в легенде/подсказке.
 function fitWheelLines(text, maxWidth, maxLines, fontSize) {
   wheelCtx.font = `800 ${fontSize}px ${wheelLabelFont}`;
   const words = String(text).trim().split(/\s+/).filter(Boolean);
@@ -1077,7 +1253,6 @@ function fitWheelLines(text, maxWidth, maxLines, fontSize) {
       continue;
     }
     if (line) { lines.push(line); line = ''; }
-    // У вариантов могут быть очень длинные слова без пробелов.
     for (const char of Array.from(word)) {
       if (wheelCtx.measureText(line + char).width > maxWidth && line) {
         lines.push(line);
@@ -1101,10 +1276,8 @@ function drawWheelLabel(slice, index, angle, midAngle, geometry) {
   const { radius, scale } = geometry;
   const radialWidth = radius - 78 * scale;
   const crossWidth = 2 * radius * 0.56 * Math.sin(Math.min(angle / 2, Math.PI / 2)) - 9 * scale;
-  if (crossWidth < 10 * scale || radialWidth < 25) return; // Полное имя есть в легенде.
+  if (crossWidth < 10 * scale || radialWidth < 25) return;
 
-  // На крупных секторах предпочитаем хорошо различимые буквы вместо попытки
-  // уместить все 80 символов ценой слишком мелкого шрифта.
   const minSize = crossWidth >= 38 * scale ? 15 : (crossWidth >= 22 * scale ? 13 : 11);
   const minFont = minSize * scale;
   let chosen = null;
@@ -1120,8 +1293,6 @@ function drawWheelLabel(slice, index, angle, midAngle, geometry) {
   }
   if (!chosen || chosen.fontSize < minFont - 0.01) return;
 
-  // Узкому сектору не навязываем нечитаемые обрезки длинных слов:
-  // маленький номер однозначно сопоставляется с полным названием в легенде.
   if (!chosen.complete && crossWidth < 23 * scale) {
     chosen = { lines: [String(index + 1)], fontSize: 13 * scale, lineHeight: 15 * scale };
   }
@@ -1220,23 +1391,7 @@ function drawWheel() {
   wheelCtx.stroke();
 }
 
-// По умолчанию большое колесо встроено в обычную страницу, с боковой панелью,
-// историями и всеми настройками. Переключатель меняет только сетку и масштаб.
-function setWheelFocus(shouldFocus) {
-  document.body.classList.toggle('wheel-layout-expanded', shouldFocus);
-  wheelCard.classList.toggle('is-focused', shouldFocus);
-  btnWheelFocus.setAttribute('aria-pressed', String(shouldFocus));
-  btnWheelFocus.setAttribute('aria-label', shouldFocus ? 'Уменьшить колесо' : 'Увеличить колесо');
-  btnWheelFocus.title = shouldFocus ? 'Вернуться к компактной сетке' : 'Сделать колесо больше';
-  btnWheelFocus.textContent = shouldFocus ? '↙ Свернуть' : '⛶ Развернуть';
-  localStorage.setItem('auction_wheel_expanded', shouldFocus ? 'yes' : 'no');
-  wheelTooltip.classList.add('hidden');
-  requestAnimationFrame(() => { resizeWheelCanvas(); if (!isAnimatingWheel && !activeElimination) drawWheel(); });
-}
-btnWheelFocus.addEventListener('click', () => setWheelFocus(!wheelCard.classList.contains('is-focused')));
-setWheelFocus(localStorage.getItem('auction_wheel_expanded') !== 'no');
-
-// Показываем полные названия при наведении на сектор, без изменения игрового состояния.
+// Показываем полные названия при наведении на сектор
 wheelCanvas.addEventListener('pointermove', (event) => {
   if (isAnimatingWheel || activeElimination) { wheelTooltip.classList.add('hidden'); return; }
   const rect = wheelCanvas.getBoundingClientRect();
@@ -1273,8 +1428,6 @@ if (typeof ResizeObserver !== 'undefined') {
 }
 if (document.fonts) document.fonts.ready.then(drawWheel);
 
-// Canvas-партиклы фронтенда: следы, искры и орбиты поверх колеса.
-// Положение вычисляется по времени, серверная математика не затрагивается.
 function drawSpinParticles(now, progress) {
   const { width, height, cx, cy, radius, scale } = getWheelGeometry();
   particleCtx.clearRect(0, 0, width, height);
@@ -1320,18 +1473,14 @@ socket.on('wheel_spin', ({ slices, eliminatedId, eliminatedTitle, targetFraction
   const twoPi = Math.PI * 2;
   const startRotation = wheelRotation % twoPi;
 
-  // Указатель находится справа на угле 0 радиан.
-  // Чтобы точка targetFraction оказалась на угле 0, финальный угол (по модулю 2*PI) должен быть (1 - targetFraction) * 2*PI
   const desiredEndMod = ((1 - targetFraction) * twoPi + twoPi) % twoPi;
   let delta = desiredEndMod - startRotation;
   if (delta <= 0) delta += twoPi;
 
   const totalDelta = extraSpins * twoPi + delta;
-  const targetRotation = startRotation + totalDelta;
   const durationMs = durationSec * 1000;
   const startTime = performance.now();
 
-  // Вычисляем границы секторов для звуковых щелчков
   const boundaries = [];
   let acc = 0;
   slices.forEach((s) => {
@@ -1349,9 +1498,6 @@ socket.on('wheel_spin', ({ slices, eliminatedId, eliminatedTitle, targetFraction
 
   let lastSliceIdx = getSliceIndexAtPointer(startRotation);
 
-  // При длительности 500 с крутим с постоянной скоростью, замедление —
-  // только в последние максимум 8 секунд (иначе easeOutQuart почти остановит
-  // колесо уже на середине длительного аукциона).
   function easeSpin(t) {
     const slowdown = Math.min(0.35, 8000 / durationMs);
     const linearTime = 1 - slowdown;
@@ -1365,7 +1511,6 @@ socket.on('wheel_spin', ({ slices, eliminatedId, eliminatedTitle, targetFraction
   function animateFrame(now) {
     const elapsed = now - startTime;
     const progress = Math.min(1, elapsed / durationMs);
-    // Для долгих сессий ограничиваем частоту тяжёлой Canvas-перерисовки.
     if (durationMs > 30000 && now - lastCanvasFrame < 32 && progress < 1) {
       activeSpinFrame = requestAnimationFrame(animateFrame);
       return;

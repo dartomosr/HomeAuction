@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Аукцион на выбывание</title>
-  <!-- Шрифты под разные стили: Russo One (Аниме/Аркада), JetBrains Mono (Терминал/Цифры), Manrope (Базовый) -->
+  <!-- Шрифты под разные стили -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&family=IBM+Plex+Mono:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&family=Manrope:wght@500;700;800&family=Playfair+Display:wght@600;700&family=Rubik:wght@400;500;600;700;800&family=Russo+One&family=Space+Grotesk:wght@500;700&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="wheel-layout-expanded">
   <!-- Верхняя панель -->
   <header class="topbar">
     <div class="topbar-left">
@@ -22,14 +22,27 @@
     </div>
 
     <div class="topbar-right">
+      <!-- Кнопка всплывающего окна всех добавленных вариантов -->
+      <button id="btn-all-items" type="button" class="btn btn-icon hidden" title="Показать список вообще всех добавленных вариантов">
+        📋 Все варианты (<span id="all-items-count">0</span>)
+      </button>
+
       <div class="theme-picker">
         <label for="theme-select">Тема:</label>
         <select id="theme-select" class="input-select">
-          <option value="anime">Anime Pop (Persona / Manga)</option>
-          <option value="casino">Gold Noir (Закрытый клуб)</option>
-          <option value="terminal">Cyber Terminal (Rosé Pine)</option>
-          <option value="paper">Manga Paper (Бумага и тушь)</option>
-          <option value="nordic">Nordic Slate (Хвойный)</option>
+          <optgroup label="Стандартные темы">
+            <option value="anime">Anime Pop (Persona / Manga)</option>
+            <option value="casino">Gold Noir (Закрытый клуб)</option>
+            <option value="terminal">Cyber Terminal (Rosé Pine)</option>
+            <option value="paper">Manga Paper (Бумага и тушь)</option>
+            <option value="nordic">Nordic Slate (Хвойный)</option>
+          </optgroup>
+          <optgroup label="Менее контрастные и простые">
+            <option value="oled">Супер-чёрная (OLED Black)</option>
+            <option value="dim-slate">Мягкий графит (Low Contrast Dark)</option>
+            <option value="warm-stone">Тёплый камень (Warm Dim)</option>
+            <option value="soft-moss">Приглушённый мох (Soft Forest)</option>
+          </optgroup>
         </select>
       </div>
 
@@ -204,8 +217,7 @@
             </div>
           </div>
 
-          <!-- Правила распределения показываются отдельными карточками,
-               так же заметно, как собственный остаток очков. -->
+          <!-- Правила распределения очков -->
           <div class="balance-boxes allocation-rules-boxes" aria-label="Правила распределения очков">
             <div class="stat-box allocation-rule-box">
               <span class="stat-label">НА СВОИ И ЧУЖИЕ ВАРИАНТЫ</span>
@@ -268,16 +280,12 @@
         </div>
 
         <div class="reveal-grid">
-          <!-- Блок с Колесом на выбывание -->
-          <div class="card wheel-card">
+          <!-- Блок с Колесом на выбывание (всегда развёрнут) -->
+          <div class="card wheel-card is-focused">
             <div class="card-header-strip">
               <span>КОЛЕСО НА ВЫБЫВАНИЕ</span>
               <div class="wheel-header-actions">
                 <span id="alive-counter">Осталось: 0</span>
-                <button type="button" id="btn-wheel-focus" class="wheel-focus-button"
-                        aria-label="Уменьшить колесо" aria-pressed="true" title="Переключить размер колеса (без скрытия интерфейса)">
-                  ↙ Свернуть
-                </button>
               </div>
             </div>
 
@@ -294,7 +302,7 @@
             </div>
             <div id="wheel-stage" class="wheel-stage">
               <div id="wheel-pointer" class="wheel-pointer" title="Сектор под указателем выбывает"></div>
-              <canvas id="wheel-canvas" width="540" height="540" aria-label="Колесо вариантов. Полные названия показаны под колесом."></canvas>
+              <canvas id="wheel-canvas" width="540" height="540" aria-label="Колесо вариантов"></canvas>
               <canvas id="wheel-particles" width="540" height="540" aria-hidden="true"></canvas>
               <canvas id="wheel-fx-canvas" width="540" height="540" aria-hidden="true"></canvas>
               <div id="wheel-slice-tooltip" class="wheel-slice-tooltip hidden" role="tooltip"></div>
@@ -313,10 +321,9 @@
                 Авто-крутка до победителя
               </button>
             </div>
-
           </div>
 
-          <!-- Таблица результатов, вероятностей и слияния дубликатов -->
+          <!-- Правая панель: единый прокручиваемый список карточек без прокрутки всей страницы -->
           <div class="reveal-side">
             <!-- Инструмент объединения дубликатов (только для Хоста до первого вращения) -->
             <div id="host-merge-card" class="card merge-card hidden">
@@ -356,7 +363,7 @@
               </div>
             </div>
 
-            <!-- Полные названия живых секторов — отдельная панель справа, над историей -->
+            <!-- Полные названия живых секторов -->
             <div class="card wheel-legend-wrap">
               <div class="card-header-strip">ВАРИАНТЫ НА КОЛЕСЕ</div>
               <div id="wheel-legend" class="wheel-legend" role="list"></div>
@@ -371,6 +378,20 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Всплывающее модальное окно со списком ВСЕХ добавленных вариантов -->
+  <div id="modal-all-items" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-all-items-title">
+    <div class="card modal-window">
+      <div class="card-header-strip">
+        <span id="modal-all-items-title">ВСЕ ДОБАВЛЕННЫЕ ВАРИАНТЫ</span>
+        <button type="button" id="btn-close-all-items" class="btn btn-sm btn-modal-close" title="Закрыть окно">✕</button>
+      </div>
+      <p id="modal-all-items-subtitle" class="muted-text small-text modal-subtitle">
+        Полный список всех предложенных лотов (включая варианты с 0 очков).
+      </p>
+      <div id="all-items-modal-list" class="all-items-modal-list"></div>
+    </div>
   </div>
 
   <!-- Всплывающие уведомления -->

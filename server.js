@@ -11,8 +11,15 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Начальные настройки используются в том числе для полного сброса комнаты.
-const DEFAULT_SETTINGS = Object.freeze({ maxPoints: 100, maxItems: 3, keepZeroItems: false,
-  zeroItemWeight: 0.5, spinDuration: 5.5, restrictOwnPoints: false, foreignOnlyPoints: 0 });
+const DEFAULT_SETTINGS = Object.freeze({
+  maxPoints: 100,
+  maxItems: 3,
+  keepZeroItems: false,
+  zeroItemWeight: 0.5,
+  spinDuration: 5.5,
+  restrictOwnPoints: false,
+  foreignOnlyPoints: 0
+});
 let pendingSpinTimer = null;
 let spinGeneration = 0;
 
@@ -21,8 +28,8 @@ const state = {
   phase: 'POOL', // 'POOL' (добавление и тайные ставки) | 'REVEAL' (колесо) | 'FINISHED' (финал)
   settings: { ...DEFAULT_SETTINGS },
   hostToken: null,
-  players: new Map(), // token -> { token, socketId, name, isHost, ready, online }
-  items: [],          // { id, title, createdByToken, allocations: { [token]: pts }, eliminated: false, mergedInto: null }
+  players: new Map(), // token -> { id, token, socketId, name, isHost, ready, online }
+  items: [],          // { id, title, createdByToken, createdByName, allocations: { [token]: pts }, originalAllocations: null, eliminated: false, mergedInto: null }
   wheel: {
     predeterminedWinnerId: null,
     isSpinning: false,
@@ -33,6 +40,11 @@ const state = {
 
 function generateId() {
   return crypto.randomBytes(6).toString('hex');
+}
+
+function getPlayerNameByToken(token, fallback = 'Участник') {
+  const p = state.players.get(token);
+  return p ? p.name : fallback;
 }
 
 function getRawPoints(item) {
@@ -64,14 +76,19 @@ function getAliveWheelItems() {
 
 // Формируем персональное состояние для каждого игрока (без чужих очков в фазе POOL)
 function buildClientState(forToken) {
+  const me = state.players.get(forToken);
+  const isHostViewer = Boolean(me && me.isHost);
+
   const playersList = [];
   for (const p of state.players.values()) {
     playersList.push({
+      id: p.id,
       name: p.name,
       isHost: p.isHost,
       ready: p.ready,
       online: p.online,
-      isMe: p.token === forToken
+      isMe: p.token === forToken,
+      canKick: isHostViewer && p.token !== forToken
     });
   }
 
@@ -107,12 +124,15 @@ function buildClientState(forToken) {
     })
     .map(item => {
       const myPts = item.allocations[forToken] || 0;
+      const isOwn = item.createdByToken === forToken;
       if (!isRevealed) {
         return {
           id: item.id,
           title: item.title,
           myPoints: myPts,
-          canDelete: item.createdByToken === forToken
+          isOwn,
+          canDelete: isOwn,
+          canHostDelete: isHostViewer && !isOwn
         };
       } else {
         const rawPts = getRawPoints(item);
@@ -134,7 +154,52 @@ function buildClientState(forToken) {
       }
     });
 
-  const me = state.players.get(forToken);
+  // Полный список ВСЕХ добавленных вариантов для всплывающего окна
+  const allItemsList = state.items.map(item => {
+    const mergedTarget = item.mergedInto
+      ? state.items.find(t => t.id === item.mergedInto)
+      : null;
+
+    if (!isRevealed) {
+      return {
+        id: item.id,
+        title: item.title,
+        myPoints: item.allocations[forToken] || 0,
+        isMerged: Boolean(item.mergedInto),
+        mergedIntoTitle: mergedTarget ? mergedTarget.title : null
+      };
+    }
+
+    // На этапе колеса показываем всех, кто вложил очки в этот вариант
+    const allocSource = item.mergedInto && item.originalAllocations
+      ? item.originalAllocations
+      : item.allocations;
+
+    const contributors = Object.entries(allocSource || {})
+      .filter(([, pts]) => pts > 0)
+      .map(([tok, pts]) => ({
+        name: getPlayerNameByToken(tok, 'Удалённый игрок'),
+        points: pts,
+        isMe: tok === forToken
+      }))
+      .sort((a, b) => b.points - a.points);
+
+    const rawPts = Object.values(allocSource || {}).reduce((acc, v) => acc + v, 0);
+    const isWinner = state.phase === 'FINISHED' && state.wheel.winner && state.wheel.winner.id === item.id;
+
+    return {
+      id: item.id,
+      title: item.title,
+      totalPoints: rawPts,
+      myPoints: (allocSource && allocSource[forToken]) || 0,
+      eliminated: item.eliminated,
+      isWinner: Boolean(isWinner),
+      isMerged: Boolean(item.mergedInto),
+      mergedIntoTitle: mergedTarget ? mergedTarget.title : null,
+      droppedZero: !item.mergedInto && rawPts === 0 && !state.settings.keepZeroItems,
+      contributors
+    };
+  });
 
   return {
     phase: state.phase,
@@ -150,6 +215,7 @@ function buildClientState(forToken) {
     } : null,
     players: playersList,
     items: itemsList,
+    allItems: allItemsList,
     wheel: {
       isSpinning: state.wheel.isSpinning,
       hasStarted: state.wheel.predeterminedWinnerId !== null,
@@ -228,6 +294,7 @@ io.on('connection', (socket) => {
         state.hostToken = playerToken;
       }
       player = {
+        id: generateId(),
         token: playerToken,
         socketId: socket.id,
         name: cleanName,
@@ -237,6 +304,7 @@ io.on('connection', (socket) => {
       };
       state.players.set(playerToken, player);
     } else {
+      if (!player.id) player.id = generateId();
       player.socketId = socket.id;
       player.name = cleanName;
       player.online = true;
@@ -245,6 +313,41 @@ io.on('connection', (socket) => {
 
     socket.emit('joined', { token: playerToken });
     broadcastState();
+  });
+
+  // Кик пользователя из лобби Хостом
+  socket.on('kick_player', ({ playerId }) => {
+    const hostPlayer = state.players.get(currentToken);
+    if (!hostPlayer || !hostPlayer.isHost || state.wheel.isSpinning) return;
+
+    let targetToken = null;
+    let targetPlayer = null;
+    for (const [tok, p] of state.players.entries()) {
+      if (p.id === playerId) {
+        targetToken = tok;
+        targetPlayer = p;
+        break;
+      }
+    }
+
+    if (!targetPlayer || targetToken === currentToken) return;
+
+    // Если мы на этапе POOL, удаляем ставки кикнутого игрока
+    if (state.phase === 'POOL') {
+      for (const item of state.items) {
+        delete item.allocations[targetToken];
+      }
+    }
+
+    if (targetPlayer.socketId) {
+      io.to(targetPlayer.socketId).emit('kicked', {
+        reason: 'Ведущий удалил вас из комнаты.'
+      });
+    }
+
+    state.players.delete(targetToken);
+    broadcastState();
+    checkAllReady();
   });
 
   // Обновление настроек Хостом
@@ -256,14 +359,11 @@ io.on('connection', (socket) => {
     const maxItems = Math.max(1, Math.min(50, parseInt(newSettings.maxItems, 10) || 3));
     const keepZeroItems = Boolean(newSettings.keepZeroItems);
     const zeroItemWeight = Math.max(0.01, Math.min(100, parseFloat(newSettings.zeroItemWeight) || 0.5));
-    // Резерв можно потратить исключительно на варианты других игроков.
-    // Когда опция отключена, все N очков разрешено вложить в любые лоты.
     const restrictOwnPoints = Boolean(newSettings.restrictOwnPoints);
     const foreignOnlyPoints = restrictOwnPoints
       ? Math.max(0, Math.min(maxPoints, Math.floor(Number(newSettings.foreignOnlyPoints) || 0))) : 0;
-    const spinDuration = state.settings.spinDuration; // управляeтся отдельно на экране колеса
+    const spinDuration = state.settings.spinDuration;
 
-    // Если уменьшили лимит очков, сбросим ставки тем, кто превысил новый лимит
     if (state.phase === 'POOL' && maxPoints < state.settings.maxPoints) {
       for (const pToken of state.players.keys()) {
         let spent = 0;
@@ -276,8 +376,6 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Если новые правила сделали старые ставки на свои лоты недопустимыми,
-    // уменьшаем только собственные ставки и возвращаем очки на баланс.
     if (state.phase === 'POOL') {
       const ownLimit = maxPoints - foreignOnlyPoints;
       for (const pToken of state.players.keys()) {
@@ -299,12 +397,19 @@ io.on('connection', (socket) => {
         if (changed) state.players.get(pToken).ready = false;
       }
     }
-    state.settings = { maxPoints, maxItems, keepZeroItems, zeroItemWeight,
-      spinDuration, restrictOwnPoints, foreignOnlyPoints };
+    state.settings = {
+      maxPoints,
+      maxItems,
+      keepZeroItems,
+      zeroItemWeight,
+      spinDuration,
+      restrictOwnPoints,
+      foreignOnlyPoints
+    };
     broadcastState();
   });
 
-  // Ведущий меняет время непосредственно у колеса, без сохранения других правил.
+  // Ведущий меняет время непосредственно у колеса
   socket.on('update_spin_duration', ({ duration }) => {
     const player = state.players.get(currentToken);
     if (!player || player.socketId !== socket.id || !player.isHost ||
@@ -329,7 +434,6 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Проверка на точный дубликат по названию (без учета регистра)
     const existing = state.items.find(it => !it.mergedInto && it.title.toLowerCase() === cleanTitle.toLowerCase());
     if (existing) {
       socket.emit('toast_error', 'Такой вариант уже есть в общем списке!');
@@ -340,7 +444,9 @@ io.on('connection', (socket) => {
       id: generateId(),
       title: cleanTitle,
       createdByToken: currentToken,
+      createdByName: player.name,
       allocations: {},
+      originalAllocations: null,
       eliminated: false,
       mergedInto: null
     });
@@ -348,13 +454,24 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  // Удаление своего варианта (возвращает очки всем, кто успел в него вложить)
+  // Удаление варианта (разрешено автору варианта ИЛИ Хосту даже для чужих вариантов)
   socket.on('delete_item', ({ itemId }) => {
     const player = state.players.get(currentToken);
-    if (!player || state.phase !== 'POOL' || player.ready) return;
+    if (!player || state.phase !== 'POOL') return;
 
-    const idx = state.items.findIndex(it => it.id === itemId && it.createdByToken === currentToken);
-    if (idx !== -1) {
+    const idx = state.items.findIndex(it => it.id === itemId && !it.mergedInto);
+    if (idx === -1) return;
+
+    const targetItem = state.items[idx];
+    const isOwner = targetItem.createdByToken === currentToken;
+    const isHost = Boolean(player.isHost);
+
+    // Обычный игрок не может удалить свой вариант, если нажал «Готов».
+    // Хост может удалить чужой вариант в любой момент фазы POOL.
+    if (isOwner && !player.ready) {
+      state.items.splice(idx, 1);
+      broadcastState();
+    } else if (isHost) {
       state.items.splice(idx, 1);
       broadcastState();
     }
@@ -381,8 +498,14 @@ io.on('connection', (socket) => {
       ? state.items.filter(it => !it.mergedInto && it.id !== itemId && it.createdByToken === currentToken)
           .reduce((sum, it) => sum + (it.allocations[currentToken] || 0), 0)
       : 0;
-    const allowed = Math.max(0, Math.min(desired, state.settings.maxPoints - spentOnOthers,
-      item.createdByToken === currentToken ? ownLimit - spentOnOwnOthers : state.settings.maxPoints));
+    const allowed = Math.max(
+      0,
+      Math.min(
+        desired,
+        state.settings.maxPoints - spentOnOthers,
+        item.createdByToken === currentToken ? ownLimit - spentOnOwnOthers : state.settings.maxPoints
+      )
+    );
     if (allowed === 0) {
       delete item.allocations[currentToken];
     } else {
@@ -413,6 +536,7 @@ io.on('connection', (socket) => {
     const target = state.items.find(it => it.id === targetId && !it.mergedInto);
     if (!source || !target) return;
 
+    source.originalAllocations = { ...source.allocations };
     for (const [token, pts] of Object.entries(source.allocations)) {
       target.allocations[token] = (target.allocations[token] || 0) + pts;
     }
@@ -442,16 +566,13 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // При самом первом вращении определяем победителя строго по вероятности очков
     if (!state.wheel.predeterminedWinnerId || !aliveItems.some(it => it.id === state.wheel.predeterminedWinnerId)) {
       state.wheel.predeterminedWinnerId = pickPredeterminedWinner(aliveItems);
     }
 
-    // Кандидаты на вылет в этом раунде — все живые, кроме предопределенного победителя
     const candidates = aliveItems.filter(it => it.id !== state.wheel.predeterminedWinnerId);
     const eliminatedItem = pickEliminatedItem(candidates);
 
-    // Вычисляем доли секторов на колесе для всех живых вариантов (пропорционально 1 / Очки)
     const invWeights = aliveItems.map(it => 1 / getEffectivePoints(it));
     const totalInv = invWeights.reduce((a, b) => a + b, 0);
 
@@ -464,7 +585,6 @@ io.on('connection', (socket) => {
       cursor = end;
 
       if (it.id === eliminatedItem.id) {
-        // Выбираем случайную точку внутри сектора (отступая по 15% от границ сектора)
         targetFraction = start + (0.15 + Math.random() * 0.7) * share;
       }
 
@@ -480,7 +600,6 @@ io.on('connection', (socket) => {
     broadcastState();
 
     const durationSec = state.settings.spinDuration;
-    // Для длинных прокруток сохраняем ощущение вращения, а не многоминутную неподвижность.
     const extraSpins = Math.max(6, Math.round(durationSec * 0.85)) + Math.floor(Math.random() * 3);
 
     io.emit('wheel_spin', {
@@ -519,8 +638,6 @@ io.on('connection', (socket) => {
   });
 
   // Полная очистка комнаты без остановки Node.js / Cloudflare tunnel.
-  // Игроки выходят на экран входа; первый заново вошедший становится ведущим.
-  // Уничтожаем отложенный результат прошлой прокрутки во избежание гонок.
   socket.on('hard_reset_auction', () => {
     const player = state.players.get(currentToken);
     if (!player || player.socketId !== socket.id || !player.isHost) return;
@@ -533,7 +650,6 @@ io.on('connection', (socket) => {
     state.players.clear();
     state.items = [];
     state.wheel = { predeterminedWinnerId: null, isSpinning: false, history: [], winner: null };
-    // Не доверяем старым токенам после полного сброса.
     for (const sock of io.sockets.sockets.values()) sock.data.auctionToken = null;
     io.emit('auction_hard_reset');
   });
@@ -561,6 +677,7 @@ io.on('connection', (socket) => {
       state.items = state.items.filter(it => !it.mergedInto).map(it => ({
         ...it,
         allocations: {},
+        originalAllocations: null,
         eliminated: false,
         mergedInto: null
       }));
