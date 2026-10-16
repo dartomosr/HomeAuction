@@ -75,9 +75,36 @@ function closeAllItemsModal() {
   dom.modalAllItems.classList.add('hidden');
 }
 
+function switchHistoryTab(tab) {
+  const showStats = tab === 'stats' && !dom.tabBtnStats.disabled;
+  dom.tabBtnAll.classList.toggle('active', !showStats);
+  dom.tabBtnStats.classList.toggle('active', showStats);
+  dom.tabBtnAll.setAttribute('aria-selected', String(!showStats));
+  dom.tabBtnStats.setAttribute('aria-selected', String(showStats));
+  dom.modalTabAll.classList.toggle('hidden', showStats);
+  dom.modalTabStats.classList.toggle('hidden', !showStats);
+  if (showStats) {
+    dom.modalAllItemsSubtitle.textContent = 'Итоги матча, вкладчики в победный вариант, выживаемость лотов и распределение эффективных очков:';
+  } else if (store.appState) {
+    const isRevealed = store.appState.phase === 'REVEAL' || store.appState.phase === 'FINISHED';
+    const showingStats = dom.tabBtnStats.classList.contains('active') && isFinished;
+    dom.modalAllItemsSubtitle.textContent = showingStats
+      ? 'Итоги матча, вкладчики в победный вариант, выживаемость лотов и распределение эффективных очков:'
+      : isRevealed
+        ? 'Полный список всех предложенных вариантов (включая нулевые и объединённые) и кто сколько очков вложил:'
+        : 'Полный список всех добавленных вариантов в пуле (ставки других участников откроются на этапе колеса):';
+  }
+}
+
 function renderAllItemsModal(state) {
   const allItems = state.allItems || [];
   dom.allItemsCountEl.textContent = String(allItems.length);
+  const isFinished = state.phase === 'FINISHED';
+  dom.tabBtnStats.disabled = !isFinished;
+  dom.tabBtnStats.title = isFinished
+    ? 'Показать статистику и графики аукциона'
+    : 'Доступно после определения победителя';
+  if (!isFinished) switchHistoryTab('all');
 
   const isRevealed = state.phase === 'REVEAL' || state.phase === 'FINISHED';
   dom.modalAllItemsSubtitle.textContent = isRevealed
@@ -91,10 +118,7 @@ function renderAllItemsModal(state) {
     empty.className = 'muted-text';
     empty.textContent = 'Пока не добавлено ни одного варианта.';
     dom.allItemsModalList.appendChild(empty);
-    return;
-  }
-
-  allItems.forEach((item, index) => {
+  } else allItems.forEach((item, index) => {
     const row = document.createElement('div');
     row.className = 'all-item-row';
 
@@ -170,6 +194,123 @@ function renderAllItemsModal(state) {
 
     dom.allItemsModalList.appendChild(row);
   });
+
+  renderHistoryStats(state);
+}
+
+function renderHistoryStats(state) {
+  dom.modalTabStats.replaceChildren();
+  if (state.phase !== 'FINISHED') return;
+
+  const allItems = state.allItems || [];
+  const history = state.wheel.history || [];
+  const winner = state.wheel.winner || allItems.find(item => item.isWinner);
+  const uniqueItems = allItems.filter(item => !item.isMerged);
+  const totalPoints = uniqueItems.reduce((sum, item) => sum + (Number(item.totalPoints) || 0), 0);
+  const effectivePoints = new Map(
+    (state.items || []).map(item => [item.id, Number(item.effectivePoints) || 0])
+  );
+  const eliminationRounds = new Map(history.map((item, index) => [item.id, index + 1]));
+  const stats = document.createElement('div');
+  stats.className = 'history-stats';
+
+  const summary = document.createElement('section');
+  summary.className = 'history-stat-card';
+  const summaryTitle = document.createElement('h3');
+  summaryTitle.textContent = 'Итоги аукциона';
+  const summaryValues = document.createElement('div');
+  summaryValues.className = 'history-summary';
+  for (const [label, value] of [
+    ['Победитель', winner ? winner.title : 'Не определён'],
+    ['Пул очков', `${totalPoints} очк.`],
+    ['Раунды / выбывшие', `${history.length} / ${history.length}`]
+  ]) {
+    const entry = document.createElement('div');
+    entry.className = 'history-summary-item';
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    const result = document.createElement('strong');
+    result.textContent = value;
+    entry.append(caption, result);
+    summaryValues.appendChild(entry);
+  }
+  summary.append(summaryTitle, summaryValues);
+  stats.appendChild(summary);
+
+  const contributorsCard = document.createElement('section');
+  contributorsCard.className = 'history-stat-card';
+  const contributorsTitle = document.createElement('h3');
+  contributorsTitle.textContent = 'Вкладчики в победный вариант';
+  const contributors = document.createElement('ol');
+  contributors.className = 'history-stat-list';
+  const winningItem = allItems.find(item => winner && item.id === winner.id);
+  const winnerContributors = winningItem ? winningItem.contributors || [] : [];
+  if (winnerContributors.length) {
+    [...winnerContributors]
+      .sort((a, b) => b.points - a.points)
+      .forEach(contributor => {
+        const entry = document.createElement('li');
+        entry.textContent = `${contributor.name}: ${contributor.points} очк.`;
+        contributors.appendChild(entry);
+      });
+  } else {
+    const entry = document.createElement('li');
+    entry.textContent = 'В победный вариант никто не вложил очки.';
+    contributors.appendChild(entry);
+  }
+  contributorsCard.append(contributorsTitle, contributors);
+  stats.appendChild(contributorsCard);
+
+  const survivalCard = document.createElement('section');
+  survivalCard.className = 'history-stat-card';
+  const survivalTitle = document.createElement('h3');
+  survivalTitle.textContent = 'Выживаемость лотов';
+  const survival = document.createElement('ol');
+  survival.className = 'history-stat-list';
+  allItems.forEach(item => {
+    const entry = document.createElement('li');
+    const round = eliminationRounds.get(item.id);
+    if (round) entry.textContent = `${item.title} — выбыл в раунде ${round}`;
+    else if (winner && item.id === winner.id) entry.textContent = `${item.title} — победитель, пережил ${history.length} раундов`;
+    else if (item.droppedZero) entry.textContent = `${item.title} — не участвовал (0 очков)`;
+    else if (item.isMerged) entry.textContent = `${item.title} — объединён с «${item.mergedIntoTitle || 'другим лотом'}»`;
+    else entry.textContent = `${item.title} — продержался ${history.length} раундов`;
+    survival.appendChild(entry);
+  });
+  survivalCard.append(survivalTitle, survival);
+  stats.appendChild(survivalCard);
+
+  const distributionCard = document.createElement('section');
+  distributionCard.className = 'history-stat-card';
+  const distributionTitle = document.createElement('h3');
+  distributionTitle.textContent = 'Распределение эффективных очков';
+  const bars = document.createElement('div');
+  bars.className = 'history-bar-list';
+  const chartItems = [...uniqueItems].sort((a, b) =>
+    (effectivePoints.get(b.id) || 0) - (effectivePoints.get(a.id) || 0)
+  );
+  const maxEffectivePoints = Math.max(0, ...chartItems.map(item => effectivePoints.get(item.id) || 0));
+  chartItems.forEach(item => {
+    const points = effectivePoints.get(item.id) || 0;
+    const row = document.createElement('div');
+    row.className = 'history-bar-row';
+    const title = document.createElement('span');
+    title.className = 'history-bar-title';
+    title.textContent = item.title;
+    const track = document.createElement('div');
+    track.className = 'history-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'history-bar-fill';
+    fill.style.width = `${maxEffectivePoints ? (points / maxEffectivePoints) * 100 : 0}%`;
+    track.appendChild(fill);
+    const value = document.createElement('strong');
+    value.textContent = `${points} очк.`;
+    row.append(title, track, value);
+    bars.appendChild(row);
+  });
+  distributionCard.append(distributionTitle, bars);
+  stats.appendChild(distributionCard);
+  dom.modalTabStats.appendChild(stats);
 }
 
 // Уведомления
@@ -596,4 +737,4 @@ function renderRevealView(state) {
   }
 }
 
-export { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };
+export { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, switchHistoryTab, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };

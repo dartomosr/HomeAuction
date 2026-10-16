@@ -2,7 +2,7 @@ import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
-import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, showToast } from './ui-render.js';
+import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, switchHistoryTab, showToast } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 
 if (store.myName) dom.inputName.value = store.myName;
@@ -66,10 +66,12 @@ dom.btnSound.addEventListener('click', () => {
   updateSoundButton();
 });
 
-// Всплывающее модальное окно «Все добавленные варианты»
+// Модальное окно истории вариантов и статистики
 
 dom.btnAllItems.addEventListener('click', openAllItemsModal);
 dom.btnCloseAllItems.addEventListener('click', closeAllItemsModal);
+dom.tabBtnAll.addEventListener('click', () => switchHistoryTab('all'));
+dom.tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
 dom.modalAllItems.addEventListener('click', (e) => {
   if (e.target === dom.modalAllItems) closeAllItemsModal();
 });
