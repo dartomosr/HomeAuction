@@ -59,6 +59,7 @@ function buildClientState(forToken) {
       isHost: p.isHost,
       ready: p.ready,
       online: p.online,
+      isSpectator: Boolean(p.isSpectator),
       isMe: p.token === forToken,
       canKick: isHostViewer && p.token !== forToken
     });
@@ -185,6 +186,7 @@ function buildClientState(forToken) {
       name: me.name,
       isHost: me.isHost,
       ready: me.ready,
+      isSpectator: Boolean(me.isSpectator),
       myItemsCount,
       mySpentPoints,
       mySpentOwnPoints,
@@ -247,6 +249,7 @@ function buildClientState(forToken) {
       isHost: p.isHost,
       ready: p.ready,
       online: p.online,
+      isSpectator: Boolean(p.isSpectator),
       isMe: p.token === forToken,
       canKick: isHostViewer && p.token !== forToken
     });
@@ -373,6 +376,7 @@ function buildClientState(forToken) {
       name: me.name,
       isHost: me.isHost,
       ready: me.ready,
+      isSpectator: Boolean(me.isSpectator),
       myItemsCount,
       mySpentPoints,
       mySpentOwnPoints,

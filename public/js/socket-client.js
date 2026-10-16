@@ -1,7 +1,7 @@
 import { store, writeSetting, removeSetting } from './store.js';
 import { dom } from './dom.js';
 import { renderAllItemsModal, closeAllItemsModal, showToast, renderSidebar, renderMainArea } from './ui-render.js';
-import { playWinnerFanfare } from './audio.js';
+import { playWinnerFanfare, playUiClickSound } from './audio.js';
 import { resetClientVisualState, renderWheelLegend, resizeWheelCanvas, drawWheel, handleWheelSpin } from './wheel-canvas.js';
 
 export const socket = window.io();
@@ -10,7 +10,7 @@ store.socket = socket;
 export function initSocketClient() {
 socket.on('connect', () => {
   if (store.myToken && store.myName) {
-    socket.emit('join', { token: store.myToken, name: store.myName });
+    socket.emit('join', { token: store.myToken, name: store.myName, isSpectator: store.isSpectator });
   }
 });
 
@@ -25,6 +25,10 @@ socket.on('joined', ({ token }) => {
 
 socket.on('toast_error', (msg) => {
   showToast(msg);
+});
+
+socket.on('item_added', () => {
+  playUiClickSound();
 });
 
 socket.on('kicked', ({ reason }) => {

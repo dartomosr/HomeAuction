@@ -1,5 +1,7 @@
 import { store } from './store.js';
 
+let lastUiSliderSoundAt = Number.NEGATIVE_INFINITY;
+
 function initAudio() {
   if (!store.audioCtx) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -7,6 +9,98 @@ function initAudio() {
   }
   if (store.audioCtx && store.audioCtx.state === 'suspended') {
     store.audioCtx.resume();
+  }
+}
+
+function playUiClickSound() {
+  if (!store.soundEnabled || !store.audioCtx) return;
+  if (store.audioCtx.state !== 'running') return;
+  try {
+    const now = store.audioCtx.currentTime;
+    const osc = store.audioCtx.createOscillator();
+    const gain = store.audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(150, now + 0.025);
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+    osc.connect(gain);
+    gain.connect(store.audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.03);
+  } catch (error) {
+    console.warn('Не удалось воспроизвести UI-звук клика', error);
+  }
+}
+
+function playUiSliderSound() {
+  if (!store.soundEnabled || !store.audioCtx) return;
+  if (store.audioCtx.state !== 'running') return;
+  const nowMs = performance.now();
+  if (nowMs - lastUiSliderSoundAt < 80) return;
+  lastUiSliderSoundAt = nowMs;
+  try {
+    const now = store.audioCtx.currentTime;
+    const osc = store.audioCtx.createOscillator();
+    const gain = store.audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(850, now);
+    osc.frequency.exponentialRampToValueAtTime(620, now + 0.018);
+    gain.gain.setValueAtTime(0.014, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.022);
+    osc.connect(gain);
+    gain.connect(store.audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.025);
+  } catch (error) {
+    console.warn('Не удалось воспроизвести UI-звук ползунка', error);
+  }
+}
+
+function playUiReadySound(isReady) {
+  if (!store.soundEnabled || !store.audioCtx) return;
+  if (store.audioCtx.state !== 'running') return;
+  try {
+    const now = store.audioCtx.currentTime;
+    const notes = isReady ? [523.25, 659.25] : [392, 293.66];
+    notes.forEach((frequency, index) => {
+      const start = now + index * 0.075;
+      const osc = store.audioCtx.createOscillator();
+      const gain = store.audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.035, start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+      osc.connect(gain);
+      gain.connect(store.audioCtx.destination);
+      osc.start(start);
+      osc.stop(start + 0.13);
+    });
+  } catch (error) {
+    console.warn('Не удалось воспроизвести UI-звук готовности', error);
+  }
+}
+
+function playUiMessageSound() {
+  if (!store.soundEnabled || !store.audioCtx) return;
+  if (store.audioCtx.state !== 'running') return;
+  try {
+    const now = store.audioCtx.currentTime;
+    [587.33, 783.99].forEach((frequency, index) => {
+      const start = now + index * 0.09;
+      const osc = store.audioCtx.createOscillator();
+      const gain = store.audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.022, start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+      osc.connect(gain);
+      gain.connect(store.audioCtx.destination);
+      osc.start(start);
+      osc.stop(start + 0.17);
+    });
+  } catch (error) {
+    console.warn('Не удалось воспроизвести UI-звук уведомления', error);
   }
 }
 
@@ -114,4 +208,14 @@ function playFxTone(effect) {
   } catch (_) {}
 }
 
-export { initAudio, playTickSound, playEliminatedSound, playWinnerFanfare, playFxTone };
+export {
+  initAudio,
+  playTickSound,
+  playEliminatedSound,
+  playWinnerFanfare,
+  playFxTone,
+  playUiClickSound,
+  playUiSliderSound,
+  playUiReadySound,
+  playUiMessageSound
+};

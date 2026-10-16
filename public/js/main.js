@@ -1,12 +1,23 @@
 import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
-import { initAudio } from './audio.js';
+import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
 import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, showToast } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 
 if (store.myName) dom.inputName.value = store.myName;
+dom.inputSpectator.checked = store.isSpectator;
 initSocketClient();
+
+document.addEventListener('click', (event) => {
+  const target = event.target instanceof Element ? event.target : event.target.parentElement;
+  const control = target && target.closest('button, summary.btn, .settings-collapse-toggle');
+  if (!control || control.id === 'btn-sound' || control.id === 'btn-ready' ||
+      control.id === 'btn-add-item' || control.id === 'btn-add-free-item' ||
+      control.id === 'btn-distribute-even' || control.matches('.pool-item-controls button')) return;
+  if (store.soundEnabled) initAudio();
+  playUiClickSound();
+});
 
 dom.formJoin.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -14,8 +25,10 @@ dom.formJoin.addEventListener('submit', (e) => {
   const clean = dom.inputName.value.trim();
   if (!clean) return;
   store.myName = clean;
+  store.isSpectator = dom.inputSpectator.checked;
   writeSetting('auction_name', store.myName);
-  socket.emit('join', { token: store.myToken, name: store.myName });
+  writeSetting('auction_spectator', store.isSpectator ? 'on' : 'off');
+  socket.emit('join', { token: store.myToken, name: store.myName, isSpectator: store.isSpectator });
 });
 
 dom.effectsMasterToggle.addEventListener('change', () => setAllEffects(dom.effectsMasterToggle.checked));
@@ -121,6 +134,7 @@ dom.formAddItem.addEventListener('submit', (e) => {
   e.preventDefault();
   const title = dom.inputItemTitle.value.trim();
   if (!title) return;
+  if (store.soundEnabled) initAudio();
   const limitReached = store.appState && store.appState.me.myItemsCount >= store.appState.settings.maxItems;
   const canUseFreeSlot = store.appState && (store.appState.me.isHost || store.appState.settings.allowFreeItemsForAll);
   // Если обычный лимит исчерпан, но доступно добавление + ДОП, Enter отправляет как + ДОП
@@ -134,6 +148,7 @@ dom.btnAddFreeItem.addEventListener('click', () => {
     dom.inputItemTitle.focus();
     return;
   }
+  if (store.soundEnabled) initAudio();
   socket.emit('add_item', { title, isFreeSlot: true });
   dom.inputItemTitle.value = '';
 });
@@ -141,6 +156,8 @@ dom.btnAddFreeItem.addEventListener('click', () => {
 // Раскидать очки поровну
 dom.btnDistributeEven.addEventListener('click', () => {
   if (!store.appState || store.appState.items.length === 0) return;
+  if (store.soundEnabled) initAudio();
+  playUiSliderSound();
   const items = store.appState.items;
   const count = items.length;
   const total = store.appState.settings.maxPoints;
@@ -175,7 +192,8 @@ dom.btnClearPoints.addEventListener('click', () => {
 
 // Готовность
 dom.btnReady.addEventListener('click', () => {
-  initAudio();
+  if (store.soundEnabled) initAudio();
+  playUiReadySound(Boolean(store.appState && !store.appState.me.ready));
   socket.emit('toggle_ready');
 });
 

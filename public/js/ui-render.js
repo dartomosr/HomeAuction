@@ -1,6 +1,7 @@
 import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { ELIMINATION_EFFECTS, THEME_WHEEL_PALETTES } from './constants.js';
+import { initAudio, playUiSliderSound, playUiMessageSound } from './audio.js';
 
 function updatePointsSplitPreview() {
   const total = Math.max(1, Number(dom.setMaxPoints.value) || 100);
@@ -174,6 +175,7 @@ function renderAllItemsModal(state) {
 // Уведомления
 
 function showToast(msg) {
+  playUiMessageSound();
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = msg;
@@ -182,8 +184,10 @@ function showToast(msg) {
 }
 
 function renderSidebar(state) {
-  const readyCount = state.players.filter((p) => p.ready).length;
-  dom.readyCounterEl.textContent = `${readyCount} / ${state.players.length} готовы`;
+  const activePlayers = state.players.filter((p) => !p.isSpectator);
+  const readyCount = activePlayers.filter((p) => p.ready).length;
+  dom.readyCounterEl.textContent = `${readyCount} / ${activePlayers.length} готовы`;
+  dom.mySpectatorBadge.classList.toggle('hidden', !state.me.isSpectator);
 
   dom.playersListEl.innerHTML = '';
   state.players.forEach((p) => {
@@ -204,10 +208,17 @@ function renderSidebar(state) {
     const rightWrap = document.createElement('div');
     rightWrap.className = 'player-right-wrap';
 
-    const status = document.createElement('span');
-    status.className = `player-status ${p.ready ? 'status-ready' : 'status-wait'}`;
-    status.textContent = p.ready ? 'ГОТОВ' : 'ДУМАЕТ';
-    rightWrap.appendChild(status);
+    if (p.isSpectator) {
+      const spectatorTag = document.createElement('span');
+      spectatorTag.className = 'spectator-tag';
+      spectatorTag.textContent = '👁 ЗРИТЕЛЬ';
+      rightWrap.appendChild(spectatorTag);
+    } else {
+      const status = document.createElement('span');
+      status.className = `player-status ${p.ready ? 'status-ready' : 'status-wait'}`;
+      status.textContent = p.ready ? 'ГОТОВ' : 'ДУМАЕТ';
+      rightWrap.appendChild(status);
+    }
 
     // Кнопка кика пользователя из лобби для Хоста
     if (p.canKick && !state.wheel.isSpinning) {
@@ -278,6 +289,10 @@ function renderMainArea(state) {
 }
 
 function renderPoolView(state) {
+  const isSpectator = Boolean(state.me.isSpectator);
+  dom.poolDashboard.classList.toggle('hidden', isSpectator);
+  dom.addItemCard.classList.toggle('hidden', isSpectator);
+
   dom.myRemainingPointsEl.textContent = state.me.remainingPoints;
   dom.myMaxPointsEl.textContent = state.settings.maxPoints;
   dom.myItemsCountEl.textContent = state.me.myItemsCount;
@@ -311,7 +326,9 @@ function renderPoolView(state) {
   if (state.items.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted-text';
-    empty.textContent = 'Пока никто не добавил ни одного варианта. Будьте первым!';
+    empty.textContent = isSpectator
+      ? 'В пуле пока нет вариантов.'
+      : 'Пока никто не добавил ни одного варианта. Будьте первым!';
     dom.poolItemsList.appendChild(empty);
     return;
   }
@@ -323,7 +340,7 @@ function renderPoolView(state) {
     const left = document.createElement('div');
     left.className = 'pool-item-left';
 
-  const titleSpan = document.createElement('span');
+    const titleSpan = document.createElement('span');
     titleSpan.className = 'pool-item-title';
     titleSpan.textContent = item.title;
     left.appendChild(titleSpan);
@@ -337,7 +354,7 @@ function renderPoolView(state) {
     }
 
     // 1) Свой вариант: обычный красный крестик ✕
-    if (item.canDelete && !isLocked) {
+    if (!isSpectator && item.canDelete && !isLocked) {
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
       delBtn.className = 'btn btn-danger btn-sm';
@@ -349,7 +366,7 @@ function renderPoolView(state) {
       left.appendChild(delBtn);
     }
     // 2) Чужой вариант (для Хоста): другой значок ⊘ Хост с пунктирной рамкой
-    else if (item.canHostDelete) {
+    else if (!isSpectator && item.canHostDelete) {
       const hostDelBtn = document.createElement('button');
       hostDelBtn.type = 'button';
       hostDelBtn.className = 'btn btn-host-delete btn-sm';
@@ -361,6 +378,12 @@ function renderPoolView(state) {
         }
       });
       left.appendChild(hostDelBtn);
+    }
+
+    if (isSpectator) {
+      card.appendChild(left);
+      dom.poolItemsList.appendChild(card);
+      return;
     }
 
     const controls = document.createElement('div');
@@ -379,6 +402,8 @@ function renderPoolView(state) {
       b.textContent = label;
       b.disabled = isLocked;
       b.addEventListener('click', () => {
+        initAudio();
+        playUiSliderSound();
         store.socket.emit('set_points', {
           itemId: item.id,
           points: Math.max(0, item.myPoints + delta)
@@ -395,6 +420,8 @@ function renderPoolView(state) {
     slider.value = item.myPoints;
     slider.disabled = isLocked;
     slider.addEventListener('input', () => {
+      initAudio();
+      playUiSliderSound();
       const clamped = Math.min(Number(slider.value), maxPossibleForThisItem);
       slider.value = clamped;
       numInput.value = clamped;

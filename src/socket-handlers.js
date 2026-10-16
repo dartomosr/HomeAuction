@@ -17,7 +17,7 @@ function registerSocketHandlers(io) {
   // Автоматический переход к REVEAL только когда 100% игроков нажали «Готов»
   function checkAllReady() {
     if (state.phase !== 'POOL') return;
-    const allPlayers = Array.from(state.players.values());
+    const allPlayers = Array.from(state.players.values()).filter(p => !p.isSpectator);
     if (allPlayers.length === 0) return;
 
     const everyoneReady = allPlayers.every(p => p.ready);
@@ -25,7 +25,7 @@ function registerSocketHandlers(io) {
 
     const validItems = getActiveRevealItems();
     if (validItems.length === 0) {
-      for (const p of state.players.values()) p.ready = false;
+      for (const p of allPlayers) p.ready = false;
       io.emit('toast_error', 'В пуле нет ни одного активного варианта! Добавьте вариант и распределите очки.');
       broadcastState();
       return;
@@ -38,16 +38,19 @@ function registerSocketHandlers(io) {
   io.on('connection', (socket) => {
     let currentToken = null;
 
-    socket.on('join', ({ token, name }) => {
+    socket.on('join', (joinData = {}) => {
+      const { token, name, isSpectator } = joinData;
       const cleanName = (name || '').trim().slice(0, 24);
       if (!cleanName) return;
 
+      const hasSpectatorChoice = Object.prototype.hasOwnProperty.call(joinData, 'isSpectator');
+      const spectatorChoice = Boolean(isSpectator);
       const playerToken = (token && state.players.has(token)) ? token : (token || generateId());
       currentToken = playerToken;
 
       let player = state.players.get(playerToken);
       if (!player) {
-        if (!state.hostToken) {
+        if (!spectatorChoice && !state.hostToken) {
           state.hostToken = playerToken;
         }
         player = {
@@ -57,7 +60,8 @@ function registerSocketHandlers(io) {
           name: cleanName,
           isHost: state.hostToken === playerToken,
           ready: false,
-          online: true
+          online: true,
+          isSpectator: spectatorChoice
         };
         state.players.set(playerToken, player);
       } else {
@@ -65,11 +69,30 @@ function registerSocketHandlers(io) {
         player.socketId = socket.id;
         player.name = cleanName;
         player.online = true;
-        player.isHost = (state.hostToken === playerToken);
+        if (hasSpectatorChoice) {
+          player.isSpectator = spectatorChoice;
+          if (player.isSpectator) {
+            player.ready = false;
+            if (state.phase === 'POOL') {
+              for (const item of state.items) delete item.allocations[playerToken];
+            }
+          }
+        }
       }
+
+      if (state.hostToken === playerToken && player.isSpectator) {
+        const nextHost = Array.from(state.players.entries()).find(
+          ([candidateToken, candidate]) => candidateToken !== playerToken && !candidate.isSpectator
+        );
+        state.hostToken = nextHost ? nextHost[0] : null;
+      } else if (!state.hostToken && !player.isSpectator) {
+        state.hostToken = playerToken;
+      }
+      for (const p of state.players.values()) p.isHost = state.hostToken === p.token;
 
       socket.emit('joined', { token: playerToken });
       broadcastState();
+      checkAllReady();
     });
 
     // Кик пользователя из лобби Хостом
@@ -181,7 +204,7 @@ function registerSocketHandlers(io) {
     // Добавление варианта в общий пул (обычное или вне лимита + ДОП)
     socket.on('add_item', ({ title, isFreeSlot } = {}) => {
       const player = state.players.get(currentToken);
-      if (!player || state.phase !== 'POOL') return;
+      if (!player || player.isSpectator || state.phase !== 'POOL') return;
 
       const wantsFreeSlot = Boolean(isFreeSlot);
       const canAddFreeSlot = Boolean(player.isHost || state.settings.allowFreeItemsForAll);
@@ -227,12 +250,13 @@ function registerSocketHandlers(io) {
       });
 
       broadcastState();
+      socket.emit('item_added');
     });
 
     // Удаление варианта (разрешено автору варианта ИЛИ Хосту даже для чужих вариантов)
     socket.on('delete_item', ({ itemId }) => {
       const player = state.players.get(currentToken);
-      if (!player || state.phase !== 'POOL') return;
+      if (!player || player.isSpectator || state.phase !== 'POOL') return;
 
       const idx = state.items.findIndex(it => it.id === itemId && !it.mergedInto);
       if (idx === -1) return;
@@ -253,7 +277,7 @@ function registerSocketHandlers(io) {
     // Изменение тайной ставки очков на конкретный вариант
     socket.on('set_points', ({ itemId, points }) => {
       const player = state.players.get(currentToken);
-      if (!player || state.phase !== 'POOL' || player.ready) return;
+      if (!player || player.isSpectator || state.phase !== 'POOL' || player.ready) return;
 
       const item = state.items.find(it => it.id === itemId && !it.mergedInto);
       if (!item) return;
@@ -291,7 +315,7 @@ function registerSocketHandlers(io) {
     // Переключение статуса «Готов»
     socket.on('toggle_ready', () => {
       const player = state.players.get(currentToken);
-      if (!player || state.phase !== 'POOL') return;
+      if (!player || player.isSpectator || state.phase !== 'POOL') return;
 
       player.ready = !player.ready;
       broadcastState();

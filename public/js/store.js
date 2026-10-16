@@ -28,6 +28,7 @@ export const store = {
   appState: null,
   myToken: readSetting('auction_token'),
   myName: readSetting('auction_name', ''),
+  isSpectator: readSetting('auction_spectator', 'off') === 'on',
   soundEnabled: readSetting('auction_sound', 'on') !== 'off',
   currentTheme: readSetting('auction_theme', 'anime'),
   themeAnimationEnabled: readSetting('auction_theme_animation', 'on') !== 'off',
