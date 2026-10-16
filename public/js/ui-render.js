@@ -283,33 +283,240 @@ function renderHistoryStats(state) {
   const distributionCard = document.createElement('section');
   distributionCard.className = 'history-stat-card';
   const distributionTitle = document.createElement('h3');
-  distributionTitle.textContent = 'Распределение эффективных очков';
+  distributionTitle.textContent = 'Суммарные очки и эффективный вес';
+  const distributionNote = document.createElement('p');
+  distributionNote.className = 'muted-text small-text';
+  distributionNote.textContent = 'Суммарные очки показаны отдельно от веса, определяющего шанс победы; для лота с нулём очков может учитываться настроенный вес.';
   const bars = document.createElement('div');
   bars.className = 'history-bar-list';
   const chartItems = [...uniqueItems].sort((a, b) =>
     (effectivePoints.get(b.id) || 0) - (effectivePoints.get(a.id) || 0)
   );
+  const maxLotPoints = Math.max(0, ...chartItems.map(item => Number(item.totalPoints) || 0));
   const maxEffectivePoints = Math.max(0, ...chartItems.map(item => effectivePoints.get(item.id) || 0));
   chartItems.forEach(item => {
-    const points = effectivePoints.get(item.id) || 0;
     const row = document.createElement('div');
-    row.className = 'history-bar-row';
+    row.className = 'history-bar-row stats-chart-row';
     const title = document.createElement('span');
     title.className = 'history-bar-title';
     title.textContent = item.title;
-    const track = document.createElement('div');
-    track.className = 'history-bar-track';
-    const fill = document.createElement('div');
-    fill.className = 'history-bar-fill';
-    fill.style.width = `${maxEffectivePoints ? (points / maxEffectivePoints) * 100 : 0}%`;
-    track.appendChild(fill);
-    const value = document.createElement('strong');
-    value.textContent = `${points} очк.`;
-    row.append(title, track, value);
+    const measures = document.createElement('div');
+    measures.className = 'stats-chart-measures';
+    for (const [label, points, max, tone] of [
+      ['Сумма', Number(item.totalPoints) || 0, maxLotPoints, 'raw'],
+      ['Вес', effectivePoints.get(item.id) || 0, maxEffectivePoints, 'effective']
+    ]) {
+      const measure = document.createElement('div');
+      measure.className = 'stats-chart-measure';
+      const caption = document.createElement('span');
+      caption.textContent = `${label}: ${points}`;
+      const track = document.createElement('div');
+      track.className = 'stats-progress-bar';
+      const fill = document.createElement('div');
+      fill.className = `stats-progress-fill ${tone}`;
+      fill.style.width = `${max ? (points / max) * 100 : 0}%`;
+      track.appendChild(fill);
+      measure.append(caption, track);
+      measures.appendChild(measure);
+    }
+    row.append(title, measures);
     bars.appendChild(row);
   });
-  distributionCard.append(distributionTitle, bars);
+  distributionCard.append(distributionTitle, distributionNote, bars);
   stats.appendChild(distributionCard);
+
+  const playerStats = new Map();
+  const playerKey = (id, name) => id || `name:${name}`;
+  const ensurePlayer = (id, name) => {
+    const key = playerKey(id, name);
+    if (!playerStats.has(key)) {
+      playerStats.set(key, { id, name, invested: 0, returned: 0, earlyOut: 0, finalist: 0, other: 0 });
+    }
+    return playerStats.get(key);
+  };
+  (state.players || []).filter(player => !player.isSpectator).forEach(player => {
+    ensurePlayer(player.id, player.name);
+  });
+  uniqueItems.forEach(item => {
+    (item.contributors || []).forEach(contributor => {
+      ensurePlayer(contributor.playerId, contributor.name).invested += Number(contributor.points) || 0;
+    });
+  });
+
+  if (winner) {
+    const mergedSources = allItems.filter(item => item.isMerged && item.mergedIntoId === winner.id);
+    const winnerPoints = Math.max(0, Number(winner.totalPoints) || 0);
+    const mergedPoints = mergedSources.reduce((sum, item) => sum + (Number(item.totalPoints) || 0), 0);
+    const origins = [
+      ...mergedSources.map(item => ({
+        playerId: item.createdByPlayerId,
+        name: item.createdByName || 'Участник',
+        points: Number(item.totalPoints) || 0
+      })),
+      {
+        playerId: winningItem && winningItem.createdByPlayerId,
+        name: winningItem && winningItem.createdByName || 'Участник',
+        points: Math.max(0, winnerPoints - mergedPoints)
+      }
+    ];
+    origins.forEach(origin => {
+      if (winnerPoints > 0 && origin.points > 0) {
+        ensurePlayer(origin.playerId, origin.name).returned += origin.points;
+      }
+    });
+  }
+
+  const roiCard = document.createElement('section');
+  roiCard.className = 'history-stat-card';
+  const roiTitle = document.createElement('h3');
+  roiTitle.textContent = 'Эффективность инвестиций (ROI поинтов)';
+  const roiNote = document.createElement('p');
+  roiNote.className = 'muted-text small-text';
+  roiNote.textContent = 'Возврат — доля очков победного лота, начисленная создателю исходного варианта; ROI = (возврат − вложения) / вложения.';
+  const roiTable = document.createElement('div');
+  roiTable.className = 'stats-table';
+  const roiHeader = document.createElement('div');
+  roiHeader.className = 'stats-table-row stats-table-header';
+  ['Участник', 'Вложено', 'Возврат', 'ROI'].forEach(label => {
+    const cell = document.createElement('strong');
+    cell.textContent = label;
+    roiHeader.appendChild(cell);
+  });
+  roiTable.appendChild(roiHeader);
+  [...playerStats.values()]
+    .sort((a, b) => {
+      const roiA = a.invested ? (a.returned - a.invested) / a.invested : (a.returned ? Infinity : 0);
+      const roiB = b.invested ? (b.returned - b.invested) / b.invested : (b.returned ? Infinity : 0);
+      return roiB - roiA || b.returned - a.returned;
+    })
+    .forEach(player => {
+      const row = document.createElement('div');
+      row.className = 'stats-table-row';
+      const roi = player.invested ? ((player.returned - player.invested) / player.invested) * 100 : null;
+      const values = [
+        player.name,
+        `${player.invested} очк.`,
+        `${player.returned.toFixed(1)} очк.`,
+        roi === null ? '—' : `${roi.toFixed(0)}%`
+      ];
+      values.forEach(value => {
+        const cell = document.createElement('span');
+        cell.textContent = value;
+        row.appendChild(cell);
+      });
+      roiTable.appendChild(row);
+    });
+  roiCard.append(roiTitle, roiNote, roiTable);
+  stats.appendChild(roiCard);
+
+  const precisionCard = document.createElement('section');
+  precisionCard.className = 'history-stat-card';
+  const precisionTitle = document.createElement('h3');
+  precisionTitle.textContent = 'Индекс меткого выбора (удача vs ставки)';
+  const precisionNote = document.createElement('p');
+  precisionNote.className = 'muted-text small-text';
+  precisionNote.textContent = 'Ранние выбывания — первая половина раундов; финалисты — победитель и лот, выбывший последним.';
+  const precisionRows = document.createElement('div');
+  precisionRows.className = 'stats-precision-list';
+  const lastRound = history.length;
+  const earlyRoundLimit = Math.floor(lastRound / 2);
+  uniqueItems.forEach(item => {
+    const round = eliminationRounds.get(item.id);
+    const category = item.isWinner || round === lastRound
+      ? 'finalist'
+      : round && round <= earlyRoundLimit ? 'earlyOut' : 'other';
+    (item.contributors || []).forEach(contributor => {
+      const player = ensurePlayer(contributor.playerId, contributor.name);
+      player[category] += Number(contributor.points) || 0;
+    });
+  });
+  [...playerStats.values()]
+    .filter(player => player.earlyOut + player.finalist + player.other > 0)
+    .sort((a, b) => (b.finalist - b.earlyOut) - (a.finalist - a.earlyOut))
+    .forEach(player => {
+      const total = player.earlyOut + player.finalist + player.other;
+      const row = document.createElement('div');
+      row.className = 'stats-precision-row';
+      const name = document.createElement('strong');
+      name.textContent = player.name;
+      const track = document.createElement('div');
+      track.className = 'stats-progress-bar stats-stacked-bar';
+      for (const [amount, tone] of [
+        [player.earlyOut, 'early-out'],
+        [player.finalist, 'finalist'],
+        [player.other, 'other']
+      ]) {
+        const fill = document.createElement('span');
+        fill.className = `stats-progress-fill ${tone}`;
+        fill.style.width = `${total ? (amount / total) * 100 : 0}%`;
+        track.appendChild(fill);
+      }
+      const detail = document.createElement('span');
+      detail.className = 'stats-precision-detail';
+      detail.textContent = `Аутсайдеры: ${player.earlyOut} · Финалисты: ${player.finalist} · Остальные: ${player.other}`;
+      row.append(name, track, detail);
+      precisionRows.appendChild(row);
+    });
+  precisionCard.append(precisionTitle, precisionNote, precisionRows);
+  stats.appendChild(precisionCard);
+
+  const timelineCard = document.createElement('section');
+  timelineCard.className = 'history-stat-card';
+  const timelineTitle = document.createElement('h3');
+  timelineTitle.textContent = 'Динамика шансов победы по раундам';
+  const timelineNote = document.createElement('p');
+  timelineNote.className = 'muted-text small-text';
+  timelineNote.textContent = 'Вероятность каждого оставшегося лота рассчитывается как его эффективный вес относительно суммарного веса оставшихся.';
+  const timeline = document.createElement('div');
+  timeline.className = 'stats-timeline';
+  const alive = new Map((state.items || [])
+    .filter(item => Number(item.effectivePoints) > 0)
+    .map(item => [item.id, item]));
+  const snapshots = [{
+    label: 'До первого раунда',
+    eliminated: null,
+    items: [...alive.values()]
+  }];
+  history.forEach((eliminated, index) => {
+    alive.delete(eliminated.id);
+    snapshots.push({
+      label: `После раунда ${index + 1}`,
+      eliminated,
+      items: [...alive.values()]
+    });
+  });
+  snapshots.forEach(snapshot => {
+    const round = document.createElement('div');
+    round.className = 'stats-round';
+    const heading = document.createElement('strong');
+    heading.textContent = snapshot.eliminated
+      ? `${snapshot.label} · выбыл: ${snapshot.eliminated.title}`
+      : snapshot.label;
+    round.appendChild(heading);
+    const roundItems = snapshot.items;
+    const totalWeight = roundItems.reduce((sum, item) => sum + (Number(item.effectivePoints) || 0), 0);
+    roundItems.sort((a, b) => (Number(b.effectivePoints) || 0) - (Number(a.effectivePoints) || 0));
+    roundItems.forEach(item => {
+      const probability = totalWeight ? (Number(item.effectivePoints) / totalWeight) * 100 : 0;
+      const line = document.createElement('div');
+      line.className = 'stats-probability-row';
+      const label = document.createElement('span');
+      label.textContent = item.title;
+      const track = document.createElement('div');
+      track.className = 'stats-progress-bar';
+      const fill = document.createElement('span');
+      fill.className = 'stats-progress-fill probability';
+      fill.style.width = `${probability}%`;
+      track.appendChild(fill);
+      const value = document.createElement('strong');
+      value.textContent = `${probability.toFixed(1)}%`;
+      line.append(label, track, value);
+      round.appendChild(line);
+    });
+    timeline.appendChild(round);
+  });
+  timelineCard.append(timelineTitle, timelineNote, timeline);
+  stats.appendChild(timelineCard);
   dom.modalTabStats.appendChild(stats);
 }
 

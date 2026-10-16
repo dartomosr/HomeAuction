@@ -154,11 +154,15 @@ function buildClientState(forToken) {
 
     const contributors = Object.entries(allocSource || {})
       .filter(([, pts]) => pts > 0)
-      .map(([tok, pts]) => ({
-        name: getPlayerNameByToken(tok, 'Удалённый игрок'),
-        points: pts,
-        isMe: tok === forToken
-      }))
+      .map(([tok, pts]) => {
+        const contributor = state.players.get(tok);
+        return {
+          name: getPlayerNameByToken(tok, 'Удалённый игрок'),
+          playerId: contributor ? contributor.id : null,
+          points: pts,
+          isMe: tok === forToken
+        };
+      })
       .sort((a, b) => b.points - a.points);
 
     const rawPts = Object.values(allocSource || {}).reduce((acc, v) => acc + v, 0);
@@ -167,6 +171,9 @@ function buildClientState(forToken) {
     return {
       id: item.id,
       title: item.title,
+      createdByPlayerId: state.players.get(item.createdByToken)?.id || null,
+      createdByName: item.createdByName || 'Удалённый игрок',
+      mergedIntoId: item.mergedInto || null,
       isFreeSlot: Boolean(item.isFreeSlot),
       totalPoints: rawPts,
       myPoints: (allocSource && allocSource[forToken]) || 0,
@@ -344,11 +351,15 @@ function buildClientState(forToken) {
 
     const contributors = Object.entries(allocSource || {})
       .filter(([, pts]) => pts > 0)
-      .map(([tok, pts]) => ({
-        name: getPlayerNameByToken(tok, 'Удалённый игрок'),
-        points: pts,
-        isMe: tok === forToken
-      }))
+      .map(([tok, pts]) => {
+        const contributor = state.players.get(tok);
+        return {
+          name: getPlayerNameByToken(tok, 'Удалённый игрок'),
+          playerId: contributor ? contributor.id : null,
+          points: pts,
+          isMe: tok === forToken
+        };
+      })
       .sort((a, b) => b.points - a.points);
 
     const rawPts = Object.values(allocSource || {}).reduce((acc, v) => acc + v, 0);
@@ -357,6 +368,9 @@ function buildClientState(forToken) {
     return {
       id: item.id,
       title: item.title,
+      createdByPlayerId: state.players.get(item.createdByToken)?.id || null,
+      createdByName: item.createdByName || 'Удалённый игрок',
+      mergedIntoId: item.mergedInto || null,
       isFreeSlot: Boolean(item.isFreeSlot),
       totalPoints: rawPts,
       myPoints: (allocSource && allocSource[forToken]) || 0,

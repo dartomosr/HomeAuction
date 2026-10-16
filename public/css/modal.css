@@ -165,6 +165,123 @@
   background: var(--accent-primary);
 }
 
+.stats-chart-row {
+  grid-template-columns: minmax(90px, 1fr) minmax(130px, 2fr);
+  align-items: start;
+}
+
+.stats-chart-measures {
+  display: grid;
+  gap: 5px;
+}
+
+.stats-chart-measure {
+  display: grid;
+  grid-template-columns: 66px minmax(50px, 1fr);
+  align-items: center;
+  gap: 7px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.stats-progress-bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-card);
+}
+
+.stats-progress-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  background: var(--accent-primary);
+}
+
+.stats-progress-fill.raw { background: var(--accent-primary); }
+.stats-progress-fill.effective { background: var(--accent-secondary, var(--text-muted)); }
+.stats-progress-fill.early-out { background: #b86c6c; }
+.stats-progress-fill.finalist { background: #5c9b7a; }
+.stats-progress-fill.other { background: #8991a4; }
+.stats-progress-fill.probability { background: var(--accent-primary); }
+
+.stats-table {
+  display: grid;
+  gap: 4px;
+}
+
+.stats-table-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1.6fr) repeat(3, minmax(65px, 1fr));
+  gap: 8px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-size: 0.78rem;
+}
+
+.stats-table-row > :not(:first-child) {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.stats-table-header {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.stats-precision-list,
+.stats-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.stats-precision-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(100px, 2fr);
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.stats-precision-detail {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.stats-stacked-bar {
+  height: 12px;
+}
+
+.stats-round {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.stats-probability-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(70px, 2fr) 48px;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.76rem;
+}
+
+.stats-probability-row > span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.stats-probability-row > strong {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
 @media (max-width: 520px) {
   .modal-tabs {
     flex-wrap: wrap;
@@ -177,6 +294,17 @@
 
   .history-bar-row {
     grid-template-columns: minmax(70px, 1fr) minmax(50px, 1.5fr) auto;
+  }
+
+  .stats-chart-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-table-row {
+    grid-template-columns: minmax(75px, 1.4fr) repeat(3, minmax(52px, 1fr));
+    gap: 5px;
+    padding: 7px 5px;
+    font-size: 0.68rem;
   }
 }
 
