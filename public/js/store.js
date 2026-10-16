@@ -32,6 +32,9 @@ export const store = {
   soundEnabled: readSetting('auction_sound', 'on') !== 'off',
   currentTheme: readSetting('auction_theme', 'anime'),
   themeAnimationEnabled: readSetting('auction_theme_animation', 'on') !== 'off',
+  poolFilter: ['all', 'own', 'others'].includes(readSetting('auction_pool_filter', 'all'))
+    ? readSetting('auction_pool_filter', 'all')
+    : 'all',
   autoSpinActive: false,
   autoSpinTimer: null,
   activeSpinFrame: null,

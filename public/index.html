@@ -311,9 +311,16 @@
 
         <!-- Общий список вариантов -->
         <div class="card">
-          <div class="card-header-strip">
+          <div class="card-header-strip pool-card-header">
             <span>ОБЩИЙ АНОНИМНЫЙ СПИСОК ВАРИАНТОВ <span id="pool-item-count" class="pool-item-count">0</span></span>
-            <span class="sub-hint">Чужие очки скрыты до готовности всех игроков</span>
+            <div class="pool-header-tools">
+              <span class="sub-hint">Чужие очки скрыты до готовности всех игроков</span>
+              <div class="pool-item-filters" role="group" aria-label="Фильтр вариантов">
+                <button type="button" class="pool-item-filter is-active" data-pool-filter="all" aria-pressed="true">Все</button>
+                <button type="button" class="pool-item-filter" data-pool-filter="own" aria-pressed="false">Мои</button>
+                <button type="button" class="pool-item-filter" data-pool-filter="others" aria-pressed="false">Чужие</button>
+              </div>
+            </div>
           </div>
           <div id="pool-items-list" class="pool-items-grid"></div>
         </div>

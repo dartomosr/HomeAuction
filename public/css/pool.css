@@ -366,6 +366,41 @@
   vertical-align: middle;
 }
 
+.pool-header-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pool-item-filters {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+}
+
+.pool-item-filter {
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 4px 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pool-item-filter:hover,
+.pool-item-filter.is-active {
+  background: var(--accent-primary);
+  color: var(--accent-primary-text);
+}
+
 .pool-item-card {
   display: flex;
   justify-content: space-between;
@@ -376,6 +411,18 @@
   background: var(--bg-elevated);
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--radius);
+}
+
+@media (max-width: 760px) {
+  .pool-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pool-header-tools {
+    justify-content: flex-start;
+    width: 100%;
+  }
 }
 
 .pool-item-card.has-my-points {

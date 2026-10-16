@@ -671,18 +671,34 @@ function renderPoolView(state) {
   dom.btnReady.classList.toggle('is-ready', isLocked);
 
   dom.poolItemCount.textContent = state.items.length;
+  dom.poolItemFilters.querySelectorAll('[data-pool-filter]').forEach((button) => {
+    const isActive = button.dataset.poolFilter === store.poolFilter;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
   dom.poolItemsList.innerHTML = '';
-  if (state.items.length === 0) {
+  const visibleItems = state.items.filter((item) => {
+    if (store.poolFilter === 'own') return item.isOwn;
+    if (store.poolFilter === 'others') return !item.isOwn;
+    return true;
+  });
+  if (visibleItems.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted-text';
-    empty.textContent = isSpectator
-      ? 'В пуле пока нет вариантов.'
-      : 'Пока никто не добавил ни одного варианта. Будьте первым!';
+    empty.textContent = state.items.length === 0
+      ? (isSpectator
+        ? 'В пуле пока нет вариантов.'
+        : 'Пока никто не добавил ни одного варианта. Будьте первым!')
+      : (store.poolFilter === 'own'
+        ? 'У вас пока нет своих вариантов.'
+        : store.poolFilter === 'others'
+          ? 'Чужих вариантов пока нет.'
+          : 'В пуле пока нет вариантов.');
     dom.poolItemsList.appendChild(empty);
     return;
   }
 
-  state.items.forEach((item) => {
+  visibleItems.forEach((item) => {
     const card = document.createElement('div');
     card.className = `pool-item-card ${item.myPoints > 0 ? 'has-my-points' : ''}`;
 

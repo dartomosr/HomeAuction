@@ -76,6 +76,7 @@ export const dom = {
   roFreeItems: document.getElementById('ro-free-items'),
   setAllowFreeAll: document.getElementById('set-allow-free-all'),
   poolItemCount: document.getElementById('pool-item-count'),
+  poolItemFilters: document.querySelector('.pool-item-filters'),
   poolItemsList: document.getElementById('pool-items-list'),
   winnerBanner: document.getElementById('winner-banner'),
   winnerTitle: document.getElementById('winner-title'),

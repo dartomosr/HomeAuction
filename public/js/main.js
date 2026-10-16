@@ -2,7 +2,7 @@ import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
-import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, switchHistoryTab, showToast } from './ui-render.js';
+import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, switchHistoryTab, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 
 if (store.myName) dom.inputName.value = store.myName;
@@ -29,6 +29,20 @@ dom.formJoin.addEventListener('submit', (e) => {
   writeSetting('auction_name', store.myName);
   writeSetting('auction_spectator', store.isSpectator ? 'on' : 'off');
   socket.emit('join', { token: store.myToken, name: store.myName, isSpectator: store.isSpectator });
+});
+
+dom.poolItemFilters.addEventListener('click', (event) => {
+  const target = event.target instanceof Element ? event.target.closest('[data-pool-filter]') : null;
+  if (!target) return;
+
+  store.poolFilter = target.dataset.poolFilter;
+  writeSetting('auction_pool_filter', store.poolFilter);
+  dom.poolItemFilters.querySelectorAll('[data-pool-filter]').forEach((button) => {
+    const isActive = button === target;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
+  if (store.appState) renderMainArea(store.appState);
 });
 
 dom.effectsMasterToggle.addEventListener('change', () => setAllEffects(dom.effectsMasterToggle.checked));
