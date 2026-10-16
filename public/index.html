@@ -437,6 +437,20 @@
     </main>
   </div>
 
+  <button id="btn-help" type="button" class="btn help-floating-btn hidden" aria-label="Как пользоваться приложением" title="Как пользоваться приложением">?</button>
+
+  <!-- Пошаговая справка по роли -->
+  <div id="modal-help" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-help-title">
+    <div class="card modal-window help-modal-window">
+      <div class="card-header-strip">
+        <span id="modal-help-title">КАК ПРОЙТИ АУКЦИОН</span>
+        <button type="button" id="btn-close-help" class="btn btn-sm btn-modal-close" title="Закрыть окно" aria-label="Закрыть справку">✕</button>
+      </div>
+      <p id="modal-help-subtitle" class="muted-text small-text modal-subtitle"></p>
+      <div id="modal-help-content" class="help-modal-content"></div>
+    </div>
+  </div>
+
   <!-- История вариантов и статистика аукциона -->
   <div id="modal-all-items" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-all-items-title">
     <div class="card modal-window">

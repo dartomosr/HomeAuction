@@ -1,6 +1,6 @@
 import { store, writeSetting, removeSetting } from './store.js';
 import { dom } from './dom.js';
-import { renderAllItemsModal, closeAllItemsModal, showToast, renderSidebar, renderMainArea } from './ui-render.js';
+import { renderAllItemsModal, closeAllItemsModal, closeHelpModal, renderHelpModal, showToast, renderSidebar, renderMainArea } from './ui-render.js';
 import { playWinnerFanfare, playUiClickSound } from './audio.js';
 import { resetClientVisualState, renderWheelLegend, resizeWheelCanvas, drawWheel, handleWheelSpin } from './wheel-canvas.js';
 
@@ -41,6 +41,8 @@ socket.on('kicked', ({ reason }) => {
   dom.screenJoin.classList.remove('hidden');
   dom.myProfileChip.classList.add('hidden');
   dom.btnAllItems.classList.add('hidden');
+  dom.btnHelp.classList.add('hidden');
+  closeHelpModal();
   dom.phaseBadge.textContent = 'УДАЛЕН ИЗ ЛОББИ';
   showToast(reason || 'Хост удалил вас из лобби.');
 });
@@ -55,6 +57,8 @@ socket.on('auction_hard_reset', () => {
   dom.screenJoin.classList.remove('hidden');
   dom.myProfileChip.classList.add('hidden');
   dom.btnAllItems.classList.add('hidden');
+  dom.btnHelp.classList.add('hidden');
+  closeHelpModal();
   dom.phaseBadge.textContent = 'КОМНАТА ОЧИЩЕНА';
   showToast('Комната полностью очищена. Войдите заново, сервер продолжает работать.');
 });
@@ -65,6 +69,8 @@ socket.on('state_update', (state) => {
   store.appState = state;
 
   if (!state.me) return;
+  dom.btnHelp.classList.remove('hidden');
+  if (!dom.modalHelp.classList.contains('hidden')) renderHelpModal(state);
 
   // Обновляем шапку
   dom.myNameDisplay.textContent = state.me.name;

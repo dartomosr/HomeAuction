@@ -75,6 +75,117 @@ function closeAllItemsModal() {
   dom.modalAllItems.classList.add('hidden');
 }
 
+function renderHelpModal(state) {
+  const isHost = Boolean(state.me && state.me.isHost);
+  const isSpectator = Boolean(state.me && state.me.isSpectator);
+  const steps = isHost
+    ? [
+        {
+          title: 'Этап 1. Подготовьте тайный пул',
+          items: [
+            'Задайте правила игры: бюджет очков, лимит вариантов и ограничения ставок. Их можно менять, пока идёт сбор пула.',
+            'Как участник, добавьте свои варианты, распределите между лотами очки и нажмите «Я готов», когда закончите.',
+            'Следите за готовностью игроков. При необходимости удалите чужой вариант или исключите игрока.'
+          ]
+        },
+        {
+          title: 'Этап 2. Откройте пул и запустите колесо',
+          items: [
+            'Когда готовы все участники, ставки раскроются. До первого вращения можно объединить дубликаты.',
+            'При необходимости настройте длительность, затем запускайте отдельные вращения или авто-крутку до победителя.',
+            'После каждого раунда выбывает один вариант; участники наблюдают за колесом и историей выбывания.'
+          ]
+        },
+        {
+          title: 'Этап 3. Завершите игру',
+          items: [
+            'Когда останется один вариант, он станет победителем. Откройте «Историю», чтобы посмотреть варианты и статистику.',
+            'Чтобы начать следующий раунд, выберите нужный сброс в панели ведущего: сохранить лоты, очистить лоты или полностью очистить комнату.'
+          ]
+        }
+      ]
+    : isSpectator
+      ? [
+          {
+            title: 'Этап 1. Наблюдайте за сбором пула',
+            items: [
+              'Участники добавляют варианты и распределяют между ними очки. До готовности всех игроков чужие ставки скрыты.',
+              'Когда все участники будут готовы, пул и ставки откроются. Зрителю не нужно добавлять варианты или отмечать готовность.'
+            ]
+          },
+          {
+            title: 'Этап 2. Следите за колесом',
+            items: [
+              'После раскрытия пула ведущий запускает колесо. В каждом раунде один вариант выбывает; наблюдать за ходом игры можно на колесе и в истории выбывания.'
+            ]
+          },
+          {
+            title: 'Этап 3. Посмотрите результат',
+            items: [
+              'Когда останется один вариант, он станет победителем. В «Истории» доступны варианты, а после финала — статистика.'
+            ]
+          }
+        ]
+    : [
+        {
+          title: 'Этап 1. Предложите варианты и распределите очки',
+          items: [
+            'Добавьте свои варианты в общий пул, пока не достигнут лимит.',
+            'Распределите свой бюджет очков между вариантами с учётом правил ведущего. До готовности всех игроков чужие ставки скрыты.',
+            'Когда закончите, нажмите «Я готов». После этого все участники увидят общий пул и ставки.'
+          ]
+        },
+        {
+          title: 'Этап 2. Следите за колесом',
+          items: [
+            'После раскрытия ставок колесо по очереди исключает варианты. Чем меньше у варианта очков, тем выше риск выбывания.',
+            'Вращение запускает ведущий; вы можете наблюдать за раундами и историей выбывания.'
+          ]
+        },
+        {
+          title: 'Этап 3. Посмотрите результат',
+          items: [
+            'Когда останется один вариант, он станет победителем. В «Истории» доступны все варианты и, после финала, статистика.'
+          ]
+        }
+      ];
+
+  dom.modalHelpTitle.textContent = isHost
+    ? 'КАК ПРОВЕСТИ АУКЦИОН — ВЕДУЩЕМУ'
+    : isSpectator ? 'КАК СЛЕДИТЬ ЗА АУКЦИОНОМ — ЗРИТЕЛЮ' : 'КАК ПРОЙТИ АУКЦИОН — УЧАСТНИКУ';
+  dom.modalHelpSubtitle.textContent = isHost
+    ? 'Ведущий настраивает ход игры и тоже может участвовать: добавлять варианты, ставить очки и отмечать готовность.'
+    : isSpectator
+      ? 'Зритель наблюдает за игрой и не участвует в добавлении вариантов, ставках и готовности.'
+      : 'Памятка участника: от заполнения тайного пула до просмотра результата.';
+  dom.modalHelpContent.replaceChildren();
+
+  for (const step of steps) {
+    const section = document.createElement('section');
+    section.className = 'help-step';
+    const heading = document.createElement('h3');
+    heading.textContent = step.title;
+    const list = document.createElement('ol');
+    for (const text of step.items) {
+      const item = document.createElement('li');
+      item.textContent = text;
+      list.appendChild(item);
+    }
+    section.append(heading, list);
+    dom.modalHelpContent.appendChild(section);
+  }
+}
+
+function openHelpModal() {
+  if (!store.appState || !store.appState.me) return;
+  renderHelpModal(store.appState);
+  dom.modalHelp.classList.remove('hidden');
+}
+
+function closeHelpModal() {
+  dom.modalHelp.classList.add('hidden');
+}
+
 function switchHistoryTab(tab) {
   const showStats = tab === 'stats' && !dom.tabBtnStats.disabled;
   dom.tabBtnAll.classList.toggle('active', !showStats);
@@ -961,4 +1072,4 @@ function renderRevealView(state) {
   }
 }
 
-export { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, switchHistoryTab, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };
+export { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };

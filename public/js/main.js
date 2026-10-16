@@ -2,7 +2,7 @@ import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
-import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, switchHistoryTab, showToast, renderMainArea } from './ui-render.js';
+import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 
 if (store.myName) dom.inputName.value = store.myName;
@@ -84,6 +84,11 @@ dom.btnSound.addEventListener('click', () => {
 
 dom.btnAllItems.addEventListener('click', openAllItemsModal);
 dom.btnCloseAllItems.addEventListener('click', closeAllItemsModal);
+dom.btnHelp.addEventListener('click', openHelpModal);
+dom.btnCloseHelp.addEventListener('click', closeHelpModal);
+dom.modalHelp.addEventListener('click', (e) => {
+  if (e.target === dom.modalHelp) closeHelpModal();
+});
 dom.tabBtnAll.addEventListener('click', () => switchHistoryTab('all'));
 dom.tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
 dom.modalAllItems.addEventListener('click', (e) => {
@@ -92,6 +97,7 @@ dom.modalAllItems.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     dom.effectsSettings.open = false;
+    if (!dom.modalHelp.classList.contains('hidden')) closeHelpModal();
     if (!dom.modalAllItems.classList.contains('hidden')) {
       closeAllItemsModal();
     }
