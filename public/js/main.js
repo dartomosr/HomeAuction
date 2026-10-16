@@ -40,7 +40,7 @@ dom.themeAnimationToggle.addEventListener('change', () => {
   writeSetting('auction_theme_animation', store.themeAnimationEnabled ? 'on' : 'off');
   document.body.classList.toggle(
     'has-animated-background-pattern',
-    store.themeAnimationEnabled && (store.currentTheme === 'anime' || store.currentTheme === 'casino')
+    store.themeAnimationEnabled && ['anime', 'casino', 'terminal', 'paper', 'coffee', 'pastel-soft', 'nordic'].includes(store.currentTheme)
   );
 });
 

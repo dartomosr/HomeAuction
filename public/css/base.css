@@ -357,7 +357,8 @@ input[type="checkbox"]:disabled {
 .all-items-modal-list,
 .table-scroll,
 .effects-popover,
-.wheel-legend {
+.wheel-legend,
+.theme-picker .input-select {
   /* Для Firefox */
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) transparent;
@@ -369,7 +370,8 @@ input[type="checkbox"]:disabled {
 .all-items-modal-list::-webkit-scrollbar,
 .table-scroll::-webkit-scrollbar,
 .effects-popover::-webkit-scrollbar,
-.wheel-legend::-webkit-scrollbar {
+.wheel-legend::-webkit-scrollbar,
+.theme-picker .input-select::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
@@ -379,7 +381,8 @@ input[type="checkbox"]:disabled {
 .all-items-modal-list::-webkit-scrollbar-track,
 .table-scroll::-webkit-scrollbar-track,
 .effects-popover::-webkit-scrollbar-track,
-.wheel-legend::-webkit-scrollbar-track {
+.wheel-legend::-webkit-scrollbar-track,
+.theme-picker .input-select::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -388,7 +391,8 @@ input[type="checkbox"]:disabled {
 .all-items-modal-list::-webkit-scrollbar-thumb,
 .table-scroll::-webkit-scrollbar-thumb,
 .effects-popover::-webkit-scrollbar-thumb,
-.wheel-legend::-webkit-scrollbar-thumb {
+.wheel-legend::-webkit-scrollbar-thumb,
+.theme-picker .input-select::-webkit-scrollbar-thumb {
   background: var(--border-color);
   border-radius: 999px;
 }
@@ -398,6 +402,37 @@ input[type="checkbox"]:disabled {
 .all-items-modal-list::-webkit-scrollbar-thumb:hover,
 .table-scroll::-webkit-scrollbar-thumb:hover,
 .effects-popover::-webkit-scrollbar-thumb:hover,
-.wheel-legend::-webkit-scrollbar-thumb:hover {
+.wheel-legend::-webkit-scrollbar-thumb:hover,
+.theme-picker .input-select::-webkit-scrollbar-thumb:hover {
   background: var(--accent-primary);
+}
+
+@supports (appearance: base-select) {
+  .theme-picker .input-select {
+    appearance: base-select;
+  }
+
+  .theme-picker .input-select::picker(select) {
+    max-height: min(60vh, 420px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+  }
+
+  .theme-picker .input-select::picker(select)::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .theme-picker .input-select::picker(select)::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .theme-picker .input-select::picker(select)::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 999px;
+  }
+
+  .theme-picker .input-select::picker(select)::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+  }
 }

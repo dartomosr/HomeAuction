@@ -47,12 +47,12 @@ function applyTheme(themeName) {
   if (!THEME_WHEEL_PALETTES[themeName]) themeName = 'anime';
   store.currentTheme = themeName;
   document.documentElement.setAttribute('data-theme', themeName);
-  const supportsPatternAnimation = themeName === 'anime' || themeName === 'casino';
-  dom.themeAnimationControl.classList.toggle('hidden', !supportsPatternAnimation);
+  const supportsBackgroundAnimation = ['anime', 'casino', 'terminal', 'paper', 'coffee', 'pastel-soft', 'nordic'].includes(themeName);
+  dom.themeAnimationControl.classList.toggle('hidden', !supportsBackgroundAnimation);
   dom.themeAnimationToggle.checked = store.themeAnimationEnabled;
   document.body.classList.toggle(
     'has-animated-background-pattern',
-    supportsPatternAnimation && store.themeAnimationEnabled
+    supportsBackgroundAnimation && store.themeAnimationEnabled
   );
   store.wheelLabelFont = getComputedStyle(document.body).fontFamily;
   writeSetting('auction_theme', themeName);
