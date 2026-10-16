@@ -350,6 +350,22 @@
   gap: 12px;
 }
 
+.pool-item-count {
+  display: inline-flex;
+  min-width: 1.6em;
+  height: 1.6em;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 1.0em;
+  line-height: 1;
+  vertical-align: middle;
+}
+
 .pool-item-card {
   display: flex;
   justify-content: space-between;

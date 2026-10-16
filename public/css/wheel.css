@@ -287,7 +287,6 @@ html[data-theme="terminal"] .reveal-table th { color: var(--accent-secondary); }
 html[data-theme="terminal"] .wheel-status { border-color: var(--accent-primary); }
 html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-primary); }
 
-.animation-top-control { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .effects-settings { position: relative; }
 .effects-settings summary { display: list-item; list-style: none; cursor: pointer; white-space: nowrap; }
 .effects-settings summary::-webkit-details-marker { display: none; }
@@ -299,6 +298,8 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
   border: 2px solid var(--accent-secondary); border-radius: var(--radius);
   box-shadow: 0 18px 45px rgba(0,0,0,.40); padding: 16px;
 }
+.settings-quick-toggles { display: flex; gap: 8px; width: 100%; }
+.settings-quick-toggles .btn { flex: 1; min-width: 0; }
 .effects-popover strong { display: block; font-family: var(--font-display); font-size: .85rem; margin-bottom: 7px; }
 .effects-popover p { font-size: .79rem; color: var(--text-muted); margin-bottom: 12px; }
 .effects-checkboxes { display: grid; gap: 4px; }
@@ -348,8 +349,7 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
   animation: none;
 }
 @media (max-width: 650px) {
-  .animation-top-control { width: 100%; }
-  .effects-popover { left: 0; right: auto; }
+  .effects-popover { left: auto; right: 0; }
 }
 
 .wheel-duration-panel {

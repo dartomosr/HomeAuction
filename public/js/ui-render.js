@@ -670,6 +670,7 @@ function renderPoolView(state) {
   dom.btnReady.textContent = isLocked ? '✓ ВЫ ГОТОВЫ (ОТМЕНИТЬ)' : 'Я ГОТОВ';
   dom.btnReady.classList.toggle('is-ready', isLocked);
 
+  dom.poolItemCount.textContent = state.items.length;
   dom.poolItemsList.innerHTML = '';
   if (state.items.length === 0) {
     const empty = document.createElement('p');

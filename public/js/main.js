@@ -76,8 +76,11 @@ dom.modalAllItems.addEventListener('click', (e) => {
   if (e.target === dom.modalAllItems) closeAllItemsModal();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dom.modalAllItems.classList.contains('hidden')) {
-    closeAllItemsModal();
+  if (e.key === 'Escape') {
+    dom.effectsSettings.open = false;
+    if (!dom.modalAllItems.classList.contains('hidden')) {
+      closeAllItemsModal();
+    }
   }
 });
 

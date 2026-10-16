@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test tests/smoke.test.js",
     "tunnel": "npx cloudflared tunnel --url http://localhost:3000"
   },
   "keywords": [],

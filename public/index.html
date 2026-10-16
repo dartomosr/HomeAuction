@@ -62,26 +62,26 @@
         </label>
       </div>
 
-      <button id="btn-sound" class="btn btn-icon" title="Вкл/Выкл звук колеса">
-        Звук: ВКЛ
-      </button>
-
-      <div class="animation-top-control">
-        <button id="btn-toggle-effects" type="button" class="btn btn-icon" aria-pressed="true">Эффекты: ВКЛ</button>
-        <details id="effects-settings" class="effects-settings">
-          <summary class="btn btn-icon">⚙ Анимации выбывания</summary>
-          <div class="effects-popover">
-            <strong>Случайный эффект выбывания</strong>
-            <p>Выберите, какие эффекты могут выпасть. Если всё отключено — обычное сворачивание.</p>
-            <label class="fx-master-row"><input type="checkbox" id="fx-master-toggle" /> Включить все эффекты</label>
-            <div class="fx-bulk-actions">
-              <button type="button" id="fx-select-all" class="btn btn-outline btn-sm">✓ Включить всё</button>
-              <button type="button" id="fx-select-none" class="btn btn-outline btn-sm">✕ Выключить всё</button>
-            </div>
-            <div id="effects-checkboxes" class="effects-checkboxes"></div>
+      <details id="effects-settings" class="effects-settings client-settings-menu">
+        <summary class="btn btn-icon">⚙ Настройки</summary>
+        <div class="effects-popover">
+          <div class="settings-quick-toggles">
+            <button id="btn-sound" type="button" class="btn btn-icon" title="Вкл/Выкл звук колеса">
+              Звук: ВКЛ
+            </button>
+            <button id="btn-toggle-effects" type="button" class="btn btn-icon" aria-pressed="true">Эффекты: ВКЛ</button>
           </div>
-        </details>
-      </div>
+          <hr class="divider" />
+          <strong>Анимации выбывания</strong>
+          <p>Выберите, какие эффекты могут выпасть. Если всё отключено — обычное сворачивание.</p>
+          <label class="fx-master-row"><input type="checkbox" id="fx-master-toggle" /> Включить все эффекты</label>
+          <div class="fx-bulk-actions">
+            <button type="button" id="fx-select-all" class="btn btn-outline btn-sm">✓ Включить всё</button>
+            <button type="button" id="fx-select-none" class="btn btn-outline btn-sm">✕ Выключить всё</button>
+          </div>
+          <div id="effects-checkboxes" class="effects-checkboxes"></div>
+        </div>
+      </details>
 
       <div id="my-profile-chip" class="profile-chip hidden">
         <span id="my-name-display">Игрок</span>
@@ -312,7 +312,7 @@
         <!-- Общий список вариантов -->
         <div class="card">
           <div class="card-header-strip">
-            <span>ОБЩИЙ АНОНИМНЫЙ СПИСОК ВАРИАНТОВ</span>
+            <span>ОБЩИЙ АНОНИМНЫЙ СПИСОК ВАРИАНТОВ <span id="pool-item-count" class="pool-item-count">0</span></span>
             <span class="sub-hint">Чужие очки скрыты до готовности всех игроков</span>
           </div>
           <div id="pool-items-list" class="pool-items-grid"></div>
