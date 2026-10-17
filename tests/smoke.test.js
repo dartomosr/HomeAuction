@@ -56,6 +56,7 @@ describe('smoke checks', () => {
 
     assert.deepEqual(duplicateIds, [], `Duplicate HTML IDs: ${[...new Set(duplicateIds)].join(', ')}`);
     assert.deepEqual(missingIds, [], `DOM IDs missing from index.html: ${missingIds.join(', ')}`);
+    assert.match(html, /<button[^>]*id="btn-copy-result"[^>]*disabled[^>]*title="Доступно после определения победителя"[^>]*>📋 Результат<\/button>/);
   });
 
   test('checks that imported CSS files exist and are not empty', async () => {

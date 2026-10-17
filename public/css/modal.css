@@ -83,11 +83,18 @@
   margin-bottom: 12px;
 }
 
-.modal-tabs {
+.modal-tabs-row {
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 6px;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 10px;
+}
+
+.modal-tabs {
+  display: flex;
+  gap: 6px;
 }
 
 .tab-btn {
@@ -110,6 +117,11 @@
 .tab-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.tab-btn.copied {
+  color: var(--accent-success);
+  border-color: var(--accent-success);
 }
 
 .modal-tab-content {
@@ -217,25 +229,6 @@
   background: var(--accent-primary);
 }
 
-.stats-chart-row {
-  grid-template-columns: minmax(90px, 1fr) minmax(130px, 2fr);
-  align-items: start;
-}
-
-.stats-chart-measures {
-  display: grid;
-  gap: 5px;
-}
-
-.stats-chart-measure {
-  display: grid;
-  grid-template-columns: 66px minmax(50px, 1fr);
-  align-items: center;
-  gap: 7px;
-  font-size: 0.74rem;
-  color: var(--text-muted);
-}
-
 .stats-progress-bar {
   display: flex;
   width: 100%;
@@ -252,12 +245,9 @@
   background: var(--accent-primary);
 }
 
-.stats-progress-fill.raw { background: var(--accent-primary); }
-.stats-progress-fill.effective { background: var(--accent-secondary, var(--text-muted)); }
 .stats-progress-fill.early-out { background: #b86c6c; }
 .stats-progress-fill.finalist { background: #5c9b7a; }
 .stats-progress-fill.other { background: #8991a4; }
-.stats-progress-fill.probability { background: var(--accent-primary); }
 
 .stats-table {
   display: grid;
@@ -291,6 +281,67 @@
   gap: 10px;
 }
 
+.stats-probability-chart {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  overflow: visible;
+}
+
+.stats-chart-gridline {
+  stroke: var(--border-color);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.stats-chart-axis-label {
+  fill: var(--text-muted);
+  font: 12px var(--font-mono);
+}
+
+.stats-chart-series {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.stats-chart-point {
+  stroke: var(--bg-elevated);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.stats-chart-elimination-cross {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.stats-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+}
+
+.stats-chart-legend-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.stats-chart-legend-swatch {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
 .stats-precision-row {
   display: grid;
   grid-template-columns: minmax(100px, 1fr) minmax(100px, 2fr);
@@ -317,23 +368,6 @@
   background: var(--bg-card);
 }
 
-.stats-probability-row {
-  display: grid;
-  grid-template-columns: minmax(90px, 1fr) minmax(70px, 2fr) 48px;
-  gap: 8px;
-  align-items: center;
-  font-size: 0.76rem;
-}
-
-.stats-probability-row > span:first-child {
-  overflow-wrap: anywhere;
-}
-
-.stats-probability-row > strong {
-  text-align: right;
-  font-family: var(--font-mono);
-}
-
 @media (max-width: 520px) {
   .help-floating-btn {
     right: 12px;
@@ -344,7 +378,7 @@
     max-height: 90vh;
   }
 
-  .modal-tabs {
+  .modal-tabs-row {
     flex-wrap: wrap;
   }
 
@@ -355,10 +389,6 @@
 
   .history-bar-row {
     grid-template-columns: minmax(70px, 1fr) minmax(50px, 1.5fr) auto;
-  }
-
-  .stats-chart-row {
-    grid-template-columns: 1fr;
   }
 
   .stats-table-row {

@@ -24,6 +24,7 @@ export const dom = {
   allItemsModalList: document.getElementById('all-items-modal-list'),
   tabBtnAll: document.getElementById('tab-btn-all'),
   tabBtnStats: document.getElementById('tab-btn-stats'),
+  btnCopyResult: document.getElementById('btn-copy-result'),
   modalTabAll: document.getElementById('modal-tab-all'),
   modalTabStats: document.getElementById('modal-tab-stats'),
   screenJoin: document.getElementById('screen-join'),

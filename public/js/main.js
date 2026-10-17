@@ -2,7 +2,7 @@ import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
-import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, showToast, renderMainArea } from './ui-render.js';
+import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 
 if (store.myName) dom.inputName.value = store.myName;
@@ -15,7 +15,7 @@ document.addEventListener('click', (event) => {
   if (!control || control.id === 'btn-sound' || control.id === 'btn-ready' ||
       control.id === 'btn-add-item' || control.id === 'btn-add-free-item' ||
       control.id === 'btn-distribute-even' ||
-      control.matches('.pool-item-controls button, .reaction-btn')) return;
+      control.matches('.pool-item-controls button, .reaction-btn, #btn-copy-result')) return;
   if (store.soundEnabled) initAudio();
   playUiClickSound();
 });
@@ -92,6 +92,7 @@ dom.modalHelp.addEventListener('click', (e) => {
 });
 dom.tabBtnAll.addEventListener('click', () => switchHistoryTab('all'));
 dom.tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
+dom.btnCopyResult.addEventListener('click', copyResultSummary);
 dom.modalAllItems.addEventListener('click', (e) => {
   if (e.target === dom.modalAllItems) closeAllItemsModal();
 });

@@ -467,9 +467,12 @@
         <span id="modal-all-items-title">ИСТОРИЯ АУКЦИОНА</span>
         <button type="button" id="btn-close-all-items" class="btn btn-sm btn-modal-close" title="Закрыть окно">✕</button>
       </div>
-      <div class="modal-tabs" role="tablist" aria-label="Разделы истории аукциона">
-        <button type="button" id="tab-btn-all" class="tab-btn active" role="tab" aria-selected="true" aria-controls="modal-tab-all">📋 Все варианты</button>
-        <button type="button" id="tab-btn-stats" class="tab-btn" role="tab" aria-selected="false" aria-controls="modal-tab-stats" disabled title="Доступно после определения победителя">📈 Статистика и графики</button>
+      <div class="modal-tabs-row">
+        <div class="modal-tabs" role="tablist" aria-label="Разделы истории аукциона">
+          <button type="button" id="tab-btn-all" class="tab-btn active" role="tab" aria-selected="true" aria-controls="modal-tab-all">📋 Все варианты</button>
+          <button type="button" id="tab-btn-stats" class="tab-btn" role="tab" aria-selected="false" aria-controls="modal-tab-stats" disabled title="Доступно после определения победителя">📈 Статистика и графики</button>
+        </div>
+        <button type="button" id="btn-copy-result" class="tab-btn" disabled title="Доступно после определения победителя">📋 Результат</button>
       </div>
       <p id="modal-all-items-subtitle" class="muted-text small-text modal-subtitle">
         Полный список всех предложенных лотов (включая варианты с 0 очков).

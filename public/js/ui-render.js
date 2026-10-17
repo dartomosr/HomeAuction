@@ -207,6 +207,93 @@ function switchHistoryTab(tab) {
   }
 }
 
+function buildResultSummaryText(state) {
+  const allItems = state.allItems || [];
+  const history = state.wheel.history || [];
+  const winner = state.wheel.winner || allItems.find(item => item.isWinner);
+  const winningItem = winner && allItems.find(item => item.id === winner.id);
+  const winnerTitle = winner ? winner.title : 'Не определён';
+  const winnerPoints = winner ? Number(winner.totalPoints) || 0 : 0;
+  const winnerAuthor = winningItem ? winningItem.createdByName || 'Удалённый игрок' : 'Неизвестен';
+  const contributors = winningItem ? [...(winningItem.contributors || [])]
+    .sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0))
+    .slice(0, 3) : [];
+  const contributorLines = contributors.length
+    ? contributors.map(contributor => `• ${contributor.name} — ${contributor.points} очк.`)
+    : ['Без ставок (0 очк.)'];
+  const lastEliminations = history.slice(-3);
+  const eliminationLines = lastEliminations.length
+    ? lastEliminations.map((item, index) => {
+      const round = history.length - lastEliminations.length + index + 1;
+      return `• Раунд ${round}: «${item.title}» — ${item.totalPoints} очк.`;
+    })
+    : ['• Выбывших вариантов нет.'];
+
+  return [
+    '🎡 ИТОГИ АУКЦИОНА НА ВЫБЫВАНИЕ',
+    '',
+    `🏆 Победитель: «${winnerTitle}» — ${winnerPoints} очк. (Автор: ${winnerAuthor})`,
+    '',
+    '💰 Главные вкладчики в победителя:',
+    ...contributorLines,
+    '',
+    '🥈 Дошли до финала (последние выбывшие):',
+    ...eliminationLines
+  ].join('\n');
+}
+
+function copyTextWithFallback(text) {
+  const copyWithTextarea = () => {
+    if (typeof document.execCommand !== 'function') return false;
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    try {
+      textarea.select();
+      return document.execCommand('copy');
+    } finally {
+      textarea.remove();
+    }
+  };
+
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    return navigator.clipboard.writeText(text).catch(error => {
+      if (copyWithTextarea()) return;
+      throw error;
+    });
+  }
+  if (copyWithTextarea()) return Promise.resolve();
+  return Promise.reject(new Error('Clipboard API and document.execCommand are unavailable'));
+}
+
+let copyResultResetTimer = null;
+
+async function copyResultSummary() {
+  const state = store.appState;
+  if (!state || state.phase !== 'FINISHED') return;
+
+  initAudio();
+  playUiClickSound();
+  try {
+    await copyTextWithFallback(buildResultSummaryText(state));
+    showToast('Скопировано в буфер обмена');
+    clearTimeout(copyResultResetTimer);
+    dom.btnCopyResult.textContent = '✓ Скопировано';
+    dom.btnCopyResult.classList.add('copied');
+    copyResultResetTimer = setTimeout(() => {
+      dom.btnCopyResult.textContent = '📋 Результат';
+      dom.btnCopyResult.classList.remove('copied');
+      copyResultResetTimer = null;
+    }, 1500);
+  } catch (error) {
+    console.warn('Не удалось скопировать сводку результатов', error);
+    showToast('Не удалось скопировать результат');
+  }
+}
+
 function renderAllItemsModal(state) {
   const allItems = state.allItems || [];
   dom.allItemsCountEl.textContent = String(allItems.length);
@@ -214,6 +301,10 @@ function renderAllItemsModal(state) {
   dom.tabBtnStats.disabled = !isFinished;
   dom.tabBtnStats.title = isFinished
     ? 'Показать статистику и графики аукциона'
+    : 'Доступно после определения победителя';
+  dom.btnCopyResult.disabled = !isFinished;
+  dom.btnCopyResult.title = isFinished
+    ? 'Скопировать красивую сводку результатов в буфер обмена'
     : 'Доступно после определения победителя';
   if (!isFinished) switchHistoryTab('all');
 
@@ -318,9 +409,6 @@ function renderHistoryStats(state) {
   const winner = state.wheel.winner || allItems.find(item => item.isWinner);
   const uniqueItems = allItems.filter(item => !item.isMerged);
   const totalPoints = uniqueItems.reduce((sum, item) => sum + (Number(item.totalPoints) || 0), 0);
-  const effectivePoints = new Map(
-    (state.items || []).map(item => [item.id, Number(item.effectivePoints) || 0])
-  );
   const eliminationRounds = new Map(history.map((item, index) => [item.id, index + 1]));
   const stats = document.createElement('div');
   stats.className = 'history-stats';
@@ -391,51 +479,6 @@ function renderHistoryStats(state) {
   survivalCard.append(survivalTitle, survival);
   stats.appendChild(survivalCard);
 
-  const distributionCard = document.createElement('section');
-  distributionCard.className = 'history-stat-card';
-  const distributionTitle = document.createElement('h3');
-  distributionTitle.textContent = 'Суммарные очки и эффективный вес';
-  const distributionNote = document.createElement('p');
-  distributionNote.className = 'muted-text small-text';
-  distributionNote.textContent = 'Суммарные очки показаны отдельно от веса, определяющего шанс победы; для лота с нулём очков может учитываться настроенный вес.';
-  const bars = document.createElement('div');
-  bars.className = 'history-bar-list';
-  const chartItems = [...uniqueItems].sort((a, b) =>
-    (effectivePoints.get(b.id) || 0) - (effectivePoints.get(a.id) || 0)
-  );
-  const maxLotPoints = Math.max(0, ...chartItems.map(item => Number(item.totalPoints) || 0));
-  const maxEffectivePoints = Math.max(0, ...chartItems.map(item => effectivePoints.get(item.id) || 0));
-  chartItems.forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'history-bar-row stats-chart-row';
-    const title = document.createElement('span');
-    title.className = 'history-bar-title';
-    title.textContent = item.title;
-    const measures = document.createElement('div');
-    measures.className = 'stats-chart-measures';
-    for (const [label, points, max, tone] of [
-      ['Сумма', Number(item.totalPoints) || 0, maxLotPoints, 'raw'],
-      ['Вес', effectivePoints.get(item.id) || 0, maxEffectivePoints, 'effective']
-    ]) {
-      const measure = document.createElement('div');
-      measure.className = 'stats-chart-measure';
-      const caption = document.createElement('span');
-      caption.textContent = `${label}: ${points}`;
-      const track = document.createElement('div');
-      track.className = 'stats-progress-bar';
-      const fill = document.createElement('div');
-      fill.className = `stats-progress-fill ${tone}`;
-      fill.style.width = `${max ? (points / max) * 100 : 0}%`;
-      track.appendChild(fill);
-      measure.append(caption, track);
-      measures.appendChild(measure);
-    }
-    row.append(title, measures);
-    bars.appendChild(row);
-  });
-  distributionCard.append(distributionTitle, distributionNote, bars);
-  stats.appendChild(distributionCard);
-
   const playerStats = new Map();
   const playerKey = (id, name) => id || `name:${name}`;
   const ensurePlayer = (id, name) => {
@@ -480,15 +523,15 @@ function renderHistoryStats(state) {
   const roiCard = document.createElement('section');
   roiCard.className = 'history-stat-card';
   const roiTitle = document.createElement('h3');
-  roiTitle.textContent = 'Эффективность инвестиций (ROI поинтов)';
+  roiTitle.textContent = 'Эффективность инвестиций (КПД поинтов)';
   const roiNote = document.createElement('p');
   roiNote.className = 'muted-text small-text';
-  roiNote.textContent = 'Возврат — доля очков победного лота, начисленная создателю исходного варианта; ROI = (возврат − вложения) / вложения.';
+  roiNote.textContent = 'КПД = возврат очков победного лота / вложенные очки × 100%. При отсутствии вложений значение не рассчитывается.';
   const roiTable = document.createElement('div');
   roiTable.className = 'stats-table';
   const roiHeader = document.createElement('div');
   roiHeader.className = 'stats-table-row stats-table-header';
-  ['Участник', 'Вложено', 'Возврат', 'ROI'].forEach(label => {
+  ['Участник', 'Вложено', 'Возврат', 'КПД'].forEach(label => {
     const cell = document.createElement('strong');
     cell.textContent = label;
     roiHeader.appendChild(cell);
@@ -496,19 +539,21 @@ function renderHistoryStats(state) {
   roiTable.appendChild(roiHeader);
   [...playerStats.values()]
     .sort((a, b) => {
-      const roiA = a.invested ? (a.returned - a.invested) / a.invested : (a.returned ? Infinity : 0);
-      const roiB = b.invested ? (b.returned - b.invested) / b.invested : (b.returned ? Infinity : 0);
-      return roiB - roiA || b.returned - a.returned;
+      const efficiencyA = a.invested ? a.returned / a.invested : -1;
+      const efficiencyB = b.invested ? b.returned / b.invested : -1;
+      return efficiencyB - efficiencyA || b.returned - a.returned;
     })
     .forEach(player => {
       const row = document.createElement('div');
       row.className = 'stats-table-row';
-      const roi = player.invested ? ((player.returned - player.invested) / player.invested) * 100 : null;
+      const efficiency = player.invested
+        ? Math.max(0, (player.returned / player.invested) * 100)
+        : null;
       const values = [
         player.name,
         `${player.invested} очк.`,
         `${player.returned.toFixed(1)} очк.`,
-        roi === null ? '—' : `${roi.toFixed(0)}%`
+        efficiency === null ? '—' : `${efficiency.toFixed(0)}%`
       ];
       values.forEach(value => {
         const cell = document.createElement('span');
@@ -577,55 +622,131 @@ function renderHistoryStats(state) {
   timelineTitle.textContent = 'Динамика шансов победы по раундам';
   const timelineNote = document.createElement('p');
   timelineNote.className = 'muted-text small-text';
-  timelineNote.textContent = 'Вероятность каждого оставшегося лота рассчитывается как его эффективный вес относительно суммарного веса оставшихся.';
+  timelineNote.textContent = 'Линии показывают вероятность победы среди оставшихся вариантов; на раунде вылета линия заканчивается крестиком.';
   const timeline = document.createElement('div');
   timeline.className = 'stats-timeline';
   const alive = new Map((state.items || [])
     .filter(item => Number(item.effectivePoints) > 0)
     .map(item => [item.id, item]));
-  const snapshots = [{
-    label: 'До первого раунда',
-    eliminated: null,
-    items: [...alive.values()]
-  }];
+  const chartItems = [...alive.values()]
+    .sort((a, b) => (Number(b.effectivePoints) || 0) - (Number(a.effectivePoints) || 0));
+  const snapshots = [new Map(alive)];
   history.forEach((eliminated, index) => {
     alive.delete(eliminated.id);
-    snapshots.push({
-      label: `После раунда ${index + 1}`,
-      eliminated,
-      items: [...alive.values()]
-    });
+    snapshots.push(new Map(alive));
   });
-  snapshots.forEach(snapshot => {
-    const round = document.createElement('div');
-    round.className = 'stats-round';
-    const heading = document.createElement('strong');
-    heading.textContent = snapshot.eliminated
-      ? `${snapshot.label} · выбыл: ${snapshot.eliminated.title}`
-      : snapshot.label;
-    round.appendChild(heading);
-    const roundItems = snapshot.items;
-    const totalWeight = roundItems.reduce((sum, item) => sum + (Number(item.effectivePoints) || 0), 0);
-    roundItems.sort((a, b) => (Number(b.effectivePoints) || 0) - (Number(a.effectivePoints) || 0));
-    roundItems.forEach(item => {
-      const probability = totalWeight ? (Number(item.effectivePoints) / totalWeight) * 100 : 0;
-      const line = document.createElement('div');
-      line.className = 'stats-probability-row';
-      const label = document.createElement('span');
-      label.textContent = item.title;
-      const track = document.createElement('div');
-      track.className = 'stats-progress-bar';
-      const fill = document.createElement('span');
-      fill.className = 'stats-progress-fill probability';
-      fill.style.width = `${probability}%`;
-      track.appendChild(fill);
-      const value = document.createElement('strong');
-      value.textContent = `${probability.toFixed(1)}%`;
-      line.append(label, track, value);
-      round.appendChild(line);
-    });
-    timeline.appendChild(round);
+  const graphWidth = 800;
+  const graphHeight = 320;
+  const graphLeft = 48;
+  const graphRight = 780;
+  const graphTop = 20;
+  const graphBottom = 270;
+  const plotWidth = graphRight - graphLeft;
+  const plotHeight = graphBottom - graphTop;
+  const graph = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  graph.setAttribute('viewBox', `0 0 ${graphWidth} ${graphHeight}`);
+  graph.setAttribute('role', 'img');
+  graph.setAttribute('aria-label', 'График вероятности победы вариантов по раундам');
+  graph.classList.add('stats-probability-chart');
+
+  for (const percentage of [0, 25, 50, 75, 100]) {
+    const y = graphBottom - (percentage / 100) * plotHeight;
+    const gridLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    gridLine.setAttribute('x1', String(graphLeft));
+    gridLine.setAttribute('x2', String(graphRight));
+    gridLine.setAttribute('y1', String(y));
+    gridLine.setAttribute('y2', String(y));
+    gridLine.classList.add('stats-chart-gridline');
+    graph.appendChild(gridLine);
+
+    const axisLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    axisLabel.setAttribute('x', String(graphLeft - 8));
+    axisLabel.setAttribute('y', String(y + 4));
+    axisLabel.setAttribute('text-anchor', 'end');
+    axisLabel.classList.add('stats-chart-axis-label');
+    axisLabel.textContent = `${percentage}%`;
+    graph.appendChild(axisLabel);
+  }
+
+  const labelInterval = Math.max(1, Math.ceil((snapshots.length - 1) / 8));
+  snapshots.forEach((snapshot, roundIndex) => {
+    if (roundIndex !== 0 && roundIndex !== snapshots.length - 1 && roundIndex % labelInterval !== 0) return;
+    const x = graphLeft + (snapshots.length > 1 ? (roundIndex / (snapshots.length - 1)) * plotWidth : plotWidth / 2);
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', String(x));
+    label.setAttribute('y', '296');
+    label.setAttribute('text-anchor', 'middle');
+    label.classList.add('stats-chart-axis-label');
+    label.textContent = roundIndex === 0 ? 'Старт' : `Раунд ${roundIndex}`;
+    graph.appendChild(label);
   });
+
+  const legend = document.createElement('div');
+  legend.className = 'stats-chart-legend';
+  const chartColors = [
+    '#e57373', '#64b5f6', '#81c784', '#ffb74d', '#ba68c8',
+    '#4dd0e1', '#f06292', '#aed581', '#7986cb', '#ffd54f'
+  ];
+  const xForRound = roundIndex =>
+    graphLeft + (snapshots.length > 1 ? (roundIndex / (snapshots.length - 1)) * plotWidth : plotWidth / 2);
+  chartItems.forEach((item, itemIndex) => {
+    const color = chartColors[itemIndex % chartColors.length];
+    const eliminationRound = history.findIndex(eliminated => eliminated.id === item.id) + 1;
+    const lastVisibleRound = eliminationRound ? eliminationRound - 1 : snapshots.length - 1;
+    const points = snapshots.slice(0, lastVisibleRound + 1).map((snapshot, roundIndex) => {
+      const totalWeight = [...snapshot.values()].reduce(
+        (sum, snapshotItem) => sum + (Number(snapshotItem.effectivePoints) || 0), 0
+      );
+      const current = snapshot.get(item.id);
+      const probability = current && totalWeight
+        ? (Number(current.effectivePoints) / totalWeight) * 100
+        : 0;
+      const x = xForRound(roundIndex);
+      const y = graphBottom - (probability / 100) * plotHeight;
+      return { x, y };
+    });
+    if (eliminationRound && points.length > 0) {
+      points.push({ x: xForRound(eliminationRound), y: points[points.length - 1].y });
+    }
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    line.setAttribute('points', points.map(point => `${point.x},${point.y}`).join(' '));
+    line.setAttribute('stroke', color);
+    line.classList.add('stats-chart-series');
+    graph.appendChild(line);
+    points.slice(0, lastVisibleRound + 1).forEach(point => {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', String(point.x));
+      dot.setAttribute('cy', String(point.y));
+      dot.setAttribute('r', '3');
+      dot.setAttribute('fill', color);
+      dot.classList.add('stats-chart-point');
+      graph.appendChild(dot);
+    });
+    if (eliminationRound && points.length > 0) {
+      const exitPoint = points[points.length - 1];
+      const cross = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const crossSize = 4;
+      cross.setAttribute(
+        'd',
+        `M ${exitPoint.x - crossSize} ${exitPoint.y - crossSize} L ${exitPoint.x + crossSize} ${exitPoint.y + crossSize} ` +
+        `M ${exitPoint.x + crossSize} ${exitPoint.y - crossSize} L ${exitPoint.x - crossSize} ${exitPoint.y + crossSize}`
+      );
+      cross.setAttribute('stroke', color);
+      cross.classList.add('stats-chart-elimination-cross');
+      graph.appendChild(cross);
+    }
+
+    const legendEntry = document.createElement('span');
+    legendEntry.className = 'stats-chart-legend-entry';
+    const swatch = document.createElement('span');
+    swatch.className = 'stats-chart-legend-swatch';
+    swatch.style.backgroundColor = color;
+    const itemName = document.createElement('span');
+    itemName.textContent = item.title;
+    legendEntry.append(swatch, itemName);
+    legend.appendChild(legendEntry);
+  });
+  timeline.append(graph, legend);
   timelineCard.append(timelineTitle, timelineNote, timeline);
   stats.appendChild(timelineCard);
   dom.modalTabStats.appendChild(stats);
@@ -1147,4 +1268,4 @@ function renderRevealView(state) {
   }
 }
 
-export { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };
+export { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };
