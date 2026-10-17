@@ -37,7 +37,7 @@ export const dom = {
   readyCounterEl: document.getElementById('ready-counter'),
   roMaxPoints: document.getElementById('ro-max-points'),
   roMaxItems: document.getElementById('ro-max-items'),
-  roKeepZero: document.getElementById('ro-keep-zero'),
+  ruleZeroItems: document.getElementById('rule-zero-items'),
   roFlexiblePoints: document.getElementById('ro-flexible-points'),
   roForeignPoints: document.getElementById('ro-foreign-points'),
   ruleReactions: document.getElementById('rule-reactions'),

@@ -832,9 +832,9 @@ function renderSidebar(state) {
   dom.roFlexiblePoints.textContent = state.settings.restrictOwnPoints
     ? `${state.settings.maxPoints - foreignReserve} очк.` : `Все ${state.settings.maxPoints} очк.`;
   dom.roForeignPoints.textContent = state.settings.restrictOwnPoints ? `${foreignReserve} очк.` : 'Нет ограничений';
-  dom.roKeepZero.textContent = state.settings.keepZeroItems
-    ? `В колесе (${state.settings.zeroItemWeight} очк.)`
-    : 'Удаляются';
+  dom.ruleZeroItems.textContent = state.settings.keepZeroItems
+    ? `До ${state.settings.zeroItemWeight} очк.`
+    : 'Выключена';
   dom.ruleReactions.textContent = state.settings.allowReactions ? 'Включены' : 'Выключены';
 
   // Если мы Хост — показываем форму настроек
@@ -1222,7 +1222,15 @@ function renderRevealView(state) {
     tdTitle.appendChild(titleWrap);
 
     const tdTotal = document.createElement('td');
-    tdTotal.innerHTML = `<strong>${it.totalPoints}</strong>`;
+    const totalPoints = document.createElement('strong');
+    totalPoints.textContent = it.totalPoints;
+    tdTotal.appendChild(totalPoints);
+    if (it.totalPoints < it.effectivePoints) {
+      const supportNote = document.createElement('span');
+      supportNote.className = 'muted-text small-text';
+      supportNote.textContent = ` очк. (поддержка до ${it.effectivePoints})`;
+      tdTotal.appendChild(supportNote);
+    }
 
     const tdMy = document.createElement('td');
     tdMy.textContent = it.myPoints;

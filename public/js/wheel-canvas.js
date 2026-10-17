@@ -89,6 +89,7 @@ function getCurrentWheelSlices() {
     id: it.id,
     title: it.title,
     totalPoints: it.totalPoints,
+    effectivePoints: it.effectivePoints,
     share: totalInv > 0 ? invWeights[idx] / totalInv : 1 / alive.length
   }));
 }
@@ -299,7 +300,10 @@ dom.wheelCanvas.addEventListener('pointermove', (event) => {
   let cumulative = 0;
   const found = slices.find((slice) => { cumulative += slice.share; return fraction < cumulative; });
   if (!found) { dom.wheelTooltip.classList.add('hidden'); return; }
-  dom.wheelTooltip.textContent = `${found.title} — ${found.totalPoints} очк.`;
+  const pointDetails = found.totalPoints < found.effectivePoints
+    ? `${found.totalPoints} очк. (поддержка до ${found.effectivePoints})`
+    : `${found.totalPoints} очк.`;
+  dom.wheelTooltip.textContent = `${found.title} — ${pointDetails}`;
   dom.wheelTooltip.classList.remove('hidden');
   const posX = event.clientX - rect.left;
   const half = dom.wheelTooltip.offsetWidth / 2;

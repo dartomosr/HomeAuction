@@ -27,10 +27,12 @@ function getRawPoints(item) {
   return sum;
 }
 
-function getEffectivePoints(item) {
+function getEffectivePoints(item, settings = state.settings) {
   const raw = getRawPoints(item);
-  if (raw > 0) return raw;
-  return state.settings.keepZeroItems ? (Number(state.settings.zeroItemWeight) || 0.5) : 0;
+  if (settings.keepZeroItems) {
+    return Math.max(raw, Number(settings.zeroItemWeight) || 0.5);
+  }
+  return raw === 0 ? 0 : raw;
 }
 
 function getActiveRevealItems() {
@@ -238,10 +240,12 @@ function getRawPoints(item) {
   return sum;
 }
 
-function getEffectivePoints(item) {
+function getEffectivePoints(item, settings = state.settings) {
   const raw = getRawPoints(item);
-  if (raw > 0) return raw;
-  return state.settings.keepZeroItems ? (Number(state.settings.zeroItemWeight) || 0.5) : 0;
+  if (settings.keepZeroItems) {
+    return Math.max(raw, Number(settings.zeroItemWeight) || 0.5);
+  }
+  return raw === 0 ? 0 : raw;
 }
 
 function getActiveRevealItems() {

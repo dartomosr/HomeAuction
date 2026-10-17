@@ -104,6 +104,8 @@ describe('smoke checks', () => {
     test('starts with the expected default limits', () => {
       assert.equal(state.settings.maxPoints, 50);
       assert.equal(state.settings.maxItems, 5);
+      assert.equal(DEFAULT_SETTINGS.keepZeroItems, false);
+      assert.equal(DEFAULT_SETTINGS.zeroItemWeight, 0.5);
       assert.equal(DEFAULT_SETTINGS.allowReactions, false);
     });
 
@@ -139,16 +141,21 @@ describe('smoke checks', () => {
     });
 
     test('calculates raw and effective points, including zero-point items', () => {
-      const item = { allocations: { player1: 12, player2: 8 } };
-      const zeroPointItem = { allocations: { player1: 0 } };
+      const supportSettings = { keepZeroItems: true, zeroItemWeight: 5 };
+      for (const [rawPoints, expectedEffectivePoints] of [[0, 5], [1, 5], [4, 5], [5, 5], [8, 8]]) {
+        const item = { allocations: { player1: rawPoints } };
+        assert.equal(getRawPoints(item), rawPoints);
+        assert.equal(getEffectivePoints(item, supportSettings), expectedEffectivePoints);
+      }
 
-      assert.equal(getRawPoints(item), 20);
-      assert.equal(getEffectivePoints(item), 20);
-      assert.equal(getRawPoints(zeroPointItem), 0);
-      assert.equal(getEffectivePoints(zeroPointItem), 0);
-
-      state.settings.keepZeroItems = true;
-      assert.equal(getEffectivePoints(zeroPointItem), 0.5);
+      const noSupportSettings = { keepZeroItems: false, zeroItemWeight: 5 };
+      assert.equal(getEffectivePoints({ allocations: { player1: 0 } }, noSupportSettings), 0);
+      assert.equal(getEffectivePoints({ allocations: { player1: 5 } }, noSupportSettings), 5);
+      assert.equal(getEffectivePoints({ allocations: { player1: 0 } }), 0);
+      assert.equal(getEffectivePoints({ allocations: { player1: 0 } }, {
+        keepZeroItems: true,
+        zeroItemWeight: 0
+      }), 0.5);
     });
 
     test('does not count free-slot items toward a player item limit', () => {
