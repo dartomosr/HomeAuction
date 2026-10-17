@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const CSS_DIR = path.join(PUBLIC_DIR, 'css');
-const { DEFAULT_SETTINGS } = require(path.join(ROOT, 'src', 'config.js'));
+const { DEFAULT_SETTINGS, ROOM_PRESETS } = require(path.join(ROOT, 'src', 'config.js'));
 const {
   state,
   getRawPoints,
@@ -83,6 +83,7 @@ describe('smoke checks', () => {
   describe('isolated backend unit checks', () => {
     beforeEach(() => {
       state.players = new Map();
+      state.hostToken = null;
       state.items = [];
       state.phase = 'POOL';
       state.settings = { ...DEFAULT_SETTINGS };
@@ -96,6 +97,7 @@ describe('smoke checks', () => {
 
     afterEach(() => {
       state.players.clear();
+      state.hostToken = null;
       state.items = [];
     });
 
@@ -103,6 +105,37 @@ describe('smoke checks', () => {
       assert.equal(state.settings.maxPoints, 50);
       assert.equal(state.settings.maxItems, 5);
       assert.equal(DEFAULT_SETTINGS.allowReactions, false);
+    });
+
+    test('exports the expected room presets', () => {
+      assert.deepEqual(ROOM_PRESETS.basic, { ...DEFAULT_SETTINGS });
+      assert.deepEqual(ROOM_PRESETS.diplomacy, {
+        ...DEFAULT_SETTINGS,
+        restrictOwnPoints: true,
+        foreignOnlyPoints: 25,
+        allowReactions: true
+      });
+      assert.equal(ROOM_PRESETS.chaos.maxPoints, 100);
+      assert.equal(ROOM_PRESETS.chaos.maxItems, 10);
+      assert.equal(ROOM_PRESETS.chaos.keepZeroItems, true);
+      assert.equal(ROOM_PRESETS.chaos.zeroItemWeight, 5);
+      assert.equal(ROOM_PRESETS.chaos.allowFreeItemsForAll, false);
+      assert.equal(ROOM_PRESETS.chaos.allowReactions, true);
+    });
+
+    test('reports whether the room has a host', () => {
+      assert.equal(buildClientState(null).hasHost, false);
+      state.players.set('host-token', {
+        id: 'host',
+        token: 'host-token',
+        name: 'Host',
+        isHost: true,
+        ready: false,
+        online: true
+      });
+      state.hostToken = 'host-token';
+
+      assert.equal(buildClientState(null).hasHost, true);
     });
 
     test('calculates raw and effective points, including zero-point items', () => {

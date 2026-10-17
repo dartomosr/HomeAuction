@@ -26,6 +26,7 @@ try {
 
 export const store = {
   appState: null,
+  selectedPreset: 'basic',
   myToken: readSetting('auction_token'),
   myName: readSetting('auction_name', ''),
   isSpectator: readSetting('auction_spectator', 'off') === 'on',

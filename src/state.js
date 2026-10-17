@@ -202,6 +202,7 @@ function buildClientState(forToken) {
   return {
     phase: state.phase,
     settings: state.settings,
+    hasHost: Boolean(state.hostToken && state.players.has(state.hostToken)),
     me: me ? {
       name: me.name,
       isHost: me.isHost,
@@ -400,6 +401,7 @@ function buildClientState(forToken) {
   return {
     phase: state.phase,
     settings: state.settings,
+    hasHost: Boolean(state.hostToken && state.players.has(state.hostToken)),
     me: me ? {
       name: me.name,
       isHost: me.isHost,

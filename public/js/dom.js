@@ -30,6 +30,7 @@ export const dom = {
   screenJoin: document.getElementById('screen-join'),
   screenApp: document.getElementById('screen-app'),
   formJoin: document.getElementById('form-join'),
+  joinPresetGroup: document.getElementById('join-preset-group'),
   inputName: document.getElementById('input-name'),
   inputSpectator: document.getElementById('input-spectator'),
   playersListEl: document.getElementById('players-list'),

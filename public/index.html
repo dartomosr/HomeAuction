@@ -112,6 +112,36 @@
           autocomplete="off"
         />
         <label class="spectator-join-option"><input type="checkbox" id="input-spectator" /> Войти как зритель (только наблюдение, без ставок)</label>
+        <section id="join-preset-group" class="join-preset-group" aria-labelledby="join-preset-title">
+          <h3 id="join-preset-title">Шаблон правил комнаты:</h3>
+          <div class="preset-options-grid">
+            <button type="button" class="preset-option-btn active" data-preset="basic" aria-pressed="true">
+              <strong>Базовый</strong>
+              <ul class="preset-option-details">
+                <li>50 очков</li>
+                <li>5 лотов</li>
+                <li>классика</li>
+              </ul>
+            </button>
+            <button type="button" class="preset-option-btn" data-preset="diplomacy" aria-pressed="false">
+              <strong>Дипломатия</strong>
+              <ul class="preset-option-details">
+                <li>50 очков (25 своб.)</li>
+                <li>5 лотов</li>
+                <li>реакции</li>
+              </ul>
+            </button>
+            <button type="button" class="preset-option-btn" data-preset="chaos" aria-pressed="false">
+              <strong>Хаос</strong>
+              <ul class="preset-option-details">
+                <li>100 очков</li>
+                <li>10 лотов</li>
+                <li>нулевые с 5 очками</li>
+                <li>реакции</li>
+              </ul>
+            </button>
+          </div>
+        </section>
         <button type="submit" class="btn btn-primary btn-lg">ВОЙТИ В АУКЦИОН</button>
       </form>
     </div>

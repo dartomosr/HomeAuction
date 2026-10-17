@@ -1,4 +1,4 @@
-const { DEFAULT_SETTINGS, generateId } = require('./config');
+const { DEFAULT_SETTINGS, ROOM_PRESETS, generateId } = require('./config');
 const { state, getRawPoints, getEffectivePoints, getActiveRevealItems, getAliveWheelItems, buildClientState } = require('./state');
 const { pickPredeterminedWinner, pickEliminatedItem } = require('./wheel-math');
 
@@ -37,14 +37,20 @@ function registerSocketHandlers(io) {
 
   io.on('connection', (socket) => {
     let currentToken = null;
+    socket.emit('state_update', buildClientState(null));
 
     socket.on('join', (joinData = {}) => {
-      const { token, name, isSpectator } = joinData;
+      const { token, name, isSpectator, preset } = joinData;
       const cleanName = (name || '').trim().slice(0, 24);
       if (!cleanName) return;
 
       const hasSpectatorChoice = Object.prototype.hasOwnProperty.call(joinData, 'isSpectator');
       const spectatorChoice = Boolean(isSpectator);
+      const hasActiveBids = state.items.some(item =>
+        Object.values(item.allocations || {}).some(points => points > 0)
+      );
+      const shouldApplyPreset = !state.hostToken && !spectatorChoice &&
+        state.phase === 'POOL' && !hasActiveBids;
       const playerToken = (token && state.players.has(token)) ? token : (token || generateId());
       currentToken = playerToken;
 
@@ -89,6 +95,11 @@ function registerSocketHandlers(io) {
         state.hostToken = playerToken;
       }
       for (const p of state.players.values()) p.isHost = state.hostToken === p.token;
+
+      if (shouldApplyPreset && state.hostToken === playerToken &&
+          Object.prototype.hasOwnProperty.call(ROOM_PRESETS, preset)) {
+        state.settings = { ...ROOM_PRESETS[preset] };
+      }
 
       socket.emit('joined', { token: playerToken });
       broadcastState();
@@ -137,7 +148,9 @@ function registerSocketHandlers(io) {
       const maxPoints = Math.max(1, Math.min(100000, parseInt(newSettings.maxPoints, 10) || 50));
       const maxItems = Math.max(1, Math.min(50, parseInt(newSettings.maxItems, 10) || 5));
       const keepZeroItems = Boolean(newSettings.keepZeroItems);
-      const zeroItemWeight = Math.max(0.01, Math.min(100, parseFloat(newSettings.zeroItemWeight) || 0.5));
+      const zeroItemWeight = Object.prototype.hasOwnProperty.call(newSettings, 'zeroItemWeight')
+        ? Math.max(0.01, Math.min(100, parseFloat(newSettings.zeroItemWeight) || 0.5))
+        : state.settings.zeroItemWeight;
       const restrictOwnPoints = Boolean(newSettings.restrictOwnPoints);
       const foreignOnlyPoints = restrictOwnPoints
         ? Math.max(0, Math.min(maxPoints, Math.floor(Number(newSettings.foreignOnlyPoints) || 0))) : 0;
@@ -471,6 +484,7 @@ function registerSocketHandlers(io) {
       state.wheel = { predeterminedWinnerId: null, isSpinning: false, history: [], winner: null };
       for (const sock of io.sockets.sockets.values()) sock.data.auctionToken = null;
       io.emit('auction_hard_reset');
+      io.emit('state_update', buildClientState(null));
     });
 
     // Сброс аукциона для новой игры Хостом

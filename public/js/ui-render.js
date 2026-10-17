@@ -11,6 +11,10 @@ function updatePointsSplitPreview() {
   dom.pointsSplitPreview.textContent = `${total - reserve} очк. — на свои и чужие; ${reserve} очк. — только на чужие.`;
 }
 
+function updateJoinPresetVisibility(state = store.appState) {
+  dom.joinPresetGroup.classList.toggle('hidden', Boolean(state?.hasHost) || dom.inputSpectator.checked);
+}
+
 function renderEffectsControls() {
   dom.effectsCheckboxes.replaceChildren();
   for (const [id, label] of ELIMINATION_EFFECTS) {
@@ -829,7 +833,7 @@ function renderSidebar(state) {
     ? `${state.settings.maxPoints - foreignReserve} очк.` : `Все ${state.settings.maxPoints} очк.`;
   dom.roForeignPoints.textContent = state.settings.restrictOwnPoints ? `${foreignReserve} очк.` : 'Нет ограничений';
   dom.roKeepZero.textContent = state.settings.keepZeroItems
-    ? `На колесе (вес ${state.settings.zeroItemWeight})`
+    ? `В колесе (${state.settings.zeroItemWeight} очк.)`
     : 'Удаляются';
   dom.ruleReactions.textContent = state.settings.allowReactions ? 'Включены' : 'Выключены';
 
@@ -1268,4 +1272,4 @@ function renderRevealView(state) {
   }
 }
 
-export { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };
+export { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, renderAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderSidebar, renderMainArea, renderPoolView, renderRevealView };

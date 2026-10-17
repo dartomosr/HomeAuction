@@ -1,6 +1,6 @@
 import { store, writeSetting, removeSetting } from './store.js';
 import { dom } from './dom.js';
-import { renderAllItemsModal, closeAllItemsModal, closeHelpModal, renderHelpModal, showToast, renderSidebar, renderMainArea } from './ui-render.js';
+import { renderAllItemsModal, closeAllItemsModal, closeHelpModal, renderHelpModal, showToast, renderSidebar, renderMainArea, updateJoinPresetVisibility } from './ui-render.js';
 import { playWinnerFanfare, playUiClickSound } from './audio.js';
 import { resetClientVisualState, renderWheelLegend, resizeWheelCanvas, drawWheel, handleWheelSpin } from './wheel-canvas.js';
 
@@ -67,6 +67,7 @@ socket.on('auction_hard_reset', () => {
 socket.on('state_update', (state) => {
   const prevPhase = store.appState ? store.appState.phase : null;
   store.appState = state;
+  updateJoinPresetVisibility(state);
 
   if (!state.me) return;
   dom.btnHelp.classList.remove('hidden');

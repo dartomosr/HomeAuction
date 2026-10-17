@@ -2,11 +2,12 @@ import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
-import { updatePointsSplitPreview, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
+import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 
 if (store.myName) dom.inputName.value = store.myName;
 dom.inputSpectator.checked = store.isSpectator;
+updateJoinPresetVisibility();
 initSocketClient();
 
 document.addEventListener('click', (event) => {
@@ -29,8 +30,27 @@ dom.formJoin.addEventListener('submit', (e) => {
   store.isSpectator = dom.inputSpectator.checked;
   writeSetting('auction_name', store.myName);
   writeSetting('auction_spectator', store.isSpectator ? 'on' : 'off');
-  socket.emit('join', { token: store.myToken, name: store.myName, isSpectator: store.isSpectator });
+  socket.emit('join', {
+    token: store.myToken,
+    name: store.myName,
+    isSpectator: store.isSpectator,
+    preset: store.selectedPreset
+  });
 });
+
+dom.joinPresetGroup.addEventListener('click', (event) => {
+  const button = event.target instanceof Element ? event.target.closest('.preset-option-btn') : null;
+  if (!button) return;
+
+  store.selectedPreset = button.dataset.preset;
+  dom.joinPresetGroup.querySelectorAll('.preset-option-btn').forEach(option => {
+    const isActive = option === button;
+    option.classList.toggle('active', isActive);
+    option.setAttribute('aria-pressed', String(isActive));
+  });
+});
+
+dom.inputSpectator.addEventListener('change', () => updateJoinPresetVisibility());
 
 dom.poolItemFilters.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target.closest('[data-pool-filter]') : null;
