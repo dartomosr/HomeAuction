@@ -46,6 +46,18 @@ function getAliveWheelItems() {
   return getActiveRevealItems().filter(item => !item.eliminated);
 }
 
+function getReactionSummary(item, forToken) {
+  const reactions = item.reactions || {};
+  const upvotes = Object.values(reactions).filter(type => type === 'up').length;
+  const downvotes = Object.values(reactions).filter(type => type === 'down').length;
+  return {
+    upvotes,
+    downvotes,
+    reactionScore: upvotes - downvotes,
+    myReaction: reactions[forToken] || null
+  };
+}
+
 // Формируем персональное состояние для каждого игрока (без чужих очков в фазе POOL)
 function buildClientState(forToken) {
   const me = state.players.get(forToken);
@@ -107,7 +119,8 @@ function buildClientState(forToken) {
           isOwn,
           isFreeSlot: Boolean(item.isFreeSlot),
           canDelete: isOwn,
-          canHostDelete: isHostViewer && !isOwn
+          canHostDelete: isHostViewer && !isOwn,
+          ...getReactionSummary(item, forToken)
         };
       } else {
         const rawPts = getRawPoints(item);
@@ -304,7 +317,8 @@ function buildClientState(forToken) {
           isOwn,
           isFreeSlot: Boolean(item.isFreeSlot),
           canDelete: isOwn,
-          canHostDelete: isHostViewer && !isOwn
+          canHostDelete: isHostViewer && !isOwn,
+          ...getReactionSummary(item, forToken)
         };
       } else {
         const rawPts = getRawPoints(item);

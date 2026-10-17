@@ -101,6 +101,7 @@ describe('smoke checks', () => {
     test('starts with the expected default limits', () => {
       assert.equal(state.settings.maxPoints, 50);
       assert.equal(state.settings.maxItems, 5);
+      assert.equal(DEFAULT_SETTINGS.allowReactions, false);
     });
 
     test('calculates raw and effective points, including zero-point items', () => {
@@ -165,6 +166,31 @@ describe('smoke checks', () => {
       assert.equal('totalPoints' in clientState.items[0], false);
       assert.equal('contributors' in clientState.allItems[0], false);
       assert.equal(JSON.stringify(clientState).includes('17'), false);
+    });
+
+    test('sends anonymous reaction totals and only the requesting player’s reaction', () => {
+      state.items = [{
+        id: 'item-1',
+        title: 'Item',
+        createdByToken: 'player2',
+        allocations: {},
+        reactions: { player1: 'up', player2: 'down', player3: 'up' }
+      }];
+
+      const clientState = buildClientState('player1');
+      assert.deepEqual({
+        upvotes: clientState.items[0].upvotes,
+        downvotes: clientState.items[0].downvotes,
+        reactionScore: clientState.items[0].reactionScore,
+        myReaction: clientState.items[0].myReaction
+      }, {
+        upvotes: 2,
+        downvotes: 1,
+        reactionScore: 1,
+        myReaction: 'up'
+      });
+      assert.equal('reactions' in clientState.items[0], false);
+      assert.equal(JSON.stringify(clientState).includes('player3'), false);
     });
 
     test('selects the winner by points and the eliminated item by inverse points', t => {

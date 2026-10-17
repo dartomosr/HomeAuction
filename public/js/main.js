@@ -14,7 +14,8 @@ document.addEventListener('click', (event) => {
   const control = target && target.closest('button, summary.btn, .settings-collapse-toggle');
   if (!control || control.id === 'btn-sound' || control.id === 'btn-ready' ||
       control.id === 'btn-add-item' || control.id === 'btn-add-free-item' ||
-      control.id === 'btn-distribute-even' || control.matches('.pool-item-controls button')) return;
+      control.id === 'btn-distribute-even' ||
+      control.matches('.pool-item-controls button, .reaction-btn')) return;
   if (store.soundEnabled) initAudio();
   playUiClickSound();
 });
@@ -129,6 +130,7 @@ dom.hostSettingsForm.addEventListener('submit', (e) => {
     maxPoints: Number(dom.setMaxPoints.value),
     maxItems: Number(dom.setMaxItems.value),
     allowFreeItemsForAll: dom.setAllowFreeAll.checked,
+    allowReactions: dom.setAllowReactions.checked,
     restrictOwnPoints: dom.setRestrictOwn.checked,
     foreignOnlyPoints: Number(dom.setForeignOnly.value),
     keepZeroItems: dom.setKeepZero.checked,

@@ -1,7 +1,7 @@
 import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { ELIMINATION_EFFECTS, THEME_WHEEL_PALETTES } from './constants.js';
-import { initAudio, playUiSliderSound, playUiMessageSound } from './audio.js';
+import { initAudio, playUiClickSound, playUiSliderSound, playUiMessageSound } from './audio.js';
 
 function updatePointsSplitPreview() {
   const total = Math.max(1, Number(dom.setMaxPoints.value) || 100);
@@ -710,6 +710,7 @@ function renderSidebar(state) {
   dom.roKeepZero.textContent = state.settings.keepZeroItems
     ? `На колесе (вес ${state.settings.zeroItemWeight})`
     : 'Удаляются';
+  dom.ruleReactions.textContent = state.settings.allowReactions ? 'Включены' : 'Выключены';
 
   // Если мы Хост — показываем форму настроек
   if (state.me.isHost) {
@@ -721,6 +722,7 @@ function renderSidebar(state) {
       dom.setMaxPoints.value = state.settings.maxPoints;
       dom.setMaxItems.value = state.settings.maxItems;
       dom.setAllowFreeAll.checked = Boolean(state.settings.allowFreeItemsForAll);
+      dom.setAllowReactions.checked = Boolean(state.settings.allowReactions);
       dom.setRestrictOwn.checked = Boolean(state.settings.restrictOwnPoints);
       dom.setForeignOnly.value = state.settings.foreignOnlyPoints || 0;
       dom.ownLimitGroup.classList.toggle('hidden', !dom.setRestrictOwn.checked);
@@ -787,12 +789,28 @@ function renderPoolView(state) {
     button.classList.toggle('is-active', isActive);
     button.setAttribute('aria-pressed', String(isActive));
   });
+  const oldPositions = new Map();
+  if (!dom.motionReduced.matches) {
+    dom.poolItemsList.querySelectorAll('.pool-item-card[data-item-id]').forEach((card) => {
+      oldPositions.set(card.dataset.itemId, card.getBoundingClientRect().top);
+    });
+  }
   dom.poolItemsList.innerHTML = '';
-  const visibleItems = state.items.filter((item) => {
+  let visibleItems = state.items.filter((item) => {
     if (store.poolFilter === 'own') return item.isOwn;
     if (store.poolFilter === 'others') return !item.isOwn;
     return true;
   });
+  if (state.settings.allowReactions) {
+    visibleItems = visibleItems
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) =>
+        (b.item.reactionScore - a.item.reactionScore) ||
+        (b.item.upvotes - a.item.upvotes) ||
+        (a.index - b.index)
+      )
+      .map(({ item }) => item);
+  }
   if (visibleItems.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted-text';
@@ -812,6 +830,7 @@ function renderPoolView(state) {
   visibleItems.forEach((item) => {
     const card = document.createElement('div');
     card.className = `pool-item-card ${item.myPoints > 0 ? 'has-my-points' : ''}`;
+    card.dataset.itemId = item.id;
 
     const left = document.createElement('div');
     left.className = 'pool-item-left';
@@ -827,6 +846,36 @@ function renderPoolView(state) {
       freeBadge.textContent = '+ ДОП';
       freeBadge.title = 'Добавлен вне лимита вариантов';
       left.appendChild(freeBadge);
+    }
+
+    card.appendChild(left);
+    if (state.settings.allowReactions) {
+      const reactions = document.createElement('div');
+      reactions.className = 'item-reactions';
+      for (const [type, symbol, count, activeClass] of [
+        ['up', '▲', item.upvotes, 'active-up'],
+        ['down', '▼', item.downvotes, 'active-down']
+      ]) {
+        const reactionButton = document.createElement('button');
+        reactionButton.type = 'button';
+        reactionButton.className = `reaction-btn ${item.myReaction === type ? activeClass : ''}`;
+        reactionButton.textContent = `${symbol} ${count}`;
+        reactionButton.disabled = Boolean(item.isOwn);
+        if (item.isOwn) reactionButton.title = 'Нельзя оценивать свой вариант';
+        else {
+          reactionButton.setAttribute(
+            'aria-label',
+            `${item.myReaction === type ? 'Снять' : 'Поставить'} ${type === 'up' ? 'положительную' : 'отрицательную'} реакцию`
+          );
+          reactionButton.addEventListener('click', () => {
+            if (store.soundEnabled) initAudio();
+            playUiClickSound();
+            store.socket.emit('toggle_reaction', { itemId: item.id, type });
+          });
+        }
+        reactions.appendChild(reactionButton);
+      }
+      card.appendChild(reactions);
     }
 
     // 1) Свой вариант: обычный красный крестик ✕
@@ -857,7 +906,6 @@ function renderPoolView(state) {
     }
 
     if (isSpectator) {
-      card.appendChild(left);
       dom.poolItemsList.appendChild(card);
       return;
     }
@@ -924,10 +972,37 @@ function renderPoolView(state) {
     controls.appendChild(makeStepBtn('+1', 1));
     controls.appendChild(makeStepBtn('+10', 10));
 
-    card.appendChild(left);
     card.appendChild(controls);
     dom.poolItemsList.appendChild(card);
   });
+
+  if (!dom.motionReduced.matches && oldPositions.size > 0) {
+    const movedCards = [];
+    dom.poolItemsList.querySelectorAll('.pool-item-card[data-item-id]').forEach((card) => {
+      const oldTop = oldPositions.get(card.dataset.itemId);
+      if (oldTop === undefined) return;
+      const deltaY = oldTop - card.getBoundingClientRect().top;
+      if (Math.abs(deltaY) <= 2) return;
+      card.style.transform = `translateY(${deltaY}px)`;
+      card.style.transition = 'none';
+      card.getBoundingClientRect();
+      card.classList.add(deltaY > 0 ? 'reaction-move-up' : 'reaction-move-down');
+      movedCards.push(card);
+    });
+    if (movedCards.length > 0) {
+      requestAnimationFrame(() => {
+        movedCards.forEach((card) => {
+          card.style.transition = 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+          card.style.transform = 'translateY(0)';
+        });
+        setTimeout(() => movedCards.forEach((card) => {
+          card.style.transition = '';
+          card.style.transform = '';
+          card.classList.remove('reaction-move-up', 'reaction-move-down');
+        }), 300);
+      });
+    }
+  }
 }
 
 // Добавление варианта (обычное или вне лимита + ДОП)

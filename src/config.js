@@ -8,7 +8,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   spinDuration: 5.5,
   restrictOwnPoints: false,
   foreignOnlyPoints: 0,
-  allowFreeItemsForAll: false
+  allowFreeItemsForAll: false,
+  allowReactions: false
 });
 
 function generateId() {

@@ -142,6 +142,7 @@ function registerSocketHandlers(io) {
       const foreignOnlyPoints = restrictOwnPoints
         ? Math.max(0, Math.min(maxPoints, Math.floor(Number(newSettings.foreignOnlyPoints) || 0))) : 0;
       const allowFreeItemsForAll = Boolean(newSettings.allowFreeItemsForAll);
+      const allowReactions = Boolean(newSettings.allowReactions);
       const spinDuration = state.settings.spinDuration;
 
       if (state.phase === 'POOL' && maxPoints < state.settings.maxPoints) {
@@ -185,8 +186,25 @@ function registerSocketHandlers(io) {
         spinDuration,
         restrictOwnPoints,
         foreignOnlyPoints,
-        allowFreeItemsForAll
+        allowFreeItemsForAll,
+        allowReactions
       };
+      broadcastState();
+    });
+
+    socket.on('toggle_reaction', (payload = {}) => {
+      if (!payload || typeof payload !== 'object') return;
+      const { itemId, type } = payload;
+      const player = state.players.get(currentToken);
+      if (state.phase !== 'POOL' || !state.settings.allowReactions || !player) return;
+      if (type !== 'up' && type !== 'down') return;
+
+      const item = state.items.find(candidate => candidate.id === itemId && !candidate.mergedInto);
+      if (!item || item.createdByToken === currentToken) return;
+
+      if (!item.reactions) item.reactions = {};
+      if (item.reactions[currentToken] === type) delete item.reactions[currentToken];
+      else item.reactions[currentToken] = type;
       broadcastState();
     });
 
@@ -244,6 +262,7 @@ function registerSocketHandlers(io) {
         createdByName: player.name,
         isFreeSlot: wantsFreeSlot,
         allocations: {},
+        reactions: {},
         originalAllocations: null,
         eliminated: false,
         mergedInto: null
@@ -477,6 +496,7 @@ function registerSocketHandlers(io) {
         state.items = state.items.filter(it => !it.mergedInto).map(it => ({
           ...it,
           allocations: {},
+          reactions: {},
           originalAllocations: null,
           eliminated: false,
           mergedInto: null
