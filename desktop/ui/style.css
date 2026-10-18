@@ -1,0 +1,65 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: #10141d;
+  color: #edf1f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --panel: #191f2b;
+  --border: #2a3343;
+  --muted: #9ba8bb;
+  --blue: #5b91ff;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 560px; min-height: 100vh; }
+button { font: inherit; }
+.window { width: min(100%, 860px); margin: 0 auto; padding: 24px 28px 20px; }
+.topbar, .brand, .section-heading, .address-row, .footer, .actions, .tunnel-actions {
+  display: flex;
+  align-items: center;
+}
+.topbar, .section-heading, .address-row, .footer { justify-content: space-between; gap: 14px; }
+.topbar { margin-bottom: 20px; }
+.brand { gap: 12px; }
+.brand img { border-radius: 10px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 20px; letter-spacing: .2px; }
+h2 { margin-top: 3px; font-size: 17px; }
+.brand p, .hint { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.card { margin: 12px 0; padding: 17px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.section-heading { margin-bottom: 15px; }
+.eyebrow { color: #8797ad; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
+.status-chip, .status-text { color: #bac6d8; font-size: 12px; font-weight: 650; }
+.status-chip { padding: 7px 10px; border: 1px solid var(--border); border-radius: 999px; }
+.status-running, .status-connected { color: #83e0b0; background: #16332a; border-color: #235341; }
+.status-error, .status-network { color: #ffb2a7; background: #3b211f; border-color: #663a34; }
+.status-stopped { color: #9ba8bb; background: #222a37; }
+.address-row { min-height: 40px; padding: 8px 9px 8px 12px; border: 1px solid #293345; border-radius: 8px; background: #111722; }
+code { min-width: 0; overflow: hidden; color: #dce7f9; font: 12px "Cascadia Code", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.actions { gap: 7px; }
+.button { min-height: 34px; padding: 0 12px; border: 1px solid transparent; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 650; transition: background .15s, border-color .15s; }
+.button:disabled { cursor: default; opacity: .45; }
+.secondary { color: #d9e1ed; background: #252e3c; border-color: #354154; }
+.secondary:hover:not(:disabled) { background: #303b4c; }
+.primary { color: white; background: #2763d5; }
+.primary:hover:not(:disabled) { background: #3475ef; }
+.danger { color: #ffd5d0; background: #482622; border-color: #6b3831; }
+.danger:hover { background: #5a2b26; }
+.hint { margin-top: 9px; }
+.tunnel-actions { gap: 8px; margin-top: 13px; }
+.diagnostic { margin-top: 11px; padding: 10px 11px; border: 1px solid #70413a; border-radius: 7px; background: #34221f; color: #ffc3b8; font-size: 12px; line-height: 1.5; }
+.diagnostic.warning { border-color: #69542a; background: #302a1b; color: #f3d58c; }
+.hidden { display: none; }
+.log-card { margin-bottom: 15px; }
+.log { height: 174px; overflow: auto; margin: 0; padding: 10px 11px; border: 1px solid #293345; border-radius: 8px; background: #10151e; color: #b9c7dc; font: 11px/1.55 "Cascadia Code", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.footer { justify-content: flex-end; padding-top: 3px; }
+.toast { position: fixed; right: 25px; bottom: 24px; padding: 10px 14px; border: 1px solid #3b4b64; border-radius: 8px; background: #202a39; color: white; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.toast.visible { opacity: 1; }
+
+@media (max-width: 680px) {
+  .window { padding: 18px 15px; }
+  .address-row { align-items: stretch; flex-direction: column; }
+  code { min-height: 20px; }
+  .actions { justify-content: flex-end; }
+}

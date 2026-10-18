@@ -1,0 +1,15 @@
+{
+  "name": "homeauction-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows desktop launcher for HomeAuction",
+  "author": "HomeAuction",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:desktop": "node ../scripts/build-desktop.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.9.0"
+  }
+}

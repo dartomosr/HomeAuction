@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>HomeAuction</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="window">
+    <header class="topbar">
+      <div class="brand">
+        <img src="tray.svg" alt="" width="34" height="34">
+        <div>
+          <h1>HomeAuction</h1>
+          <p>Локальный сервер и Cloudflare Tunnel</p>
+        </div>
+      </div>
+      <span id="server-chip" class="status-chip status-starting">Запускается</span>
+    </header>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">ЛОКАЛЬНЫЙ ДОСТУП</span>
+          <h2>Сервер</h2>
+        </div>
+        <span id="server-status" class="status-text">Запускается</span>
+      </div>
+      <div class="address-row">
+        <code id="local-address">Ожидание свободного порта…</code>
+        <div class="actions">
+          <button id="open-local" class="button secondary" disabled>Открыть</button>
+          <button id="copy-local" class="button secondary" disabled>Копировать</button>
+        </div>
+      </div>
+      <p class="hint">Веб-интерфейс игры откроется в браузере.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">ВРЕМЕННЫЙ ПУБЛИЧНЫЙ АДРЕС</span>
+          <h2>Cloudflare Tunnel</h2>
+        </div>
+        <span id="tunnel-status" class="status-text">Остановлен</span>
+      </div>
+      <div class="address-row">
+        <code id="public-address">Адрес появится после подключения</code>
+        <div class="actions">
+          <button id="open-public" class="button secondary" disabled>Открыть</button>
+          <button id="copy-public" class="button secondary" disabled>Копировать</button>
+        </div>
+      </div>
+      <p id="tunnel-diagnostic" class="diagnostic hidden"></p>
+      <div class="tunnel-actions">
+        <button id="start-tunnel" class="button primary">Запустить туннель</button>
+        <button id="stop-tunnel" class="button secondary" disabled>Остановить туннель</button>
+      </div>
+    </section>
+
+    <section class="card log-card">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">ПОСЛЕДНИЕ 200 СТРОК</span>
+          <h2>Журнал</h2>
+        </div>
+      </div>
+      <pre id="log" class="log" aria-live="polite">Запуск приложения…</pre>
+    </section>
+
+    <footer class="footer">
+      <button id="minimize" class="button secondary">Свернуть в трей</button>
+      <button id="quit" class="button danger">Выйти</button>
+    </footer>
+    <div id="toast" class="toast" role="status"></div>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>

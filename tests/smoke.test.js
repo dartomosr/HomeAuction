@@ -57,7 +57,12 @@ describe('smoke checks', () => {
       path.join(ROOT, 'server.js'),
       path.join(PUBLIC_DIR, 'js', 'wheel-effects.js'),
       ...await collectJavaScriptFiles(path.join(ROOT, 'src')),
-      ...await collectJavaScriptFiles(path.join(PUBLIC_DIR, 'js'))
+      ...await collectJavaScriptFiles(path.join(PUBLIC_DIR, 'js')),
+      ...await collectJavaScriptFiles(path.join(ROOT, 'desktop')),
+      path.join(ROOT, 'scripts', 'build-exe.mjs'),
+      path.join(ROOT, 'scripts', 'build-desktop.mjs'),
+      path.join(ROOT, 'scripts', 'build-sfx.mjs'),
+      path.join(ROOT, 'scripts', 'start-desktop.mjs')
     ]);
 
     await Promise.all([...files].map(file => execFileAsync(process.execPath, ['--check', file])));

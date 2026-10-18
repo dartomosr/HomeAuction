@@ -5,13 +5,33 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/smoke.test.js",
-    "tunnel": "npx cloudflared tunnel --url http://localhost:3000"
+    "test": "node --test tests/smoke.test.js tests/desktop.test.js",
+    "tunnel": "npx cloudflared tunnel --protocol auto --url http://127.0.0.1:3000",
+    "build:exe": "node scripts/build-exe.mjs",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "build:all": "npm run build:exe && npm run build:desktop",
+    "build:sfx": "node scripts/build-sfx.mjs",
+    "start:desktop": "node scripts/start-desktop.mjs",
+    "start:exe": "dist\\HomeAuction\\HomeAuction.exe",
+    "clean:dist": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "keywords": [],
   "type": "commonjs",
   "dependencies": {
     "express": "^5.3.0",
     "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.23.0"
+  },
+  "workspaces": [
+    "desktop"
+  ],
+  "pkg": {
+    "assets": [
+      "public/**/*",
+      "build/cloudflared.exe",
+      "node_modules/socket.io/client-dist/**/*"
+    ]
   }
 }
