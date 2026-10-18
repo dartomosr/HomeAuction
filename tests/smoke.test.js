@@ -4,25 +4,12 @@ const { promisify } = require('node:util');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { afterEach, beforeEach, describe, test } = require('node:test');
+const { describe, test } = require('node:test');
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const CSS_DIR = path.join(PUBLIC_DIR, 'css');
-const { DEFAULT_SETTINGS, ROOM_PRESETS } = require(path.join(ROOT, 'src', 'config.js'));
-const {
-  state,
-  getRawPoints,
-  getEffectivePoints,
-  buildClientState,
-  addInitialItems,
-  importPoolItems
-} = require(path.join(ROOT, 'src', 'state.js'));
-const {
-  pickPredeterminedWinner,
-  pickEliminatedItem
-} = require(path.join(ROOT, 'src', 'wheel-math.js'));
 
 async function collectJavaScriptFiles(directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true });
@@ -34,16 +21,46 @@ async function collectJavaScriptFiles(directory) {
   return nestedFiles.flat();
 }
 
+function getExportedNames(source, filePath, visited = new Set()) {
+  if (visited.has(filePath)) return new Set();
+  visited.add(filePath);
+
+  const exported = new Set();
+  for (const match of source.matchAll(
+    /\bexport\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g
+  )) {
+    exported.add(match[1]);
+  }
+
+  for (const match of source.matchAll(/\bexport\s*\{([\s\S]*?)\}(?:\s*from\s*(['"])(\.[^'"]+)\2)?\s*;/g)) {
+    const names = match[1].split(',').map(name => name.trim()).filter(Boolean);
+    if (match[3]) {
+      const targetPath = path.resolve(path.dirname(filePath), match[3]);
+      const targetSource = require('node:fs').readFileSync(targetPath, 'utf8');
+      const targetExports = getExportedNames(targetSource, targetPath, visited);
+      for (const name of names) {
+        const originalName = name.split(/\s+as\s+/)[0].trim();
+        if (targetExports.has(originalName)) {
+          exported.add(name.split(/\s+as\s+/).at(-1).trim());
+        }
+      }
+    } else {
+      for (const name of names) exported.add(name.split(/\s+as\s+/).at(-1).trim());
+    }
+  }
+  return exported;
+}
+
 describe('smoke checks', () => {
   test('checks all server and client JavaScript syntax in parallel', async () => {
-    const files = [
+    const files = new Set([
       path.join(ROOT, 'server.js'),
       path.join(PUBLIC_DIR, 'js', 'wheel-effects.js'),
       ...await collectJavaScriptFiles(path.join(ROOT, 'src')),
       ...await collectJavaScriptFiles(path.join(PUBLIC_DIR, 'js'))
-    ];
+    ]);
 
-    await Promise.all(files.map(file => execFileAsync(process.execPath, ['--check', file])));
+    await Promise.all([...files].map(file => execFileAsync(process.execPath, ['--check', file])));
   });
 
   test('validates unique HTML IDs and the DOM module contract', async () => {
@@ -65,29 +82,28 @@ describe('smoke checks', () => {
     }
   });
 
-  test('parses HomeAuction markdown saves and rejects unrelated markdown', async () => {
-    const { parseSaveFile, serializeSaveFile } = await import(
-      pathToFileURL(path.join(PUBLIC_DIR, 'js', 'save-parser.js')).href
-    );
-    const parsed = parseSaveFile([
-      '==HOME AUCTION==',
-      '# Мой список',
-      '- Интерстеллар',
-      '1. Дюна | 20',
-      '* Матрица | доп',
-      'Зеленая миля | ДОП | 15',
-      'Без ставки | free'
-    ].join('\n'));
-    assert.deepEqual(parsed.items, [
-      { title: 'Интерстеллар', points: 0, isFreeSlot: false },
-      { title: 'Дюна', points: 20, isFreeSlot: false },
-      { title: 'Матрица', points: 0, isFreeSlot: true },
-      { title: 'Зеленая миля', points: 15, isFreeSlot: true },
-      { title: 'Без ставки', points: 0, isFreeSlot: true }
-    ]);
-    assert.equal(parsed.label, 'Мой список');
-    assert.throws(() => parseSaveFile('# чужой файл\nИнтерстеллар'), /==HOME AUCTION==/);
-    assert.equal(serializeSaveFile(parsed.items).startsWith('==HOME AUCTION==\n'), true);
+  test('validates named relative JavaScript imports and re-exports', async () => {
+    const files = await collectJavaScriptFiles(path.join(PUBLIC_DIR, 'js'));
+    const sources = new Map(await Promise.all(files.map(async file => [
+      file,
+      await fs.readFile(file, 'utf8')
+    ])));
+
+    for (const [file, source] of sources) {
+      const imports = source.matchAll(
+        /\bimport\s*\{([\s\S]*?)\}\s*from\s*(['"])(\.[^'"]+)\2/g
+      );
+      for (const match of imports) {
+        const importedNames = match[1].split(',').map(name => name.trim()).filter(Boolean)
+          .map(name => name.split(/\s+as\s+/)[0].trim());
+        const targetPath = path.resolve(path.dirname(file), match[3]);
+        assert.ok(sources.has(targetPath), `${path.relative(PUBLIC_DIR, file)} imports missing file ${match[3]}`);
+        const exports = getExportedNames(sources.get(targetPath), targetPath);
+        for (const name of importedNames) {
+          assert.ok(exports.has(name), `${path.relative(PUBLIC_DIR, file)} imports missing export ${name} from ${match[3]}`);
+        }
+      }
+    }
   });
 
   test('checks that imported CSS files exist and are not empty', async () => {
@@ -111,228 +127,31 @@ describe('smoke checks', () => {
     }
   });
 
-  describe('isolated backend unit checks', () => {
-    beforeEach(() => {
-      state.players = new Map();
-      state.hostToken = null;
-      state.items = [];
-      state.phase = 'POOL';
-      state.settings = { ...DEFAULT_SETTINGS };
-      state.wheel = {
-        predeterminedWinnerId: null,
-        isSpinning: false,
-        history: [],
-        winner: null
-      };
-    });
-
-    afterEach(() => {
-      state.players.clear();
-      state.hostToken = null;
-      state.items = [];
-    });
-
-    test('starts with the expected default limits', () => {
-      assert.equal(state.settings.maxPoints, 50);
-      assert.equal(state.settings.maxItems, 5);
-      assert.equal(DEFAULT_SETTINGS.keepZeroItems, false);
-      assert.equal(DEFAULT_SETTINGS.zeroItemWeight, 0.5);
-      assert.equal(DEFAULT_SETTINGS.allowReactions, false);
-    });
-
-    test('exports the expected room presets', () => {
-      assert.deepEqual(ROOM_PRESETS.basic, { ...DEFAULT_SETTINGS });
-      assert.deepEqual(ROOM_PRESETS.diplomacy, {
-        ...DEFAULT_SETTINGS,
-        restrictOwnPoints: true,
-        foreignOnlyPoints: 25,
-        allowReactions: true
-      });
-      assert.equal(ROOM_PRESETS.chaos.maxPoints, 100);
-      assert.equal(ROOM_PRESETS.chaos.maxItems, 10);
-      assert.equal(ROOM_PRESETS.chaos.keepZeroItems, true);
-      assert.equal(ROOM_PRESETS.chaos.zeroItemWeight, 5);
-      assert.equal(ROOM_PRESETS.chaos.allowFreeItemsForAll, false);
-      assert.equal(ROOM_PRESETS.chaos.allowReactions, true);
-    });
-
-    test('reports whether the room has a host', () => {
-      assert.equal(buildClientState(null).hasHost, false);
-      state.players.set('host-token', {
-        id: 'host',
-        token: 'host-token',
-        name: 'Host',
-        isHost: true,
-        ready: false,
-        online: true
-      });
-      state.hostToken = 'host-token';
-
-      assert.equal(buildClientState(null).hasHost, true);
-    });
-
-    test('calculates raw and effective points, including zero-point items', () => {
-      const supportSettings = { keepZeroItems: true, zeroItemWeight: 5 };
-      for (const [rawPoints, expectedEffectivePoints] of [[0, 5], [1, 5], [4, 5], [5, 5], [8, 8]]) {
-        const item = { allocations: { player1: rawPoints } };
-        assert.equal(getRawPoints(item), rawPoints);
-        assert.equal(getEffectivePoints(item, supportSettings), expectedEffectivePoints);
-      }
-
-      const noSupportSettings = { keepZeroItems: false, zeroItemWeight: 5 };
-      assert.equal(getEffectivePoints({ allocations: { player1: 0 } }, noSupportSettings), 0);
-      assert.equal(getEffectivePoints({ allocations: { player1: 5 } }, noSupportSettings), 5);
-      assert.equal(getEffectivePoints({ allocations: { player1: 0 } }), 0);
-      assert.equal(getEffectivePoints({ allocations: { player1: 0 } }, {
-        keepZeroItems: true,
-        zeroItemWeight: 0
-      }), 0.5);
-    });
-
-    test('loads a deduplicated initial save without spending host budget or slots', () => {
-      const host = {
-        id: 'host-id',
-        token: 'host-token',
-        name: 'Host',
-        isHost: true,
-        ready: false,
-        online: true
-      };
-      state.players.set(host.token, host);
-      state.hostToken = host.token;
-      const loaded = addInitialItems([
-        { title: 'Film A', points: 7, isFreeSlot: false },
-        { title: ' film a ', points: 3, isFreeSlot: true },
-        { title: 'Film B', points: 2, isFreeSlot: false }
-      ], host.token, host.name);
-
-      assert.equal(loaded.length, 2);
-      assert.equal(loaded[0].basePoints, 10);
-      assert.equal(loaded[0].isFreeSlot, true);
-      assert.equal(loaded[0].createdByToken, host.token);
-      assert.equal(getRawPoints(loaded[0]), 10);
-      const hostState = buildClientState(host.token);
-      assert.equal(hostState.me.myItemsCount, 0);
-      assert.equal(hostState.me.remainingPoints, state.settings.maxPoints);
-      assert.equal(hostState.items.every(item => item.isSystem), true);
-    });
-
-    test('imports pool names with duplicate removal and slot-limit truncation', () => {
-      state.settings.maxItems = 2;
-      const player = {
-        id: 'player-id',
-        token: 'player-token',
-        name: 'Player',
-        isHost: false,
-        ready: false,
-        online: true
-      };
-      state.players.set(player.token, player);
-      state.items = [
-        { id: 'existing', title: 'Existing', createdByToken: 'another-player', allocations: {} },
-        { id: 'owned', title: 'Owned', createdByToken: player.token, allocations: {} }
-      ];
-
-      const result = importPoolItems([
-        { title: ' existing ' },
-        { title: 'First', points: 50, isFreeSlot: true },
-        { title: 'FIRST', points: 20 },
-        { title: 'Second' },
-        { title: 'Third' }
-      ], player.token, player);
-
-      assert.deepEqual(result, { added: 1, duplicates: 2, noSlots: 2 });
-      assert.equal(state.items.at(-1).title, 'First');
-      assert.equal(state.items.at(-1).basePoints, 0);
-      assert.equal(state.items.at(-1).isFreeSlot, false);
-    });
-
-    test('does not count free-slot items toward a player item limit', () => {
-      state.players.set('player1', {
-        id: '1',
-        token: 'player1',
-        name: 'Player 1',
-        isHost: false,
-        ready: false,
-        online: true
-      });
-      state.items = [
-        { id: 'regular-1', title: 'Regular 1', createdByToken: 'player1', allocations: {} },
-        { id: 'free', title: 'Free', createdByToken: 'player1', isFreeSlot: true, allocations: {} },
-        { id: 'regular-2', title: 'Regular 2', createdByToken: 'player1', allocations: {} }
-      ];
-
-      assert.equal(buildClientState('player1').me.myItemsCount, 2);
-    });
-
-    test('hides other players’ bids during the POOL phase', () => {
-      state.players.set('player1', {
-        id: '1',
-        token: 'player1',
-        name: 'Player 1',
-        isHost: false,
-        ready: false,
-        online: true
-      });
-      state.players.set('player2', {
-        id: '2',
-        token: 'player2',
-        name: 'Player 2',
-        isHost: false,
-        ready: false,
-        online: true
-      });
-      state.items = [{
-        id: 'item-1',
-        title: 'Item',
-        createdByToken: 'player2',
-        allocations: { player1: 3, player2: 17 }
-      }];
-
-      const clientState = buildClientState('player1');
-      assert.equal(clientState.phase, 'POOL');
-      assert.equal(clientState.items[0].myPoints, 3);
-      assert.equal(clientState.allItems[0].myPoints, 3);
-      assert.equal('totalPoints' in clientState.items[0], false);
-      assert.equal('contributors' in clientState.allItems[0], false);
-      assert.equal(JSON.stringify(clientState).includes('17'), false);
-    });
-
-    test('sends anonymous reaction totals and only the requesting player’s reaction', () => {
-      state.items = [{
-        id: 'item-1',
-        title: 'Item',
-        createdByToken: 'player2',
-        allocations: {},
-        reactions: { player1: 'up', player2: 'down', player3: 'up' }
-      }];
-
-      const clientState = buildClientState('player1');
-      assert.deepEqual({
-        upvotes: clientState.items[0].upvotes,
-        downvotes: clientState.items[0].downvotes,
-        reactionScore: clientState.items[0].reactionScore,
-        myReaction: clientState.items[0].myReaction
-      }, {
-        upvotes: 2,
-        downvotes: 1,
-        reactionScore: 1,
-        myReaction: 'up'
-      });
-      assert.equal('reactions' in clientState.items[0], false);
-      assert.equal(JSON.stringify(clientState).includes('player3'), false);
-    });
-
-    test('selects the winner by points and the eliminated item by inverse points', t => {
-      const candidates = [
-        { id: 'low', allocations: { player1: 1 } },
-        { id: 'high', allocations: { player1: 3 } }
-      ];
-
-      t.mock.method(Math, 'random', () => 0.75);
-      assert.equal(pickPredeterminedWinner(candidates), 'high');
-      t.mock.method(Math, 'random', () => 0.9);
-      assert.equal(pickEliminatedItem(candidates), candidates[1]);
-    });
+  test('parses and round-trips HomeAuction markdown saves', async () => {
+    const { parseSaveFile, serializeSaveFile } = await import(
+      pathToFileURL(path.join(PUBLIC_DIR, 'js', 'save-parser.js')).href
+    );
+    const parsed = parseSaveFile([
+      '==HOME AUCTION==',
+      '# Мой список',
+      '- Интерстеллар',
+      '1. Дюна | 20',
+      '* Матрица | доп',
+      'Зеленая миля | ДОП | 15',
+      'Без ставки | free'
+    ].join('\n'));
+    assert.deepEqual(parsed.items, [
+      { title: 'Интерстеллар', points: 0, isFreeSlot: false },
+      { title: 'Дюна', points: 20, isFreeSlot: false },
+      { title: 'Матрица', points: 0, isFreeSlot: true },
+      { title: 'Зеленая миля', points: 15, isFreeSlot: true },
+      { title: 'Без ставки', points: 0, isFreeSlot: true }
+    ]);
+    assert.equal(parsed.label, 'Мой список');
+    assert.throws(() => parseSaveFile('# чужой файл\nИнтерстеллар'), /==HOME AUCTION==/);
+    assert.equal(serializeSaveFile(parsed.items).startsWith('==HOME AUCTION==\n'), true);
+    assert.deepEqual(parseSaveFile(serializeSaveFile(parsed.items)).items, parsed.items);
   });
 });
+
+require('./game-logic.test.js');

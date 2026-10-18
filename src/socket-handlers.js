@@ -539,6 +539,7 @@ function registerSocketHandlers(io) {
       } else {
         state.items = state.items.filter(it => !it.mergedInto).map(it => ({
           ...it,
+          basePoints: 0,
           allocations: {},
           reactions: {},
           originalAllocations: null,
