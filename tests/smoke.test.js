@@ -38,7 +38,7 @@ describe('smoke checks', () => {
   test('checks all server and client JavaScript syntax in parallel', async () => {
     const files = [
       path.join(ROOT, 'server.js'),
-      path.join(PUBLIC_DIR, 'wheel-effects.js'),
+      path.join(PUBLIC_DIR, 'js', 'wheel-effects.js'),
       ...await collectJavaScriptFiles(path.join(ROOT, 'src')),
       ...await collectJavaScriptFiles(path.join(PUBLIC_DIR, 'js'))
     ];
