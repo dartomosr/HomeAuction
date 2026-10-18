@@ -599,3 +599,61 @@
   font-weight: 700;
   border-radius: var(--radius);
 }
+
+@media (max-width: 768px) {
+  .modal-backdrop {
+    align-items: center;
+    padding: 8px;
+  }
+
+  .modal-window {
+    width: calc(100vw - 16px);
+    max-width: none;
+    max-height: 90vh;
+    margin: 8px auto;
+    padding: 14px 12px;
+    overflow-y: auto;
+  }
+
+  .modal-window .card-header-strip {
+    margin: -14px -12px 14px;
+  }
+
+  .saves-modal-window {
+    width: calc(100vw - 16px);
+    max-height: 90vh;
+  }
+
+  .saves-save-controls {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .saves-save-controls .input-text,
+  .saves-save-controls .btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .saves-file-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .saves-file-details {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .saves-file-details strong {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .saves-file-row .btn {
+    width: 100%;
+    min-height: 38px;
+  }
+}

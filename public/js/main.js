@@ -6,6 +6,14 @@ import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsCont
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 import { getInitialItems } from './saves.js';
 
+if (window.matchMedia('(max-width: 768px)').matches) {
+  dom.btnToggleSettings.setAttribute('aria-expanded', 'false');
+  dom.btnToggleSettings.setAttribute('aria-label', 'Раскрыть настройки');
+  dom.btnToggleSettings.title = 'Раскрыть настройки';
+  dom.btnToggleSettings.querySelector('span').textContent = 'Раскрыть';
+  dom.settingsContent.classList.add('is-collapsed');
+}
+
 if (store.myName) dom.inputName.value = store.myName;
 dom.inputSpectator.checked = store.isSpectator;
 updateJoinPresetVisibility();

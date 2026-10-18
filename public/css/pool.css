@@ -651,3 +651,145 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
+@media (max-width: 768px) {
+  .app-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 12px auto;
+    padding: 0 12px;
+  }
+
+  .main-area {
+    order: 1;
+  }
+
+  .sidebar {
+    order: 2;
+  }
+
+  .balance-boxes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    overflow-x: visible;
+    padding: 0;
+  }
+
+  .stat-box {
+    padding: 10px;
+  }
+
+  .allocation-rules-box,
+  .balance-boxes > .stat-box:nth-child(3),
+  .balance-boxes > .stat-box:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  .pool-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .pool-actions .btn {
+    min-width: 0;
+    padding: 8px 6px;
+  }
+
+  #btn-ready {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .add-item-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  #input-item-title {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .add-item-buttons {
+    display: flex;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .add-item-buttons .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 5px;
+    overflow-wrap: anywhere;
+  }
+
+  .pool-item-card {
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .pool-item-left {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .pool-item-controls {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+  }
+
+  .pool-item-controls .pts-slider {
+    grid-column: 1 / 4;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pool-item-controls .pts-input {
+    grid-column: 4;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    padding: 6px 2px;
+  }
+
+  .pool-item-controls > .btn {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 5px 3px;
+  }
+
+  .pool-item-controls > .btn:nth-child(1) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .pool-item-controls > .btn:nth-child(2) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .pool-item-controls > .btn:nth-child(5) {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .pool-item-controls > .btn:nth-child(6) {
+    grid-column: 4;
+    grid-row: 2;
+  }
+
+  .reaction-btn,
+  .pool-item-left > .btn-danger,
+  .pool-item-left > .btn-host-delete {
+    min-width: 36px;
+    min-height: 36px;
+  }
+}

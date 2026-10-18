@@ -470,3 +470,51 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
     flex-shrink: 0;
   }
 }
+
+  @media (max-width: 768px) {
+    .wheel-stage {
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    #wheel-canvas {
+      max-width: 100%;
+    }
+
+    .wheel-pointer {
+      right: 0;
+    }
+
+    .merge-controls {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .merge-controls .input-select,
+    .merge-controls .btn {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .merge-arrow {
+      text-align: center;
+    }
+
+    .reveal-table {
+      table-layout: fixed;
+      font-size: 0.78rem;
+    }
+
+    .reveal-table th,
+    .reveal-table td {
+      padding: 6px 4px;
+      overflow-wrap: anywhere;
+    }
+
+    .reveal-table .chance-cell,
+    .reveal-table .risk-cell {
+      white-space: normal;
+    }
+  }
