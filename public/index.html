@@ -27,6 +27,7 @@
       <button id="btn-all-items" type="button" class="btn btn-icon hidden" title="Показать историю вариантов и статистику аукциона">
         📊 История (<span id="all-items-count">0</span>)
       </button>
+      <button id="open-saves-btn" type="button" class="btn btn-icon">💾 Сохранения</button>
 
       <div class="theme-picker">
         <label for="theme-select">Тема:</label>
@@ -113,6 +114,12 @@
         />
         <label class="spectator-join-option"><input type="checkbox" id="input-spectator" /> Войти как зритель (только наблюдение, без ставок)</label>
         <section id="join-preset-group" class="join-preset-group" aria-labelledby="join-preset-title">
+          <div class="join-save-controls">
+            <button type="button" id="join-load-save-btn" class="btn btn-outline">📂 Загрузить из сохранения (.md)</button>
+            <input type="file" id="join-save-file" accept=".md,.txt,text/plain" hidden />
+            <span id="join-save-indicator" class="muted-text small-text hidden"></span>
+            <button type="button" id="clear-initial-save-btn" class="btn btn-outline btn-sm hidden" title="Отменить загрузку файла" aria-label="Отменить загрузку файла">✕</button>
+          </div>
           <h3 id="join-preset-title">Шаблон правил комнаты:</h3>
           <div class="preset-options-grid">
             <button type="button" class="preset-option-btn active" data-preset="basic" aria-pressed="true">
@@ -511,6 +518,53 @@
         <div id="all-items-modal-list" class="all-items-modal-list"></div>
       </div>
       <div id="modal-tab-stats" class="modal-tab-content hidden" role="tabpanel" aria-labelledby="tab-btn-stats"></div>
+    </div>
+  </div>
+
+  <div id="saves-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="saves-modal-title">
+    <div class="card modal-window saves-modal-window">
+      <div class="card-header-strip saves-modal-header">
+        <span id="saves-modal-title">Сохранения и пресеты</span>
+        <div class="saves-modal-actions">
+          <button type="button" id="saves-help-toggle" class="btn saves-help-toggle" title="Как работают сохранения?" aria-expanded="false" aria-controls="saves-help-box">?</button>
+          <button type="button" id="saves-close-btn" class="btn btn-sm btn-modal-close" title="Закрыть окно" aria-label="Закрыть сохранения">✕</button>
+        </div>
+      </div>
+      <div id="saves-help-box" class="saves-help-box" aria-hidden="true">
+        <div class="saves-help-content">
+          <p><strong>Работа с папкой.</strong> Выберите папку на ПК — сайт сам найдёт в ней файлы сохранений .md и позволит сохранять игру в один клик.</p>
+          <p><strong>До входа в игру:</strong> загружает полный слепок партии (все лоты, очки и ДОП-слоты) как стартовую базу комнаты.</p>
+          <p><strong>В фазе пула:</strong> сохраняет ваш личный пресет (ваши лоты и ставки), а при загрузке добавляет названия лотов в ваши свободные слоты.</p>
+          <p><strong>На колесе / в финале:</strong> сохраняет полный список всех вариантов комнаты с итоговыми очками.</p>
+          <p><strong>Ручное создание файла.</strong> Создайте .md или .txt в любом блокноте. Первая строка — <code>==HOME AUCTION==</code>, далее по одному варианту на строке (очки и ДОП через <code>|</code> необязательны):</p>
+          <pre id="saves-template">==HOME AUCTION==
+# Мой список фильмов
+Интерстеллар
+Дюна: Часть вторая | 20
+Зеленая миля | 15 | ДОП</pre>
+          <button type="button" id="saves-copy-template" class="btn btn-outline btn-sm">📋 Скопировать шаблон</button>
+        </div>
+      </div>
+      <div class="saves-folder-row">
+        <button type="button" id="saves-choose-folder" class="btn btn-outline">📁 Выбрать / сменить папку</button>
+        <span id="saves-folder-name" class="muted-text small-text">Папка не выбрана</span>
+      </div>
+      <div id="saves-fallback-loader" class="saves-fallback-loader hidden">
+        <label for="saves-file-input" class="muted-text small-text">Загрузить сохранение с компьютера:</label>
+        <input type="file" id="saves-file-input" accept=".md,.txt,text/plain" />
+      </div>
+      <div class="saves-file-list-wrap">
+        <h3>Файлы в папке</h3>
+        <div id="saves-file-list" class="saves-file-list"><p class="muted-text small-text">Выберите папку с сохранениями, чтобы увидеть список файлов.</p></div>
+      </div>
+      <form id="saves-save-form" class="saves-save-form">
+        <label for="saves-file-name">Название файла</label>
+        <div class="saves-save-controls">
+          <input type="text" id="saves-file-name" class="input-text" maxlength="100" />
+          <button type="submit" id="saves-save-btn" class="btn btn-primary">💾 Сохранить в папку</button>
+        </div>
+        <p id="saves-status" class="muted-text small-text" aria-live="polite"></p>
+      </form>
     </div>
   </div>
 

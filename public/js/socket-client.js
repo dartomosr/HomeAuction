@@ -67,6 +67,7 @@ socket.on('auction_hard_reset', () => {
 socket.on('state_update', (state) => {
   const prevPhase = store.appState ? store.appState.phase : null;
   store.appState = state;
+  document.dispatchEvent(new Event('auction:state-update'));
   updateJoinPresetVisibility(state);
 
   if (!state.me) return;

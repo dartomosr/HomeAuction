@@ -12,7 +12,10 @@ function updatePointsSplitPreview() {
 }
 
 function updateJoinPresetVisibility(state = store.appState) {
-  dom.joinPresetGroup.classList.toggle('hidden', Boolean(state?.hasHost) || dom.inputSpectator.checked);
+  const roomHasPlayers = Boolean(state?.hasPlayers || state?.hasHost);
+  const isHidden = roomHasPlayers || dom.inputSpectator.checked;
+  dom.joinPresetGroup.classList.toggle('hidden', isHidden);
+  if (isHidden) document.dispatchEvent(new Event('auction:initial-save-unavailable'));
 }
 
 function renderEffectsControls() {

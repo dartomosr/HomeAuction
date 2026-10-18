@@ -3,6 +3,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { afterEach, beforeEach, describe, test } = require('node:test');
 
 const execFileAsync = promisify(execFile);
@@ -14,7 +15,9 @@ const {
   state,
   getRawPoints,
   getEffectivePoints,
-  buildClientState
+  buildClientState,
+  addInitialItems,
+  importPoolItems
 } = require(path.join(ROOT, 'src', 'state.js'));
 const {
   pickPredeterminedWinner,
@@ -57,6 +60,34 @@ describe('smoke checks', () => {
     assert.deepEqual(duplicateIds, [], `Duplicate HTML IDs: ${[...new Set(duplicateIds)].join(', ')}`);
     assert.deepEqual(missingIds, [], `DOM IDs missing from index.html: ${missingIds.join(', ')}`);
     assert.match(html, /<button[^>]*id="btn-copy-result"[^>]*disabled[^>]*title="Доступно после определения победителя"[^>]*>📋 Результат<\/button>/);
+    for (const id of ['saves-modal', 'saves-help-toggle', 'saves-help-box', 'clear-initial-save-btn']) {
+      assert.ok(ids.includes(id), `Missing saves UI element: #${id}`);
+    }
+  });
+
+  test('parses HomeAuction markdown saves and rejects unrelated markdown', async () => {
+    const { parseSaveFile, serializeSaveFile } = await import(
+      pathToFileURL(path.join(PUBLIC_DIR, 'js', 'save-parser.js')).href
+    );
+    const parsed = parseSaveFile([
+      '==HOME AUCTION==',
+      '# Мой список',
+      '- Интерстеллар',
+      '1. Дюна | 20',
+      '* Матрица | доп',
+      'Зеленая миля | ДОП | 15',
+      'Без ставки | free'
+    ].join('\n'));
+    assert.deepEqual(parsed.items, [
+      { title: 'Интерстеллар', points: 0, isFreeSlot: false },
+      { title: 'Дюна', points: 20, isFreeSlot: false },
+      { title: 'Матрица', points: 0, isFreeSlot: true },
+      { title: 'Зеленая миля', points: 15, isFreeSlot: true },
+      { title: 'Без ставки', points: 0, isFreeSlot: true }
+    ]);
+    assert.equal(parsed.label, 'Мой список');
+    assert.throws(() => parseSaveFile('# чужой файл\nИнтерстеллар'), /==HOME AUCTION==/);
+    assert.equal(serializeSaveFile(parsed.items).startsWith('==HOME AUCTION==\n'), true);
   });
 
   test('checks that imported CSS files exist and are not empty', async () => {
@@ -156,6 +187,64 @@ describe('smoke checks', () => {
         keepZeroItems: true,
         zeroItemWeight: 0
       }), 0.5);
+    });
+
+    test('loads a deduplicated initial save without spending host budget or slots', () => {
+      const host = {
+        id: 'host-id',
+        token: 'host-token',
+        name: 'Host',
+        isHost: true,
+        ready: false,
+        online: true
+      };
+      state.players.set(host.token, host);
+      state.hostToken = host.token;
+      const loaded = addInitialItems([
+        { title: 'Film A', points: 7, isFreeSlot: false },
+        { title: ' film a ', points: 3, isFreeSlot: true },
+        { title: 'Film B', points: 2, isFreeSlot: false }
+      ], host.token, host.name);
+
+      assert.equal(loaded.length, 2);
+      assert.equal(loaded[0].basePoints, 10);
+      assert.equal(loaded[0].isFreeSlot, true);
+      assert.equal(loaded[0].createdByToken, host.token);
+      assert.equal(getRawPoints(loaded[0]), 10);
+      const hostState = buildClientState(host.token);
+      assert.equal(hostState.me.myItemsCount, 0);
+      assert.equal(hostState.me.remainingPoints, state.settings.maxPoints);
+      assert.equal(hostState.items.every(item => item.isSystem), true);
+    });
+
+    test('imports pool names with duplicate removal and slot-limit truncation', () => {
+      state.settings.maxItems = 2;
+      const player = {
+        id: 'player-id',
+        token: 'player-token',
+        name: 'Player',
+        isHost: false,
+        ready: false,
+        online: true
+      };
+      state.players.set(player.token, player);
+      state.items = [
+        { id: 'existing', title: 'Existing', createdByToken: 'another-player', allocations: {} },
+        { id: 'owned', title: 'Owned', createdByToken: player.token, allocations: {} }
+      ];
+
+      const result = importPoolItems([
+        { title: ' existing ' },
+        { title: 'First', points: 50, isFreeSlot: true },
+        { title: 'FIRST', points: 20 },
+        { title: 'Second' },
+        { title: 'Third' }
+      ], player.token, player);
+
+      assert.deepEqual(result, { added: 1, duplicates: 2, noSlots: 2 });
+      assert.equal(state.items.at(-1).title, 'First');
+      assert.equal(state.items.at(-1).basePoints, 0);
+      assert.equal(state.items.at(-1).isFreeSlot, false);
     });
 
     test('does not count free-slot items toward a player item limit', () => {

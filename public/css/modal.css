@@ -21,6 +21,136 @@
   margin-bottom: 0;
 }
 
+.saves-modal-window {
+  max-width: 720px;
+  overflow-y: auto;
+}
+
+.saves-modal-header,
+.saves-modal-actions,
+.saves-folder-row,
+.saves-save-controls,
+.saves-file-row,
+.saves-file-details {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.saves-modal-header,
+.saves-folder-row,
+.saves-save-controls,
+.saves-file-row {
+  justify-content: space-between;
+}
+
+.saves-modal-actions {
+  margin-left: auto;
+}
+
+.saves-help-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  font-weight: 800;
+}
+
+.saves-help-box {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 240ms ease, opacity 180ms ease, margin 240ms ease;
+}
+
+.saves-help-box.is-open {
+  max-height: 460px;
+  margin-bottom: 12px;
+  opacity: 1;
+  overflow-y: auto;
+}
+
+.saves-help-content {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-size: 0.82rem;
+}
+
+.saves-help-content pre {
+  overflow-x: auto;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font: 0.78rem var(--font-mono);
+}
+
+.saves-folder-row,
+.saves-file-list-wrap,
+.saves-save-form {
+  margin-top: 12px;
+}
+
+.saves-folder-row span {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.saves-fallback-loader {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.saves-file-list-wrap h3 {
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.saves-file-list {
+  max-height: 180px;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.saves-file-row {
+  padding: 7px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.saves-file-details {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.saves-file-details strong {
+  overflow-wrap: anywhere;
+}
+
+.saves-save-form {
+  display: grid;
+  gap: 6px;
+}
+
+.saves-save-controls .input-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.join-save-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .help-floating-btn {
   position: fixed;
   right: 18px;

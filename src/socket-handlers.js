@@ -1,5 +1,15 @@
 const { DEFAULT_SETTINGS, ROOM_PRESETS, generateId } = require('./config');
-const { state, getRawPoints, getEffectivePoints, getActiveRevealItems, getAliveWheelItems, buildClientState } = require('./state');
+const {
+  state,
+  getRawPoints,
+  getEffectivePoints,
+  getActiveRevealItems,
+  getAliveWheelItems,
+  buildClientState,
+  normalizeItemTitle,
+  addInitialItems,
+  importPoolItems
+} = require('./state');
 const { pickPredeterminedWinner, pickEliminatedItem } = require('./wheel-math');
 
 function registerSocketHandlers(io) {
@@ -52,6 +62,9 @@ function registerSocketHandlers(io) {
       const shouldApplyPreset = !state.hostToken && !spectatorChoice &&
         state.phase === 'POOL' && !hasActiveBids;
       const playerToken = (token && state.players.has(token)) ? token : (token || generateId());
+      const canLoadInitialItems = state.players.size === 0 &&
+        !state.players.has(playerToken) && !state.hostToken &&
+        state.items.length === 0 && !spectatorChoice;
       currentToken = playerToken;
 
       let player = state.players.get(playerToken);
@@ -99,6 +112,10 @@ function registerSocketHandlers(io) {
       if (shouldApplyPreset && state.hostToken === playerToken &&
           Object.prototype.hasOwnProperty.call(ROOM_PRESETS, preset)) {
         state.settings = { ...ROOM_PRESETS[preset] };
+      }
+
+      if (canLoadInitialItems && state.hostToken === playerToken) {
+        addInitialItems(joinData.initialItems, playerToken, player.name);
       }
 
       socket.emit('joined', { token: playerToken });
@@ -262,7 +279,7 @@ function registerSocketHandlers(io) {
         }
       }
 
-      const existing = state.items.find(it => !it.mergedInto && it.title.toLowerCase() === cleanTitle.toLowerCase());
+      const existing = state.items.find(it => !it.mergedInto && normalizeItemTitle(it.title) === normalizeItemTitle(cleanTitle));
       if (existing) {
         socket.emit('toast_error', 'Такой вариант уже есть в общем списке!');
         return;
@@ -283,6 +300,16 @@ function registerSocketHandlers(io) {
 
       broadcastState();
       socket.emit('item_added');
+    });
+
+    socket.on('import_pool_items', ({ items } = {}) => {
+      const player = state.players.get(currentToken);
+      if (!player || player.isSpectator || state.phase !== 'POOL') return;
+
+      const result = importPoolItems(items, currentToken, player);
+      if (result.added > 0) player.ready = false;
+      socket.emit('pool_import_result', result);
+      broadcastState();
     });
 
     // Удаление варианта (разрешено автору варианта ИЛИ Хосту даже для чужих вариантов)
@@ -366,6 +393,9 @@ function registerSocketHandlers(io) {
       if (!source || !target) return;
 
       source.originalAllocations = { ...source.allocations };
+      source.originalBasePoints = Number(source.basePoints) || 0;
+      target.basePoints = (Number(target.basePoints) || 0) + source.originalBasePoints;
+      source.basePoints = 0;
       for (const [token, pts] of Object.entries(source.allocations)) {
         target.allocations[token] = (target.allocations[token] || 0) + pts;
       }

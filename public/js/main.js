@@ -4,6 +4,7 @@ import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
 import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
+import { getInitialItems } from './saves.js';
 
 if (store.myName) dom.inputName.value = store.myName;
 dom.inputSpectator.checked = store.isSpectator;
@@ -30,12 +31,15 @@ dom.formJoin.addEventListener('submit', (e) => {
   store.isSpectator = dom.inputSpectator.checked;
   writeSetting('auction_name', store.myName);
   writeSetting('auction_spectator', store.isSpectator ? 'on' : 'off');
-  socket.emit('join', {
+  const joinData = {
     token: store.myToken,
     name: store.myName,
     isSpectator: store.isSpectator,
     preset: store.selectedPreset
-  });
+  };
+  const initialItems = getInitialItems();
+  if (initialItems) joinData.initialItems = initialItems;
+  socket.emit('join', joinData);
 });
 
 dom.joinPresetGroup.addEventListener('click', (event) => {

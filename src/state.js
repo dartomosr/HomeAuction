@@ -1,4 +1,5 @@
 const { DEFAULT_SETTINGS } = require('./config');
+const { generateId } = require('./config');
 
 const state = {
   phase: 'POOL', // 'POOL' (добавление и тайные ставки) | 'REVEAL' (колесо) | 'FINISHED' (финал)
@@ -20,7 +21,7 @@ function getPlayerNameByToken(token, fallback = 'Участник') {
 }
 
 function getRawPoints(item) {
-  let sum = 0;
+  let sum = Number(item.basePoints) || 0;
   for (const pts of Object.values(item.allocations)) {
     sum += pts;
   }
@@ -92,7 +93,7 @@ function buildClientState(forToken) {
 
   for (const item of state.items) {
     // Лоты, добавленные вне лимита (isFreeSlot), НЕ увеличивают счётчик слотов игрока
-    if (item.createdByToken === forToken && !item.mergedInto && !item.isFreeSlot) {
+    if (item.createdByToken === forToken && !item.mergedInto && !item.isFreeSlot && !item.isSystem) {
       myItemsCount++;
     }
     if (item.allocations[forToken] && !item.mergedInto) {
@@ -119,6 +120,7 @@ function buildClientState(forToken) {
           title: item.title,
           myPoints: myPts,
           isOwn,
+          isSystem: Boolean(item.isSystem),
           isFreeSlot: Boolean(item.isFreeSlot),
           canDelete: isOwn,
           canHostDelete: isHostViewer && !isOwn,
@@ -136,6 +138,7 @@ function buildClientState(forToken) {
           title: item.title,
           myPoints: myPts,
           isFreeSlot: Boolean(item.isFreeSlot),
+          basePoints: basePts,
           totalPoints: rawPts,
           effectivePoints: effPts,
           winProbability,
@@ -180,7 +183,14 @@ function buildClientState(forToken) {
       })
       .sort((a, b) => b.points - a.points);
 
-    const rawPts = Object.values(allocSource || {}).reduce((acc, v) => acc + v, 0);
+    const basePts = item.mergedInto && item.originalBasePoints !== undefined
+      ? item.originalBasePoints
+      : Number(item.basePoints) || 0;
+    const rawPts = basePts + Object.values(allocSource || {}).reduce((acc, v) => acc + v, 0);
+    if (basePts > 0) {
+      contributors.push({ name: 'Стартовая база', playerId: null, points: basePts, isMe: false });
+      contributors.sort((a, b) => b.points - a.points);
+    }
     const isWinner = state.phase === 'FINISHED' && state.wheel.winner && state.wheel.winner.id === item.id;
 
     return {
@@ -205,6 +215,7 @@ function buildClientState(forToken) {
     phase: state.phase,
     settings: state.settings,
     hasHost: Boolean(state.hostToken && state.players.has(state.hostToken)),
+    hasPlayers: state.players.size > 0,
     me: me ? {
       name: me.name,
       isHost: me.isHost,
@@ -233,7 +244,7 @@ function getPlayerNameByToken(token, fallback = 'Участник') {
 }
 
 function getRawPoints(item) {
-  let sum = 0;
+  let sum = Number(item.basePoints) || 0;
   for (const pts of Object.values(item.allocations)) {
     sum += pts;
   }
@@ -293,7 +304,7 @@ function buildClientState(forToken) {
 
   for (const item of state.items) {
     // Лоты, добавленные вне лимита (isFreeSlot), НЕ увеличивают счётчик слотов игрока
-    if (item.createdByToken === forToken && !item.mergedInto && !item.isFreeSlot) {
+    if (item.createdByToken === forToken && !item.mergedInto && !item.isFreeSlot && !item.isSystem) {
       myItemsCount++;
     }
     if (item.allocations[forToken] && !item.mergedInto) {
@@ -320,6 +331,7 @@ function buildClientState(forToken) {
           title: item.title,
           myPoints: myPts,
           isOwn,
+          isSystem: Boolean(item.isSystem),
           isFreeSlot: Boolean(item.isFreeSlot),
           canDelete: isOwn,
           canHostDelete: isHostViewer && !isOwn,
@@ -356,6 +368,8 @@ function buildClientState(forToken) {
       return {
         id: item.id,
         title: item.title,
+        isOwn: item.createdByToken === forToken,
+        isSystem: Boolean(item.isSystem),
         isFreeSlot: Boolean(item.isFreeSlot),
         myPoints: item.allocations[forToken] || 0,
         isMerged: Boolean(item.mergedInto),
@@ -381,15 +395,25 @@ function buildClientState(forToken) {
       })
       .sort((a, b) => b.points - a.points);
 
-    const rawPts = Object.values(allocSource || {}).reduce((acc, v) => acc + v, 0);
+    const basePts = item.mergedInto && item.originalBasePoints !== undefined
+      ? item.originalBasePoints
+      : Number(item.basePoints) || 0;
+    const rawPts = basePts + Object.values(allocSource || {}).reduce((acc, v) => acc + v, 0);
+    if (basePts > 0) {
+      contributors.push({ name: 'Стартовая база', playerId: null, points: basePts, isMe: false });
+      contributors.sort((a, b) => b.points - a.points);
+    }
     const isWinner = state.phase === 'FINISHED' && state.wheel.winner && state.wheel.winner.id === item.id;
 
     return {
       id: item.id,
       title: item.title,
+      isOwn: item.createdByToken === forToken,
+      isSystem: Boolean(item.isSystem),
       createdByPlayerId: state.players.get(item.createdByToken)?.id || null,
       createdByName: item.createdByName || 'Удалённый игрок',
       mergedIntoId: item.mergedInto || null,
+      basePoints: basePts,
       isFreeSlot: Boolean(item.isFreeSlot),
       totalPoints: rawPts,
       myPoints: (allocSource && allocSource[forToken]) || 0,
@@ -406,6 +430,7 @@ function buildClientState(forToken) {
     phase: state.phase,
     settings: state.settings,
     hasHost: Boolean(state.hostToken && state.players.has(state.hostToken)),
+    hasPlayers: state.players.size > 0,
     me: me ? {
       name: me.name,
       isHost: me.isHost,
@@ -428,4 +453,102 @@ function buildClientState(forToken) {
   };
 }
 
-module.exports = { state, getRawPoints, getEffectivePoints, getActiveRevealItems, getAliveWheelItems, buildClientState };
+function normalizeItemTitle(title) {
+  return String(title || '').trim().toLowerCase();
+}
+
+function addInitialItems(items, hostToken, hostName) {
+  const merged = new Map();
+  for (const entry of (Array.isArray(items) ? items : []).slice(0, 500)) {
+    const title = String(entry && entry.title || '').trim().slice(0, 80);
+    const key = normalizeItemTitle(title);
+    if (!key) continue;
+    const points = Number(entry.points);
+    const cleanPoints = Number.isFinite(points) && points >= 0 ? points : 0;
+    const current = merged.get(key);
+    if (current) {
+      current.points += cleanPoints;
+      current.isFreeSlot = current.isFreeSlot || Boolean(entry.isFreeSlot);
+    } else {
+      merged.set(key, { title, points: cleanPoints, isFreeSlot: Boolean(entry.isFreeSlot) });
+    }
+  }
+
+  const added = [];
+  for (const entry of merged.values()) {
+    if (state.items.some(item => !item.mergedInto && normalizeItemTitle(item.title) === normalizeItemTitle(entry.title))) {
+      continue;
+    }
+    const item = {
+      id: generateId(),
+      title: entry.title,
+      createdByToken: hostToken,
+      createdByName: hostName,
+      isSystem: true,
+      basePoints: entry.points,
+      isFreeSlot: entry.isFreeSlot,
+      allocations: {},
+      reactions: {},
+      originalAllocations: null,
+      eliminated: false,
+      mergedInto: null
+    };
+    state.items.push(item);
+    added.push(item);
+  }
+  return added;
+}
+
+function importPoolItems(items, playerToken, player) {
+  const existing = new Set(state.items
+    .filter(item => !item.mergedInto)
+    .map(item => normalizeItemTitle(item.title)));
+  const candidates = [];
+  let duplicates = 0;
+  for (const entry of (Array.isArray(items) ? items : []).slice(0, 500)) {
+    const title = String(entry && entry.title || '').trim().slice(0, 80);
+    const key = normalizeItemTitle(title);
+    if (!key) continue;
+    if (existing.has(key)) {
+      duplicates++;
+      continue;
+    }
+    existing.add(key);
+    candidates.push(title);
+  }
+
+  const currentCount = state.items.filter(item =>
+    item.createdByToken === playerToken && !item.mergedInto && !item.isFreeSlot && !item.isSystem
+  ).length;
+  const slots = Math.max(0, state.settings.maxItems - currentCount);
+  const accepted = candidates.slice(0, slots);
+  for (const title of accepted) {
+    state.items.push({
+      id: generateId(),
+      title,
+      createdByToken: playerToken,
+      createdByName: player.name,
+      isFreeSlot: false,
+      isSystem: false,
+      basePoints: 0,
+      allocations: {},
+      reactions: {},
+      originalAllocations: null,
+      eliminated: false,
+      mergedInto: null
+    });
+  }
+  return { added: accepted.length, duplicates, noSlots: candidates.length - accepted.length };
+}
+
+module.exports = {
+  state,
+  getRawPoints,
+  getEffectivePoints,
+  getActiveRevealItems,
+  getAliveWheelItems,
+  buildClientState,
+  normalizeItemTitle,
+  addInitialItems,
+  importPoolItems
+};
