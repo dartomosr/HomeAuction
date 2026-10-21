@@ -148,11 +148,46 @@
               </ul>
             </button>
           </div>
+          <div class="random-preset-controls">
+            <button type="button" id="random-preset-open" class="btn btn-outline">🎲 Выбрать случайно</button>
+            <button type="button" id="random-preset-settings" class="btn btn-outline btn-sm" aria-label="Настроить режимы для случайного выбора" title="Настроить режимы для случайного выбора">⚙</button>
+          </div>
         </section>
         <button type="submit" class="btn btn-primary btn-lg">ВОЙТИ В АУКЦИОН</button>
       </form>
     </div>
   </main>
+
+  <main id="random-preset-screen" class="random-preset-screen hidden" aria-labelledby="random-preset-heading">
+    <section class="card random-preset-card">
+      <h2 id="random-preset-heading">Случайный стартовый режим</h2>
+      <p class="muted-text">Барабан выбирает один из включённых режимов.</p>
+      <div id="random-preset-reel" class="random-preset-reel" aria-hidden="true">
+        <div id="random-preset-track" class="random-preset-track"></div>
+        <span class="random-preset-pointer" aria-hidden="true">▶</span>
+        <span class="random-preset-selection-line" aria-hidden="true"></span>
+      </div>
+      <p id="random-preset-result" class="random-preset-result" aria-live="polite" aria-atomic="true"></p>
+      <div class="random-preset-actions">
+        <button type="button" id="random-preset-begin" class="btn btn-primary" disabled>Начать</button>
+        <button type="button" id="random-preset-reroll" class="btn btn-outline" disabled>Перекрутить</button>
+        <button type="button" id="random-preset-exit" class="btn btn-outline">Выйти</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="random-preset-settings-dialog" class="random-preset-dialog" aria-labelledby="random-preset-settings-title">
+    <form method="dialog" class="random-preset-dialog-card">
+      <h2 id="random-preset-settings-title">Режимы для случайного выбора</h2>
+      <div id="random-preset-settings-list" class="random-preset-settings-list"></div>
+      <p class="muted-text small-text">Все выбранные режимы имеют равную вероятность</p>
+      <p id="random-preset-settings-error" class="random-preset-settings-error" role="alert" hidden></p>
+      <div class="random-preset-dialog-actions">
+        <button type="button" id="random-preset-settings-save" class="btn btn-primary">Сохранить</button>
+        <button type="button" id="random-preset-settings-cancel" class="btn btn-outline">Отмена</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Основной интерфейс аукциона -->
   <div id="screen-app" class="app-layout hidden">

@@ -5,6 +5,7 @@ import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from
 import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 import { getInitialItems } from './saves.js';
+import { createRandomModeFlow, createSpinPlan, createPresetDraft, loadPresetIds, RANDOM_PRESET_STORAGE_KEY } from './random-mode.js';
 
 if (window.matchMedia('(max-width: 768px)').matches) {
   dom.btnToggleSettings.setAttribute('aria-expanded', 'false');
@@ -60,6 +61,201 @@ dom.joinPresetGroup.addEventListener('click', (event) => {
     option.classList.toggle('active', isActive);
     option.setAttribute('aria-pressed', String(isActive));
   });
+});
+
+function getStartModes() {
+  return Array.from(dom.joinPresetGroup.querySelectorAll('.preset-option-btn[data-preset]'))
+    .map(button => ({
+      id: button.dataset.preset,
+      name: button.querySelector('strong')?.textContent.trim() || button.dataset.preset,
+      button
+    }))
+    .filter(mode => mode.id);
+}
+
+function getLocalStorageSafely() {
+  try { return window.localStorage; } catch { return null; }
+}
+
+const randomPresetStorage = getLocalStorageSafely();
+let enabledRandomPresetIds = loadPresetIds(randomPresetStorage, getStartModes());
+let settingsReturnFocus = null;
+let settingsDraft = null;
+let activeReelAnimation = null;
+
+function canConfigureStartMode() {
+  const state = store.appState;
+  return !store.isSpectator && !state?.hasPlayers && !state?.hasHost && !dom.joinPresetGroup.classList.contains('hidden');
+}
+
+function closeRandomSettings() {
+  if (dom.randomPresetDialog.open) dom.randomPresetDialog.close();
+}
+
+function renderRandomSettings() {
+  dom.randomPresetSettingsList.replaceChildren();
+  const checked = settingsDraft || createPresetDraft(enabledRandomPresetIds);
+  for (const mode of getStartModes()) {
+    const label = document.createElement('label');
+    label.className = 'random-preset-setting-row';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = mode.id;
+    checkbox.checked = checked.has(mode.id);
+    checkbox.setAttribute('aria-label', `Участвует режим «${mode.name}»`);
+    const name = document.createElement('span');
+    name.textContent = mode.name;
+    label.append(checkbox, name);
+    dom.randomPresetSettingsList.append(label);
+  }
+}
+
+dom.randomPresetSettings.addEventListener('click', () => {
+  settingsReturnFocus = dom.randomPresetSettings;
+  settingsDraft = createPresetDraft(enabledRandomPresetIds);
+  dom.randomPresetSettingsError.hidden = true;
+  renderRandomSettings();
+  dom.randomPresetDialog.showModal();
+  dom.randomPresetSettingsList.querySelector('input')?.focus();
+});
+
+dom.randomPresetSettingsList.addEventListener('change', (event) => {
+  if (!(event.target instanceof HTMLInputElement) || event.target.type !== 'checkbox') return;
+  settingsDraft?.set(event.target.value, event.target.checked);
+  dom.randomPresetSettingsError.hidden = true;
+});
+
+dom.randomPresetSettingsSave.addEventListener('click', () => {
+  const available = new Set(getStartModes().map(mode => mode.id));
+  const selected = (settingsDraft?.values() || []).filter(id => available.has(id));
+  if (!selected.length) {
+    dom.randomPresetSettingsError.textContent = 'Выберите хотя бы один режим.';
+    dom.randomPresetSettingsError.hidden = false;
+    dom.randomPresetSettingsList.querySelector('input')?.focus();
+    return;
+  }
+  if (!settingsDraft?.commit(randomPresetStorage, getStartModes(), RANDOM_PRESET_STORAGE_KEY)) {
+    dom.randomPresetSettingsError.textContent = 'Не удалось сохранить настройки в этом браузере.';
+    dom.randomPresetSettingsError.hidden = false;
+    return;
+  }
+  enabledRandomPresetIds = selected;
+  settingsDraft?.cancel();
+  settingsDraft = null;
+  closeRandomSettings();
+});
+
+dom.randomPresetSettingsCancel.addEventListener('click', closeRandomSettings);
+dom.randomPresetDialog.addEventListener('cancel', () => { settingsDraft?.cancel(); settingsDraft = null; });
+dom.randomPresetDialog.addEventListener('close', () => {
+  settingsDraft?.cancel();
+  settingsDraft = null;
+  settingsReturnFocus?.focus();
+  settingsReturnFocus = null;
+});
+dom.randomPresetDialog.addEventListener('click', (event) => {
+  if (event.target === dom.randomPresetDialog) closeRandomSettings();
+});
+
+function cancelReelAnimation() {
+  const animation = activeReelAnimation;
+  activeReelAnimation = null;
+  animation?.cancel();
+}
+
+function animateRandomPreset(winner, presets) {
+  const ids = presets.map(mode => mode.id);
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const plan = createSpinPlan(ids, winner.id, reducedMotion);
+  if (!plan) return Promise.reject(new Error('Не удалось подготовить прокрутку режимов.'));
+
+  dom.randomPresetTrack.replaceChildren();
+  for (const id of plan.sequence) {
+    const card = document.createElement('div');
+    card.className = 'random-preset-reel-card';
+    card.textContent = presets.find(mode => mode.id === id)?.name || id;
+    dom.randomPresetTrack.append(card);
+  }
+
+  const firstCard = dom.randomPresetTrack.firstElementChild;
+  const slotHeight = firstCard.getBoundingClientRect().height + Number.parseFloat(getComputedStyle(dom.randomPresetTrack).rowGap || '0');
+  const centerOffset = dom.randomPresetTrack.parentElement.clientHeight / 2 - firstCard.getBoundingClientRect().height / 2;
+  const from = centerOffset - plan.startIndex * slotHeight;
+  const to = centerOffset - plan.endIndex * slotHeight;
+  const fromTransform = `translateY(${from}px)`;
+  const toTransform = `translateY(${to}px)`;
+  dom.randomPresetTrack.style.transform = fromTransform;
+
+  const animationTarget = reducedMotion && plan.sequence.length > 1
+    ? dom.randomPresetTrack.children[plan.endIndex]
+    : plan.sequence.length === 1 ? firstCard : dom.randomPresetTrack;
+  const frames = animationTarget === firstCard
+    ? [{ opacity: 0.55, transform: 'scale(.97)' }, { opacity: 1, transform: 'scale(1)' }]
+    : [{ transform: fromTransform }, { transform: toTransform }];
+  const animation = animationTarget.animate(frames, {
+    duration: plan.duration,
+    easing: plan.sequence.length === 1 || reducedMotion ? 'ease-out' : 'cubic-bezier(.08,.72,.1,1)',
+    fill: 'forwards'
+  });
+  activeReelAnimation = animation;
+  return animation.finished.then(() => {
+    if (activeReelAnimation === animation) {
+      dom.randomPresetTrack.style.transform = toTransform;
+      activeReelAnimation = null;
+      animation.cancel();
+    }
+  });
+}
+
+function setRandomPresetScreen(phase, winner) {
+  const spinning = phase === 'spinning';
+  const completed = phase === 'result';
+  dom.randomPresetBegin.disabled = !completed;
+  dom.randomPresetReroll.disabled = !completed;
+  dom.randomPresetExit.disabled = false;
+  dom.randomPresetResult.textContent = completed && winner ? `Выпал режим: ${winner.name}` : spinning ? 'Выбираем режим…' : '';
+  if (phase === 'closed') {
+    dom.randomPresetScreen.classList.add('hidden');
+    dom.screenJoin.classList.remove('hidden');
+    dom.randomPresetTrack.replaceChildren();
+    dom.randomPresetTrack.style.transform = '';
+  }
+}
+
+const randomModeFlow = createRandomModeFlow({
+  getPresets: () => getStartModes().filter(mode => enabledRandomPresetIds.includes(mode.id)),
+  animate: animateRandomPreset,
+  cancelAnimation: cancelReelAnimation,
+  canApply: canConfigureStartMode,
+  onState: ({ phase, winner }) => setRandomPresetScreen(phase, winner),
+  onExit: () => (canConfigureStartMode() ? dom.randomPresetOpen : dom.inputName).focus(),
+  onUnavailable: () => {
+    updateJoinPresetVisibility(store.appState);
+    showToast('Создание комнаты сейчас недоступно. Выбор режима отменён.');
+  },
+  onApply: mode => {
+    mode.button.click();
+    dom.formJoin.requestSubmit();
+  }
+});
+
+dom.randomPresetOpen.addEventListener('click', () => {
+  if (!canConfigureStartMode()) return;
+  dom.screenJoin.classList.add('hidden');
+  dom.randomPresetScreen.classList.remove('hidden');
+  dom.randomPresetExit.focus();
+  void randomModeFlow.open();
+});
+dom.randomPresetBegin.addEventListener('click', () => { randomModeFlow.begin(); });
+dom.randomPresetReroll.addEventListener('click', () => { void randomModeFlow.reroll(); });
+dom.randomPresetExit.addEventListener('click', () => { randomModeFlow.exit(); });
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || dom.randomPresetDialog.open || dom.randomPresetScreen.classList.contains('hidden')) return;
+  event.preventDefault();
+  randomModeFlow.exit();
+});
+document.addEventListener('auction:state-update', () => {
+  if (!dom.randomPresetScreen.classList.contains('hidden') && !canConfigureStartMode()) randomModeFlow.exit();
 });
 
 dom.inputSpectator.addEventListener('change', () => updateJoinPresetVisibility());
