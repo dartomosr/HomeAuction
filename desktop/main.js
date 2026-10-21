@@ -10,7 +10,6 @@ const {
   normalizeProtocol,
   createLineBuffer,
   buildTunnelArgs,
-  buildSshArgs,
   mergeGoDebug,
   parsePublicTunnelUrl,
   createTunnelFlow
@@ -29,7 +28,6 @@ const state = {
   publicAddress: '',
   tunnelDiagnostic: '',
   tunnelState: 'stopped',
-  tunnelProvider: 'Cloudflare Tunnel',
   protocol: 'auto',
   log: []
 };
@@ -38,7 +36,6 @@ let mainWindow;
 let tray;
 let serverProcess;
 let tunnelProcess;
-let sshProcess;
 let jobGuard;
 let jobGuardReady = false;
 let serverReady = false;
@@ -346,25 +343,13 @@ function ensureTunnelFlow(binaryPath, generation) {
       child.once('close', () => { if (tunnelProcess === child) tunnelProcess = null; });
       return child;
     },
-    async prepareSsh(port) {
-      const folder = path.join(app.getPath('userData'), 'ssh-tunnel');
-      await fsp.mkdir(folder, { recursive: true });
-      return { args: buildSshArgs(port, path.join(folder, 'known_hosts')) };
-    },
-    spawnSsh(config) {
-      if (generation !== tunnelGeneration || isQuitting) throw new Error('Запуск туннеля отменён.');
-      const child = spawn('ssh', config.args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-      sshProcess = child;
-      child.once('close', () => { if (sshProcess === child) sshProcess = null; });
-      return child;
-    },
     stopProcess: terminateProcessTree
   });
   return tunnelFlow;
 }
 
 async function startTunnel() {
-  if (tunnelProcess && tunnelProcess.exitCode === null || sshProcess && sshProcess.exitCode === null) return;
+  if (tunnelProcess && tunnelProcess.exitCode === null) return;
   if (tunnelStarting) return;
   if (state.server !== 'Запущен' || !serverReady || !state.serverAddress) {
     throw new Error('Сначала дождитесь запуска сервера.');
@@ -436,7 +421,7 @@ async function stopTunnel() {
   tunnelStopping = true;
   if (tunnelFlow) await tunnelFlow.stop();
   else { state.tunnel = 'Остановлен'; state.tunnelState = 'stopped'; state.publicAddress = ''; state.tunnelDiagnostic = ''; publishState(); }
-  tunnelProcess = null; sshProcess = null; tunnelStarting = false;
+  tunnelProcess = null; tunnelStarting = false;
   tunnelStopping = false;
   addLog('Публичный туннель остановлен.');
 }

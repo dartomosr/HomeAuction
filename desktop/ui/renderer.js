@@ -38,11 +38,10 @@ function render(state) {
 
   const tunnelClass = state.tunnelState === 'reconnecting' ? 'status-reconnecting' :
     state.tunnel === 'Подключён' ? 'status-connected' :
-    state.tunnel === 'Ошибка' ? 'status-error' :
+    ['Ошибка', 'Ошибка подключения'].includes(state.tunnel) ? 'status-error' :
       state.tunnel === 'Недоступна сеть' ? 'status-network' :
         state.tunnel === 'Остановлен' ? 'status-stopped' : '';
   setStatus(statusElements.tunnel, state.tunnel, tunnelClass);
-  document.getElementById('tunnel-provider').textContent = state.tunnelProvider || 'Cloudflare Tunnel';
 
   localAddress.textContent = state.serverAddress || 'Ожидание свободного порта…';
   publicAddress.textContent = state.publicAddress || 'Адрес появится после подключения';
@@ -55,11 +54,11 @@ function render(state) {
     !state.serverAddress || state.server !== 'Запущен' ||
     state.tunnel === 'Подключён' || state.tunnel === 'Запускается' || state.tunnelState === 'reconnecting';
   document.getElementById('stop-tunnel').disabled =
-    state.tunnel === 'Остановлен' || !['Подключён', 'Запускается', 'Ожидание резервного SSH-туннеля…', 'Переподключение…', 'Обход ограничений…', 'Ошибка', 'Недоступна сеть'].includes(state.tunnel);
+    state.tunnel === 'Остановлен' || !['Подключён', 'Запускается', 'Переподключение…', 'Ошибка', 'Ошибка подключения', 'Недоступна сеть'].includes(state.tunnel);
 
   tunnelDiagnostic.textContent = state.tunnelDiagnostic ||
-    (state.tunnel === 'Ошибка'
-      ? 'Туннель не подключён. Проверьте журнал; локальный сервер продолжает работать.'
+    (['Ошибка', 'Ошибка подключения'].includes(state.tunnel)
+      ? 'Публичный доступ недоступен. Локальная игра продолжает работать.'
       : '');
   tunnelDiagnostic.classList.toggle('warning', state.tunnelDiagnostic.startsWith('Предупреждение:'));
   tunnelDiagnostic.classList.toggle('reconnecting', state.tunnelState === 'reconnecting');
