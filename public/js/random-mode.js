@@ -6,6 +6,12 @@ function getPresetIds(presets) {
     .filter(id => typeof id === 'string' && id.length > 0)));
 }
 
+export function filterEnabledPresets(presets, enabledIds) {
+  if (!Array.isArray(presets) || !Array.isArray(enabledIds)) return [];
+  const enabled = new Set(enabledIds);
+  return presets.filter(preset => enabled.has(typeof preset === 'string' ? preset : preset?.id));
+}
+
 export function selectRandomPreset(presets, random = Math.random) {
   if (!Array.isArray(presets) || presets.length === 0) return null;
   const value = Number(random());

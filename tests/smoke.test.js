@@ -92,7 +92,11 @@ describe('smoke checks', () => {
 
     assert.deepEqual(duplicateIds, [], `Duplicate HTML IDs: ${[...new Set(duplicateIds)].join(', ')}`);
     assert.deepEqual(missingIds, [], `DOM IDs missing from index.html: ${missingIds.join(', ')}`);
-    assert.match(html, /<button[^>]*id="btn-copy-result"[^>]*disabled[^>]*title="Доступно после определения победителя"[^>]*>📋 Результат<\/button>/);
+    const copyResultButton = html.match(/<button\b[^>]*\bid=["']btn-copy-result["'][^>]*>[\s\S]*?<\/button>/i);
+    assert.ok(copyResultButton, 'Missing result-copy button');
+    assert.match(copyResultButton[0], /\bdisabled\b/);
+    assert.match(copyResultButton[0], /\btitle=["']Доступно после определения победителя["']/);
+    assert.match(copyResultButton[0], /Результат/);
     for (const id of ['saves-modal', 'saves-help-toggle', 'saves-help-box', 'clear-initial-save-btn']) {
       assert.ok(ids.includes(id), `Missing saves UI element: #${id}`);
     }
@@ -169,5 +173,3 @@ describe('smoke checks', () => {
     assert.deepEqual(parseSaveFile(serializeSaveFile(parsed.items)).items, parsed.items);
   });
 });
-
-require('./game-logic.test.js');

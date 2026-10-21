@@ -15,10 +15,11 @@ test('random mode behavior', async t => {
   });
 
   await t.test('repeat results are allowed and disabled presets cannot be selected', () => {
-    const enabled = modes.filter(mode => mode.id !== 'chaos');
+    const enabled = randomMode.filterEnabledPresets(modes, ['basic', 'diplomacy']);
+    assert.deepEqual(enabled.map(mode => mode.id), ['basic', 'diplomacy']);
     assert.equal(randomMode.selectRandomPreset(enabled, () => 0.99).id, 'diplomacy');
     assert.equal(randomMode.selectRandomPreset(enabled, () => 0.99).id, 'diplomacy');
-    assert.equal(enabled.some(mode => mode.id === 'chaos'), false);
+    assert.equal(randomMode.filterEnabledPresets(modes, []).length, 0);
   });
 
   await t.test('invalid, stale, unknown, and empty saved selections restore available presets', () => {

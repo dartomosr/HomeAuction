@@ -5,7 +5,7 @@ import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from
 import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 import { getInitialItems } from './saves.js';
-import { createRandomModeFlow, createSpinPlan, createPresetDraft, loadPresetIds, RANDOM_PRESET_STORAGE_KEY } from './random-mode.js';
+import { createRandomModeFlow, createSpinPlan, createPresetDraft, filterEnabledPresets, loadPresetIds, RANDOM_PRESET_STORAGE_KEY } from './random-mode.js';
 
 if (window.matchMedia('(max-width: 768px)').matches) {
   dom.btnToggleSettings.setAttribute('aria-expanded', 'false');
@@ -223,7 +223,7 @@ function setRandomPresetScreen(phase, winner) {
 }
 
 const randomModeFlow = createRandomModeFlow({
-  getPresets: () => getStartModes().filter(mode => enabledRandomPresetIds.includes(mode.id)),
+  getPresets: () => filterEnabledPresets(getStartModes(), enabledRandomPresetIds),
   animate: animateRandomPreset,
   cancelAnimation: cancelReelAnimation,
   canApply: canConfigureStartMode,

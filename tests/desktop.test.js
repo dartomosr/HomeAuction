@@ -177,14 +177,16 @@ describe('desktop Cloudflare tunnel flow', () => {
     const attempt = h.spawned[0];
     h.line(attempt, 'stderr', 'INF | UDP Connectivity region2 FAIL QUIC connection failed |');
     h.line(attempt, 'stderr', 'INF | UDP Connectivity region2 FAIL QUIC connection failed |');
-    assert.equal(h.diagnostics.filter(d => d.code.startsWith('connectivity-precheck')).length, 1);
+    assert.equal(h.diagnostics.length, 1, 'duplicate prechecks from the same attempt should emit one diagnostic');
     h.timers.advance(CLOUDFLARE_START_TIMEOUT_MS);
     await flush();
     h.close(h.spawned[1], 1);
     await flush();
     await h.flow.start(3000);
+    const diagnosticsBeforeNewAttempt = h.diagnostics.length;
     h.line(h.spawned[2], 'stderr', 'INF | UDP Connectivity region2 FAIL QUIC connection failed |');
-    assert.equal(h.diagnostics.filter(d => d.code.startsWith('connectivity-precheck')).length, 2);
+    h.line(h.spawned[2], 'stderr', 'INF | UDP Connectivity region2 FAIL QUIC connection failed |');
+    assert.equal(h.diagnostics.length, diagnosticsBeforeNewAttempt + 1, 'a new attempt should emit its own diagnostic');
   });
 
   test('ignores duplicate close/timeout races and stale events from a previous session', async () => {
