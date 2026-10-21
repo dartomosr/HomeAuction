@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, rename, rm, stat } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -101,6 +101,14 @@ await mkdir(outputDirectory, { recursive: true });
 const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'homeauction-sfx-'));
 const archivePath = path.join(temporaryDirectory, 'HomeAuction.7z');
 const temporaryOutputPath = path.join(outputDirectory, `.HomeAuction-Portable-${process.pid}.tmp`);
+const sfxConfig = Buffer.from(
+  ';!@Install@!UTF-8!\r\n' +
+  'Title="HomeAuction Portable"\r\n' +
+  'RunProgram="HomeAuction.exe"\r\n' +
+  'GUIMode="1"\r\n' +
+  ';!@InstallEnd@!\r\n',
+  'utf8'
+);
 
 try {
   console.log(`Архивация содержимого ${path.relative(projectDirectory, portableDirectory)}...`);
@@ -117,6 +125,7 @@ try {
   run(sevenZip.executable, ['t', archivePath]);
 
   await pipeline(createReadStream(sevenZip.module), createWriteStream(temporaryOutputPath));
+  await writeFile(temporaryOutputPath, sfxConfig, { flag: 'a' });
   await pipeline(createReadStream(archivePath), createWriteStream(temporaryOutputPath, { flags: 'a' }));
 
   const [moduleInfo, archiveInfo, outputInfo] = await Promise.all([
@@ -124,7 +133,7 @@ try {
     stat(archivePath),
     stat(temporaryOutputPath)
   ]);
-  if (outputInfo.size !== moduleInfo.size + archiveInfo.size) {
+  if (outputInfo.size !== moduleInfo.size + sfxConfig.length + archiveInfo.size) {
     throw new Error('Не удалось проверить целостность собранного SFX-файла.');
   }
 
