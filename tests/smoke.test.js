@@ -52,6 +52,17 @@ function getExportedNames(source, filePath, visited = new Set()) {
 }
 
 describe('smoke checks', () => {
+  test('includes the desktop PNG and ICO application icons', async () => {
+    const uiDirectory = path.join(ROOT, 'desktop', 'ui');
+    const [png, ico] = await Promise.all([
+      fs.readFile(path.join(uiDirectory, 'icon.png')),
+      fs.readFile(path.join(uiDirectory, 'icon.ico'))
+    ]);
+    assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.deepEqual([...ico.subarray(0, 4)], [0, 0, 1, 0]);
+    assert.ok(ico.length > 22, 'ICO must contain at least one image frame');
+  });
+
   test('checks all server and client JavaScript syntax in parallel', async () => {
     const files = new Set([
       path.join(ROOT, 'server.js'),

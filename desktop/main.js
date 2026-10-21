@@ -6,7 +6,15 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { promisify } = require('node:util');
-const { classifyTunnelLine, createLineBuffer, normalizeProtocol } = require('./tunnel-utils');
+const {
+  normalizeProtocol,
+  createLineBuffer,
+  buildTunnelArgs,
+  buildSshArgs,
+  mergeGoDebug,
+  parsePublicTunnelUrl,
+  createTunnelFlow
+} = require('./tunnel-utils');
 
 const execFileAsync = promisify(execFile);
 const localAppDirectory = path.join(
@@ -20,6 +28,8 @@ const state = {
   tunnel: 'Остановлен',
   publicAddress: '',
   tunnelDiagnostic: '',
+  tunnelState: 'stopped',
+  tunnelProvider: 'Cloudflare Tunnel',
   protocol: 'auto',
   log: []
 };
@@ -28,6 +38,7 @@ let mainWindow;
 let tray;
 let serverProcess;
 let tunnelProcess;
+let sshProcess;
 let jobGuard;
 let jobGuardReady = false;
 let serverReady = false;
@@ -36,8 +47,7 @@ let serverStopping = false;
 let isQuitting = false;
 let exitStarted = false;
 let tunnelStarting = false;
-let tunnelStartCancelled = false;
-let tunnelBlockedProtocols = new Set();
+let tunnelGeneration = 0;
 
 function publishState() {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -315,103 +325,71 @@ async function ensureServerStarted() {
   }
 }
 
-function reportTunnelLine(line) {
-  const event = classifyTunnelLine(line);
-  if (event.publicAddress) {
-    if (state.publicAddress === event.publicAddress) return false;
-    state.publicAddress = event.publicAddress;
-    publishState();
-  }
-
-  if (event.connected) {
-    setTunnelStatus('Подключён');
-  }
-
-  if (event.blockedProtocol) {
-    tunnelBlockedProtocols.add(event.blockedProtocol);
-    const blocked = [...tunnelBlockedProtocols];
-    const message = blocked.length > 1
-      ? 'Предупреждение: cloudflared сообщил о проблемах отдельных узлов QUIC и TCP порта 7844 при проверке. Это не означает полной блокировки сети и само по себе не меняет работу туннеля; ориентируйтесь на его статус.'
-      : event.blockedProtocol === 'quic'
-        ? 'Предупреждение: cloudflared сообщил о проблеме QUIC на одном из узлов UDP/7844 при проверке. Это не доказывает блокировку всех узлов и само по себе не меняет работу туннеля.'
-        : 'Предупреждение: cloudflared сообщил о проблеме TCP на одном из узлов порта 7844 при проверке. Это не доказывает блокировку всех узлов и само по себе не меняет работу туннеля.';
-    const isNewDiagnostic = state.tunnelDiagnostic !== message;
-    state.tunnelDiagnostic = message;
-    if (isNewDiagnostic) addLog(message);
-    return;
-  }
-
-  if (event.originError) {
-    const message = `Cloudflare не достигает локальный origin ${state.serverAddress}; сервер должен отвечать HTTP 200.`;
-    const isNewDiagnostic = state.tunnelDiagnostic !== message;
-    state.tunnelDiagnostic = message;
-    setTunnelStatus('Ошибка');
-    if (isNewDiagnostic) addLog(message);
-    return;
-  }
-
-  if (event.isError) {
-    state.tunnelDiagnostic = 'Ошибка Cloudflare Tunnel. Локальный сервер продолжает работать; подробности см. в журнале.';
-    setTunnelStatus('Ошибка');
-  }
-
-  return true;
+let tunnelFlow;
+function ensureTunnelFlow(binaryPath, generation) {
+  tunnelFlow = createTunnelFlow({
+    setTimeout, clearTimeout,
+    onState(patch) {
+      if (generation !== tunnelGeneration || isQuitting) return;
+      Object.assign(state, patch); publishState();
+    },
+    onLog: (message, source) => { if (generation === tunnelGeneration) addLog(message, source); },
+    onDiagnostic: item => { if (generation === tunnelGeneration) addLog(item.message, 'Диагностика'); },
+    onProtocol(protocol) { if (generation === tunnelGeneration) state.protocol = protocol; },
+    spawnCloudflare(kind, origin) {
+      if (generation !== tunnelGeneration || isQuitting) throw new Error('Запуск туннеля отменён.');
+      const child = spawn(binaryPath, buildTunnelArgs(kind === 'http2' ? 'http2' : 'auto', origin, kind === 'http2'), {
+        env: { ...process.env, GODEBUG: mergeGoDebug(process.env.GODEBUG) },
+        windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']
+      });
+      tunnelProcess = child;
+      child.once('close', () => { if (tunnelProcess === child) tunnelProcess = null; });
+      return child;
+    },
+    async prepareSsh(port) {
+      const folder = path.join(app.getPath('userData'), 'ssh-tunnel');
+      await fsp.mkdir(folder, { recursive: true });
+      return { args: buildSshArgs(port, path.join(folder, 'known_hosts')) };
+    },
+    spawnSsh(config) {
+      if (generation !== tunnelGeneration || isQuitting) throw new Error('Запуск туннеля отменён.');
+      const child = spawn('ssh', config.args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      sshProcess = child;
+      child.once('close', () => { if (sshProcess === child) sshProcess = null; });
+      return child;
+    },
+    stopProcess: terminateProcessTree
+  });
+  return tunnelFlow;
 }
 
 async function startTunnel() {
-  if (tunnelProcess && tunnelProcess.exitCode === null) return;
+  if (tunnelProcess && tunnelProcess.exitCode === null || sshProcess && sshProcess.exitCode === null) return;
   if (tunnelStarting) return;
   if (state.server !== 'Запущен' || !serverReady || !state.serverAddress) {
     throw new Error('Сначала дождитесь запуска сервера.');
   }
   tunnelStarting = true;
-  tunnelStartCancelled = false;
+  tunnelGeneration++;
+  const generation = tunnelGeneration;
   state.publicAddress = '';
   state.tunnelDiagnostic = '';
-  tunnelBlockedProtocols = new Set();
+  state.tunnelState = 'connecting';
   tunnelStopping = false;
   setTunnelStatus('Запускается');
   try {
     if (!(await requestServerStatus(state.serverAddress))) {
       throw new Error('Сервер не отвечает HTTP 200; туннель не запущен.');
     }
-    if (tunnelStartCancelled || isQuitting) return;
+    if (isQuitting || generation !== tunnelGeneration) return;
 
     const binaryPath = await getTunnelExecutable();
-    if (tunnelStartCancelled || isQuitting) return;
-    state.protocol = validateProtocol();
-    addLog(`Запуск Cloudflare Tunnel после проверки HTTP 200 (protocol=${state.protocol}).`);
-    tunnelProcess = spawn(binaryPath, [
-      'tunnel',
-      '--protocol',
-      state.protocol,
-      '--url',
-      state.serverAddress
-    ], {
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-    const child = tunnelProcess;
-    attachOutput(child, 'Cloudflare', reportTunnelLine);
-    child.once('error', (error) => {
-      if (tunnelProcess !== child) return;
-      state.tunnelDiagnostic = `Не удалось запустить cloudflared: ${error.message}`;
-      setTunnelStatus('Ошибка');
-      addLog(state.tunnelDiagnostic);
-    });
-    child.once('close', (code, signal) => {
-      if (tunnelProcess !== child) return;
-      tunnelProcess = null;
-      if (!tunnelStopping && !isQuitting) {
-        state.publicAddress = '';
-        if (state.tunnel !== 'Недоступна сеть') setTunnelStatus('Ошибка');
-        addLog(`Cloudflare Tunnel завершился (код ${code ?? 'нет'}, сигнал ${signal ?? 'нет'}). Локальный сервер продолжает работать.`);
-      } else if (!isQuitting) {
-        setTunnelStatus('Остановлен');
-      }
-    });
+    if (isQuitting || generation !== tunnelGeneration) return;
+    ensureTunnelFlow(binaryPath, generation);
+    await tunnelFlow.start(new URL(state.serverAddress).port);
   } catch (error) {
     state.tunnelDiagnostic = error.message;
+    state.tunnelState = 'error';
     setTunnelStatus('Ошибка');
     addLog(error.message);
     throw error;
@@ -419,7 +397,6 @@ async function startTunnel() {
     tunnelStarting = false;
   }
 }
-
 async function terminateProcessTree(child) {
   if (!child || child.exitCode !== null) return;
   const closed = new Promise((resolve) => child.once('close', resolve));
@@ -455,21 +432,13 @@ async function terminateProcessTree(child) {
 }
 
 async function stopTunnel() {
-  tunnelStartCancelled = true;
-  const child = tunnelProcess;
-  if (!child) {
-    setTunnelStatus('Остановлен');
-    state.publicAddress = '';
-    state.tunnelDiagnostic = '';
-    return;
-  }
+  tunnelGeneration++;
   tunnelStopping = true;
-  setTunnelStatus('Остановлен');
-  state.publicAddress = '';
-  state.tunnelDiagnostic = '';
-  tunnelProcess = null;
-  await terminateProcessTree(child);
-  addLog('Cloudflare Tunnel остановлен.');
+  if (tunnelFlow) await tunnelFlow.stop();
+  else { state.tunnel = 'Остановлен'; state.tunnelState = 'stopped'; state.publicAddress = ''; state.tunnelDiagnostic = ''; publishState(); }
+  tunnelProcess = null; sshProcess = null; tunnelStarting = false;
+  tunnelStopping = false;
+  addLog('Публичный туннель остановлен.');
 }
 
 async function stopServer() {
@@ -492,7 +461,9 @@ async function stopServer() {
 
 async function openAddress(kind) {
   const address = kind === 'local' ? state.serverAddress : state.publicAddress;
-  if (!address || !/^https?:\/\/(?:127\.0\.0\.1|[a-z0-9.-]+\.trycloudflare\.com)(?::\d+)?$/i.test(address)) {
+  if (!address || (kind === 'local'
+    ? !/^http:\/\/127\.0\.0\.1:\d+$/.test(address)
+    : parsePublicTunnelUrl(address) !== address)) {
     throw new Error('Адрес сейчас недоступен.');
   }
   await shell.openExternal(address);
@@ -512,9 +483,7 @@ function showMainWindow() {
 }
 
 function createTray() {
-  const iconPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'tray.svg')
-    : path.join(__dirname, 'ui', 'tray.svg');
+  const iconPath = path.join(__dirname, 'ui', 'icon.png');
   let icon = nativeImage.createFromPath(iconPath);
   if (icon.isEmpty()) {
     icon = nativeImage.createFromDataURL(
@@ -548,6 +517,7 @@ function showError(error) {
 }
 
 function createMainWindow() {
+  const windowIconPath = path.join(__dirname, 'ui', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   mainWindow = new BrowserWindow({
     width: 760,
     height: 760,
@@ -556,6 +526,8 @@ function createMainWindow() {
     show: false,
     autoHideMenuBar: true,
     title: 'HomeAuction',
+    backgroundColor: '#171b26',
+    icon: windowIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

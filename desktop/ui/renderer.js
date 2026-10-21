@@ -36,11 +36,13 @@ function render(state) {
         state.server === 'Остановлен' ? 'status-stopped' : 'status-starting'
   }`;
 
-  const tunnelClass = state.tunnel === 'Подключён' ? 'status-connected' :
+  const tunnelClass = state.tunnelState === 'reconnecting' ? 'status-reconnecting' :
+    state.tunnel === 'Подключён' ? 'status-connected' :
     state.tunnel === 'Ошибка' ? 'status-error' :
       state.tunnel === 'Недоступна сеть' ? 'status-network' :
         state.tunnel === 'Остановлен' ? 'status-stopped' : '';
   setStatus(statusElements.tunnel, state.tunnel, tunnelClass);
+  document.getElementById('tunnel-provider').textContent = state.tunnelProvider || 'Cloudflare Tunnel';
 
   localAddress.textContent = state.serverAddress || 'Ожидание свободного порта…';
   publicAddress.textContent = state.publicAddress || 'Адрес появится после подключения';
@@ -51,17 +53,29 @@ function render(state) {
   document.getElementById('copy-public').disabled = !publicAddressReady;
   document.getElementById('start-tunnel').disabled =
     !state.serverAddress || state.server !== 'Запущен' ||
-    state.tunnel === 'Подключён' || state.tunnel === 'Запускается';
+    state.tunnel === 'Подключён' || state.tunnel === 'Запускается' || state.tunnelState === 'reconnecting';
   document.getElementById('stop-tunnel').disabled =
-    state.tunnel === 'Остановлен' || !['Подключён', 'Запускается', 'Ошибка', 'Недоступна сеть'].includes(state.tunnel);
+    state.tunnel === 'Остановлен' || !['Подключён', 'Запускается', 'Ожидание резервного SSH-туннеля…', 'Переподключение…', 'Обход ограничений…', 'Ошибка', 'Недоступна сеть'].includes(state.tunnel);
 
   tunnelDiagnostic.textContent = state.tunnelDiagnostic ||
     (state.tunnel === 'Ошибка'
       ? 'Туннель не подключён. Проверьте журнал; локальный сервер продолжает работать.'
       : '');
   tunnelDiagnostic.classList.toggle('warning', state.tunnelDiagnostic.startsWith('Предупреждение:'));
+  tunnelDiagnostic.classList.toggle('reconnecting', state.tunnelState === 'reconnecting');
   tunnelDiagnostic.classList.toggle('hidden', !tunnelDiagnostic.textContent);
-  logElement.textContent = (state.log || []).slice(-200).join('\n') || 'Журнал пока пуст.';
+  logElement.replaceChildren();
+  const entries = (state.log || []).slice(-200);
+  if (entries.length === 0) logElement.textContent = 'Журнал пока пуст.';
+  entries.forEach((entry, index) => {
+    if (index > 0) logElement.append(document.createTextNode('\n'));
+    const line = document.createElement('span');
+    line.textContent = entry;
+    if (/Автопереключение|Обход сетевых ограничений|Обход ограничений|HTTP\/2, IPv4|localhost\.run/i.test(entry)) {
+      line.className = 'log-line-fallback';
+    }
+    logElement.append(line);
+  });
   logElement.scrollTop = logElement.scrollHeight;
 }
 

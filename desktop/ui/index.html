@@ -5,16 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>HomeAuction</title>
+  <link rel="icon" href="icon.png" type="image/png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="window">
     <header class="topbar">
       <div class="brand">
-        <img src="tray.svg" alt="" width="34" height="34">
+        <img src="icon.png" alt="" width="38" height="38">
         <div>
           <h1>HomeAuction</h1>
-          <p>Локальный сервер и Cloudflare Tunnel</p>
+          <p>Локальный сервер и публичный доступ</p>
         </div>
       </div>
       <span id="server-chip" class="status-chip status-starting">Запускается</span>
@@ -42,9 +43,9 @@
       <div class="section-heading">
         <div>
           <span class="eyebrow">ВРЕМЕННЫЙ ПУБЛИЧНЫЙ АДРЕС</span>
-          <h2>Cloudflare Tunnel</h2>
+          <h2 id="tunnel-provider">Cloudflare Tunnel</h2>
         </div>
-        <span id="tunnel-status" class="status-text">Остановлен</span>
+        <span id="tunnel-status" class="status-text" aria-live="polite">Остановлен</span>
       </div>
       <div class="address-row">
         <code id="public-address">Адрес появится после подключения</code>

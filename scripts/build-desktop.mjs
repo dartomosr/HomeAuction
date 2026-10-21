@@ -87,6 +87,8 @@ if (process.platform !== 'win32') {
 }
 await access(serverExecutable);
 await access(cloudflaredExecutable);
+await access(path.join(desktopDirectory, 'ui', 'icon.png'));
+await access(path.join(desktopDirectory, 'ui', 'icon.ico'));
 
 const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'homeauction-desktop-'));
 try {
@@ -125,7 +127,6 @@ try {
     path.join(desktopDirectory, 'ui', 'tray.svg'),
     path.join(resourcesDirectory, 'tray.svg')
   );
-
   console.log(`Готово: ${path.relative(projectDirectory, packagedExecutable)}`);
 } finally {
   await rm(temporaryDirectory, { recursive: true, force: true });
