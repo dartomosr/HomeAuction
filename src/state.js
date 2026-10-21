@@ -1,4 +1,4 @@
-const { DEFAULT_SETTINGS } = require('./config');
+const { DEFAULT_SETTINGS, PRESET_GROUPS, PRESET_CATALOG } = require('./config');
 const { generateId } = require('./config');
 
 const state = {
@@ -231,6 +231,8 @@ function buildClientState(forToken) {
   return {
     phase: state.phase,
     settings: state.settings,
+    presetGroups: PRESET_GROUPS,
+    presetCatalog: PRESET_CATALOG,
     hasHost: Boolean(state.hostToken && state.players.has(state.hostToken)),
     hasPlayers: state.players.size > 0,
     me: me ? {

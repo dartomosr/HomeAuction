@@ -121,36 +121,22 @@
             <button type="button" id="clear-initial-save-btn" class="btn btn-outline btn-sm hidden" title="Отменить загрузку файла" aria-label="Отменить загрузку файла">✕</button>
           </div>
           <h3 id="join-preset-title">Шаблон правил комнаты:</h3>
-          <div class="preset-options-grid">
-            <button type="button" class="preset-option-btn active" data-preset="basic" aria-pressed="true">
-              <strong>Базовый</strong>
-              <ul class="preset-option-details">
-                <li>50 очков</li>
-                <li>5 лотов</li>
-                <li>классика</li>
-              </ul>
-            </button>
-            <button type="button" class="preset-option-btn" data-preset="diplomacy" aria-pressed="false">
-              <strong>Дипломатия</strong>
-              <ul class="preset-option-details">
-                <li>50 очков (25 своб.)</li>
-                <li>5 лотов</li>
-                <li>реакции</li>
-              </ul>
-            </button>
-            <button type="button" class="preset-option-btn" data-preset="chaos" aria-pressed="false">
-              <strong>Хаос</strong>
-              <ul class="preset-option-details">
-                <li>100 очков</li>
-                <li>10 лотов</li>
-                <li>поддержка до 5 очков</li>
-                <li>реакции</li>
-              </ul>
-            </button>
-          </div>
+          <div id="standard-preset-options" class="preset-options-grid"></div>
+          <button
+            type="button"
+            id="experimental-presets-toggle"
+            class="btn btn-outline experimental-presets-toggle"
+            aria-controls="experimental-preset-options"
+            aria-expanded="false"
+            disabled
+          >
+            <span>Экспериментальные режимы</span>
+            <span class="settings-collapse-icon" aria-hidden="true">⌄</span>
+          </button>
+          <div id="experimental-preset-options" class="preset-options-grid" hidden></div>
           <div class="random-preset-controls">
-            <button type="button" id="random-preset-open" class="btn btn-outline">🎲 Выбрать случайно</button>
-            <button type="button" id="random-preset-settings" class="btn btn-outline btn-sm" aria-label="Настроить режимы для случайного выбора" title="Настроить режимы для случайного выбора">⚙</button>
+            <button type="button" id="random-preset-open" class="btn btn-outline" disabled>🎲 Выбрать случайно</button>
+            <button type="button" id="random-preset-settings" class="btn btn-outline btn-sm" aria-label="Настроить режимы для случайного выбора" title="Настроить режимы для случайного выбора" disabled>⚙</button>
           </div>
         </section>
         <button type="submit" class="btn btn-primary btn-lg">ВОЙТИ В АУКЦИОН</button>

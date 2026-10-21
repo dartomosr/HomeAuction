@@ -68,6 +68,11 @@ socket.on('state_update', (state) => {
   const prevPhase = store.appState ? store.appState.phase : null;
   store.appState = state;
   document.dispatchEvent(new Event('auction:state-update'));
+  if (Array.isArray(state.presetCatalog) && Array.isArray(state.presetGroups)) {
+    document.dispatchEvent(new CustomEvent('auction:preset-catalog', {
+      detail: { catalog: state.presetCatalog, groups: state.presetGroups }
+    }));
+  }
   updateJoinPresetVisibility(state);
 
   if (!state.me) return;

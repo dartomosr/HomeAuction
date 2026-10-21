@@ -3,7 +3,7 @@ const { afterEach, beforeEach, describe, test } = require('node:test');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const { DEFAULT_SETTINGS, ROOM_PRESETS } = require(path.join(ROOT, 'src', 'config.js'));
+const { DEFAULT_SETTINGS, PRESET_CATALOG, PRESET_GROUPS, ROOM_PRESETS } = require(path.join(ROOT, 'src', 'config.js'));
 const {
   state,
   getRawPoints,
@@ -114,6 +114,23 @@ describe('isolated backend unit checks', () => {
     assert.equal(ROOM_PRESETS.chaos.zeroItemWeight, 5);
     assert.equal(ROOM_PRESETS.chaos.allowFreeItemsForAll, false);
     assert.equal(ROOM_PRESETS.chaos.allowReactions, true);
+  });
+
+  test('catalog registers the stable all-or-nothing preset without copying base rules', () => {
+    const allOrNothing = ROOM_PRESETS['all-or-nothing'];
+    assert.ok(PRESET_CATALOG.some(preset => preset.id === 'all-or-nothing' && preset.group === 'experimental'));
+    assert.deepEqual(PRESET_GROUPS.map(group => group.id), ['standard', 'experimental']);
+    assert.equal(allOrNothing.maxPoints, 50);
+    assert.equal(allOrNothing.minimumBid, 50);
+    assert.deepEqual({ ...allOrNothing, minimumBid: 0 }, ROOM_PRESETS.basic);
+    assert.ok(Object.isFrozen(allOrNothing));
+
+    const applied = structuredClone(allOrNothing);
+    applied.minimumBid = 0;
+    applied.maxPoints = 99;
+    assert.equal(allOrNothing.minimumBid, 50);
+    assert.equal(allOrNothing.maxPoints, 50);
+    assert.equal(ROOM_PRESETS.basic.minimumBid, 0);
   });
 
   test('reports whether the room has a host', () => {
@@ -333,6 +350,30 @@ describe('socket handler scenarios', () => {
     assert.equal(ownItem.allocations.host, 25);
     assert.equal(foreignItem.allocations.host, 25);
     assert.equal(ownItem.allocations.host + foreignItem.allocations.host, 50);
+  });
+
+  test('all-or-nothing uses normal minimum validation and cannot split the 50-point budget', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    join(host, 'host', 'Host', { preset: 'all-or-nothing' });
+    assert.equal(state.settings.maxPoints, 50);
+    assert.equal(state.settings.minimumBid, 50);
+    assert.deepEqual({ ...state.settings, minimumBid: 0 }, ROOM_PRESETS.basic);
+
+    host.receive('add_item', { title: 'First' });
+    host.receive('add_item', { title: 'Second' });
+    const [first, second] = state.items;
+    host.receive('set_points', { itemId: first.id, points: 0 });
+    host.receive('set_points', { itemId: first.id, points: 49 });
+    assert.equal(first.allocations.host, undefined);
+    host.receive('set_points', { itemId: first.id, points: 50 });
+    assert.equal(first.allocations.host, 50);
+    host.receive('set_points', { itemId: second.id, points: 50 });
+    assert.equal(second.allocations.host, undefined);
+    assert.equal(first.allocations.host + (second.allocations.host || 0), 50);
+    host.receive('set_points', { itemId: first.id, points: 0 });
+    assert.equal(first.allocations.host, undefined);
+    assert.equal(ROOM_PRESETS.basic.minimumBid, 0);
   });
 
   test('validates minimum bid against the flexible budget and rejects invalid values atomically', () => {

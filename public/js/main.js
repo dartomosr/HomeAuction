@@ -5,7 +5,7 @@ import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from
 import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 import { getInitialItems } from './saves.js';
-import { createRandomModeFlow, createSpinPlan, createPresetDraft, filterEnabledPresets, loadPresetIds, RANDOM_PRESET_STORAGE_KEY } from './random-mode.js';
+import { createRandomModeFlow, createSpinPlan, createPresetDraft, filterEnabledPresets, getPresetGroupState, loadPresetIds, RANDOM_PRESET_STORAGE_KEY } from './random-mode.js';
 
 if (window.matchMedia('(max-width: 768px)').matches) {
   dom.btnToggleSettings.setAttribute('aria-expanded', 'false');
@@ -54,23 +54,87 @@ dom.formJoin.addEventListener('submit', (e) => {
 dom.joinPresetGroup.addEventListener('click', (event) => {
   const button = event.target instanceof Element ? event.target.closest('.preset-option-btn') : null;
   if (!button) return;
-
-  store.selectedPreset = button.dataset.preset;
-  dom.joinPresetGroup.querySelectorAll('.preset-option-btn').forEach(option => {
-    const isActive = option === button;
-    option.classList.toggle('active', isActive);
-    option.setAttribute('aria-pressed', String(isActive));
-  });
+  selectStartPreset(button.dataset.preset);
 });
 
-function getStartModes() {
-  return Array.from(dom.joinPresetGroup.querySelectorAll('.preset-option-btn[data-preset]'))
-    .map(button => ({
-      id: button.dataset.preset,
-      name: button.querySelector('strong')?.textContent.trim() || button.dataset.preset,
-      button
-    }))
-    .filter(mode => mode.id);
+let startModes = [];
+let presetGroups = [];
+let presetCatalogSignature = '';
+
+function getStartModes() { return startModes; }
+
+function getPresetDetails(settings) {
+  const details = [`${settings.maxPoints} очков`, `${settings.maxItems} лотов`];
+  if (settings.minimumBid > 0) details.push(`ставка от ${settings.minimumBid} очков`);
+  else if (settings.restrictOwnPoints) details.push(`${settings.maxPoints - settings.foreignOnlyPoints} свободных очков`);
+  else if (settings.keepZeroItems) details.push(`поддержка до ${settings.zeroItemWeight} очков`);
+  else details.push('классика');
+  if (settings.allowReactions) details.push('реакции');
+  return details;
+}
+
+function createPresetButton(preset, selectedId) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `preset-option-btn${preset.id === selectedId ? ' active' : ''}`;
+  button.dataset.preset = preset.id;
+  button.dataset.group = preset.group;
+  button.setAttribute('aria-pressed', String(preset.id === selectedId));
+
+  const title = document.createElement('strong');
+  title.textContent = preset.name;
+  const details = document.createElement('ul');
+  details.className = 'preset-option-details';
+  for (const value of getPresetDetails(preset.settings)) {
+    const detail = document.createElement('li');
+    detail.textContent = value;
+    details.append(detail);
+  }
+  button.append(title, details);
+  return button;
+}
+
+function selectStartPreset(id) {
+  const preset = startModes.find(mode => mode.id === id);
+  if (!preset) return false;
+  store.selectedPreset = preset.id;
+  for (const mode of startModes) {
+    const selected = mode.id === preset.id;
+    mode.button.classList.toggle('active', selected);
+    mode.button.setAttribute('aria-pressed', String(selected));
+  }
+  return true;
+}
+
+function renderPresetCatalog(catalog, groups) {
+  if (!Array.isArray(catalog) || !Array.isArray(groups)) return;
+  const signature = JSON.stringify({ catalog, groups });
+  if (signature === presetCatalogSignature) return;
+  presetCatalogSignature = signature;
+  presetGroups = groups;
+  const selectedId = catalog.some(preset => preset.id === store.selectedPreset)
+    ? store.selectedPreset
+    : (catalog.some(preset => preset.id === 'basic') ? 'basic' : catalog[0]?.id);
+  const modes = catalog.filter(preset => preset && typeof preset.id === 'string' && preset.settings);
+  startModes = modes.map(preset => ({ ...preset, button: createPresetButton(preset, selectedId) }));
+
+  const groupFor = id => groups.find(group => group.id === id);
+  dom.standardPresetOptions.replaceChildren(...startModes
+    .filter(mode => mode.group === 'standard')
+    .map(mode => mode.button));
+  dom.experimentalPresetOptions.replaceChildren(...startModes
+    .filter(mode => mode.group === 'experimental')
+    .map(mode => mode.button));
+  const experimental = groupFor('experimental');
+  dom.experimentalPresetToggle.querySelector('span').textContent = experimental?.name || 'Экспериментальные режимы';
+  dom.experimentalPresetToggle.disabled = !experimental || !startModes.some(mode => mode.group === 'experimental');
+  dom.randomPresetOpen.disabled = startModes.length === 0;
+  dom.randomPresetSettings.disabled = startModes.length === 0;
+  if (dom.experimentalPresetToggle.disabled) {
+    dom.experimentalPresetToggle.setAttribute('aria-expanded', 'false');
+    dom.experimentalPresetOptions.hidden = true;
+  }
+  if (selectedId) selectStartPreset(selectedId);
 }
 
 function getLocalStorageSafely() {
@@ -78,10 +142,22 @@ function getLocalStorageSafely() {
 }
 
 const randomPresetStorage = getLocalStorageSafely();
-let enabledRandomPresetIds = loadPresetIds(randomPresetStorage, getStartModes());
+let enabledRandomPresetIds = [];
 let settingsReturnFocus = null;
 let settingsDraft = null;
 let activeReelAnimation = null;
+
+document.addEventListener('auction:preset-catalog', event => {
+  const { catalog, groups } = event.detail || {};
+  renderPresetCatalog(catalog, groups);
+  enabledRandomPresetIds = loadPresetIds(randomPresetStorage, getStartModes());
+});
+
+dom.experimentalPresetToggle.addEventListener('click', () => {
+  const expanded = dom.experimentalPresetToggle.getAttribute('aria-expanded') === 'true';
+  dom.experimentalPresetToggle.setAttribute('aria-expanded', String(!expanded));
+  dom.experimentalPresetOptions.hidden = expanded;
+});
 
 function canConfigureStartMode() {
   const state = store.appState;
@@ -95,18 +171,44 @@ function closeRandomSettings() {
 function renderRandomSettings() {
   dom.randomPresetSettingsList.replaceChildren();
   const checked = settingsDraft || createPresetDraft(enabledRandomPresetIds);
-  for (const mode of getStartModes()) {
-    const label = document.createElement('label');
-    label.className = 'random-preset-setting-row';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.value = mode.id;
-    checkbox.checked = checked.has(mode.id);
-    checkbox.setAttribute('aria-label', `Участвует режим «${mode.name}»`);
-    const name = document.createElement('span');
-    name.textContent = mode.name;
-    label.append(checkbox, name);
-    dom.randomPresetSettingsList.append(label);
+  for (const group of presetGroups) {
+    const groupModes = getStartModes().filter(mode => mode.group === group.id);
+    if (!groupModes.length) continue;
+
+    const section = document.createElement('section');
+    section.className = 'random-preset-settings-group';
+    section.dataset.group = group.id;
+    const heading = document.createElement('label');
+    heading.className = 'random-preset-group-toggle';
+    const groupCheckbox = document.createElement('input');
+    groupCheckbox.type = 'checkbox';
+    groupCheckbox.dataset.presetGroup = group.id;
+    groupCheckbox.setAttribute('aria-label', `Включить все режимы группы «${group.name}»`);
+    const groupState = getPresetGroupState(getStartModes(), checked.values(), group.id);
+    groupCheckbox.checked = groupState.checked;
+    groupCheckbox.indeterminate = groupState.indeterminate;
+    const groupName = document.createElement('span');
+    groupName.textContent = group.name;
+    heading.append(groupCheckbox, groupName);
+
+    const options = document.createElement('div');
+    options.className = 'random-preset-group-options';
+    for (const mode of groupModes) {
+      const label = document.createElement('label');
+      label.className = 'random-preset-setting-row';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = mode.id;
+      checkbox.dataset.presetId = mode.id;
+      checkbox.checked = checked.has(mode.id);
+      checkbox.setAttribute('aria-label', `Участвует режим «${mode.name}»`);
+      const name = document.createElement('span');
+      name.textContent = mode.name;
+      label.append(checkbox, name);
+      options.append(label);
+    }
+    section.append(heading, options);
+    dom.randomPresetSettingsList.append(section);
   }
 }
 
@@ -121,7 +223,24 @@ dom.randomPresetSettings.addEventListener('click', () => {
 
 dom.randomPresetSettingsList.addEventListener('change', (event) => {
   if (!(event.target instanceof HTMLInputElement) || event.target.type !== 'checkbox') return;
-  settingsDraft?.set(event.target.value, event.target.checked);
+  if (event.target.dataset.presetGroup) {
+    const groupId = event.target.dataset.presetGroup;
+    settingsDraft?.setGroup(getStartModes(), groupId, event.target.checked);
+    const section = event.target.closest('.random-preset-settings-group');
+    section?.querySelectorAll('[data-preset-id]').forEach(input => {
+      input.checked = event.target.checked;
+    });
+  } else if (event.target.dataset.presetId) {
+    settingsDraft?.set(event.target.dataset.presetId, event.target.checked);
+  }
+  for (const group of presetGroups) {
+    const section = dom.randomPresetSettingsList.querySelector(`.random-preset-settings-group[data-group="${group.id}"]`);
+    const checkbox = section?.querySelector('[data-preset-group]');
+    if (!checkbox) continue;
+    const groupState = getPresetGroupState(getStartModes(), settingsDraft?.values() || [], group.id);
+    checkbox.checked = groupState.checked;
+    checkbox.indeterminate = groupState.indeterminate;
+  }
   dom.randomPresetSettingsError.hidden = true;
 });
 
@@ -131,7 +250,7 @@ dom.randomPresetSettingsSave.addEventListener('click', () => {
   if (!selected.length) {
     dom.randomPresetSettingsError.textContent = 'Выберите хотя бы один режим.';
     dom.randomPresetSettingsError.hidden = false;
-    dom.randomPresetSettingsList.querySelector('input')?.focus();
+    dom.randomPresetSettingsList.querySelector('[data-preset-id]')?.focus();
     return;
   }
   if (!settingsDraft?.commit(randomPresetStorage, getStartModes(), RANDOM_PRESET_STORAGE_KEY)) {
@@ -234,13 +353,13 @@ const randomModeFlow = createRandomModeFlow({
     showToast('Создание комнаты сейчас недоступно. Выбор режима отменён.');
   },
   onApply: mode => {
-    mode.button.click();
+    selectStartPreset(mode.id);
     dom.formJoin.requestSubmit();
   }
 });
 
 dom.randomPresetOpen.addEventListener('click', () => {
-  if (!canConfigureStartMode()) return;
+  if (!canConfigureStartMode() || !getStartModes().length) return;
   dom.screenJoin.classList.add('hidden');
   dom.randomPresetScreen.classList.remove('hidden');
   dom.randomPresetExit.focus();

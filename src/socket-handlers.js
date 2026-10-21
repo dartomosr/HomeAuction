@@ -1,4 +1,4 @@
-const { DEFAULT_SETTINGS, ROOM_PRESETS, generateId } = require('./config');
+const { DEFAULT_SETTINGS, PRESET_GROUPS, PRESET_CATALOG, ROOM_PRESETS, generateId } = require('./config');
 const {
   state,
   getRawPoints,
@@ -111,7 +111,7 @@ function registerSocketHandlers(io) {
 
       if (shouldApplyPreset && state.hostToken === playerToken &&
           Object.prototype.hasOwnProperty.call(ROOM_PRESETS, preset)) {
-        state.settings = { ...ROOM_PRESETS[preset] };
+        state.settings = structuredClone(ROOM_PRESETS[preset]);
       }
 
       if (canLoadInitialItems && state.hostToken === playerToken) {

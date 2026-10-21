@@ -1,15 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { PRESET_CATALOG, PRESET_GROUPS } = require('../src/config.js');
 
 let randomMode;
 test('random mode behavior', async t => {
   randomMode = await import('../public/js/random-mode.js');
-  const modes = [{ id: 'basic' }, { id: 'diplomacy' }, { id: 'chaos' }];
+  const modes = PRESET_CATALOG.map(({ id, name, group }) => ({ id, name, group }));
 
   await t.test('each enabled preset occupies an equal deterministic random interval', () => {
     assert.equal(randomMode.selectRandomPreset(modes, () => 0).id, 'basic');
-    assert.equal(randomMode.selectRandomPreset(modes, () => 0.3333333333333333).id, 'diplomacy');
-    assert.equal(randomMode.selectRandomPreset(modes, () => 0.6666666666666666).id, 'chaos');
+    assert.equal(randomMode.selectRandomPreset(modes, () => 0.25).id, 'diplomacy');
+    assert.equal(randomMode.selectRandomPreset(modes, () => 0.5).id, 'chaos');
+    assert.equal(randomMode.selectRandomPreset(modes, () => 0.75).id, 'all-or-nothing');
     assert.equal(randomMode.selectRandomPreset([modes[1]], () => 0.99).id, 'diplomacy');
     assert.equal(randomMode.selectRandomPreset([], () => 0.5), null);
   });
@@ -22,11 +24,38 @@ test('random mode behavior', async t => {
     assert.equal(randomMode.filterEnabledPresets(modes, []).length, 0);
   });
 
+  await t.test('catalog groups are correct and group selection preserves the other group', () => {
+    const standard = modes.filter(mode => mode.group === 'standard').map(mode => mode.id);
+    const experimental = modes.filter(mode => mode.group === 'experimental').map(mode => mode.id);
+    assert.deepEqual(PRESET_GROUPS.map(group => group.name), ['Стандартные режимы', 'Экспериментальные режимы']);
+    assert.deepEqual(standard, ['basic', 'diplomacy', 'chaos']);
+    assert.deepEqual(experimental, ['all-or-nothing']);
+
+    const draft = randomMode.createPresetDraft(['basic', 'chaos', 'all-or-nothing']);
+    assert.deepEqual(randomMode.getPresetGroupState(modes, draft.values(), 'standard'), {
+      checked: false,
+      indeterminate: true
+    });
+    draft.setGroup(modes, 'standard', false);
+    assert.deepEqual(draft.values(), ['all-or-nothing']);
+    draft.setGroup(modes, 'standard', true);
+    assert.deepEqual(draft.values(), ['basic', 'diplomacy', 'chaos', 'all-or-nothing']);
+    draft.set('chaos', false);
+    assert.deepEqual(randomMode.getPresetGroupState(modes, draft.values(), 'standard'), {
+      checked: false,
+      indeterminate: true
+    });
+    draft.setGroup(modes, 'standard', true);
+    draft.setGroup(modes, 'experimental', false);
+    assert.deepEqual(draft.values(), ['basic', 'diplomacy', 'chaos']);
+  });
+
   await t.test('invalid, stale, unknown, and empty saved selections restore available presets', () => {
-    assert.deepEqual(randomMode.normalizePresetIds('{bad', modes), ['basic', 'diplomacy', 'chaos']);
-    assert.deepEqual(randomMode.normalizePresetIds('["removed"]', modes), ['basic', 'diplomacy', 'chaos']);
+    assert.deepEqual(randomMode.normalizePresetIds('{bad', modes), ['basic', 'diplomacy', 'chaos', 'all-or-nothing']);
+    assert.deepEqual(randomMode.normalizePresetIds('["removed"]', modes), ['basic', 'diplomacy', 'chaos', 'all-or-nothing']);
     assert.deepEqual(randomMode.normalizePresetIds('["chaos","removed","chaos"]', modes), ['chaos']);
-    assert.deepEqual(randomMode.normalizePresetIds(null, modes), ['basic', 'diplomacy', 'chaos']);
+    assert.deepEqual(randomMode.normalizePresetIds(null, modes), ['basic', 'diplomacy', 'chaos', 'all-or-nothing']);
+    assert.deepEqual(randomMode.normalizePresetIds('["basic","chaos"]', modes), ['basic', 'chaos']);
   });
 
   await t.test('settings load and save only valid local IDs and reject an empty save', () => {
@@ -35,12 +64,12 @@ test('random mode behavior', async t => {
       getItem: key => values.has(key) ? values.get(key) : null,
       setItem: (key, value) => values.set(key, value)
     };
-    assert.deepEqual(randomMode.loadPresetIds(storage, modes), ['basic', 'diplomacy', 'chaos']);
+    assert.deepEqual(randomMode.loadPresetIds(storage, modes), ['basic', 'diplomacy', 'chaos', 'all-or-nothing']);
     assert.equal(randomMode.savePresetIds(storage, ['diplomacy', 'removed', 'diplomacy'], modes), true);
     assert.deepEqual(randomMode.loadPresetIds(storage, modes), ['diplomacy']);
     assert.equal(randomMode.savePresetIds(storage, [], modes), false);
     const brokenStorage = { getItem: () => { throw new Error('corrupt'); }, setItem() { throw new Error('readonly'); } };
-    assert.deepEqual(randomMode.loadPresetIds(brokenStorage, modes), ['basic', 'diplomacy', 'chaos']);
+    assert.deepEqual(randomMode.loadPresetIds(brokenStorage, modes), ['basic', 'diplomacy', 'chaos', 'all-or-nothing']);
     assert.equal(randomMode.savePresetIds(brokenStorage, ['basic'], modes), false);
   });
 
@@ -51,7 +80,8 @@ test('random mode behavior', async t => {
       setItem: (key, value) => values.set(key, value)
     };
     const cancelled = randomMode.createPresetDraft(['basic']);
-    cancelled.set('chaos', true);
+    cancelled.setGroup(modes, 'experimental', true);
+    assert.deepEqual(cancelled.values(), ['basic', 'all-or-nothing']);
     cancelled.cancel();
     assert.deepEqual(randomMode.loadPresetIds(storage, modes), ['basic']);
 
@@ -59,6 +89,22 @@ test('random mode behavior', async t => {
     saved.set('diplomacy', true);
     assert.equal(saved.commit(storage, modes), true);
     assert.deepEqual(randomMode.loadPresetIds(storage, modes), ['basic', 'diplomacy']);
+  });
+
+  await t.test('an empty draft is allowed but cannot be committed; first-time users get all catalog modes', () => {
+    const values = new Map();
+    const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+    const draft = randomMode.createPresetDraft(randomMode.loadPresetIds(storage, modes));
+    assert.deepEqual(draft.values(), ['basic', 'diplomacy', 'chaos', 'all-or-nothing']);
+    for (const mode of modes) draft.set(mode.id, false);
+    assert.deepEqual(draft.values(), []);
+    assert.equal(draft.commit(storage, modes), false);
+    assert.equal(values.has(randomMode.RANDOM_PRESET_STORAGE_KEY), false);
+  });
+
+  await t.test('experimental preset occupies its own equal interval regardless of UI grouping', () => {
+    const enabled = randomMode.filterEnabledPresets(modes, modes.map(mode => mode.id));
+    assert.equal(randomMode.selectRandomPreset(enabled, () => 0.75).id, 'all-or-nothing');
   });
 
   await t.test('spin plan ends exactly on the chosen card and moves the strip downward', () => {
@@ -117,7 +163,7 @@ test('random mode behavior', async t => {
     await flow.open();
     assert.equal(flow.getState().winner.id, 'basic');
     await flow.reroll();
-    assert.equal(flow.getState().winner.id, 'chaos');
+    assert.equal(flow.getState().winner.id, 'all-or-nothing');
     flow.exit();
     assert.deepEqual(applied, []);
   });

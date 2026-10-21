@@ -12,6 +12,26 @@ export function filterEnabledPresets(presets, enabledIds) {
   return presets.filter(preset => enabled.has(typeof preset === 'string' ? preset : preset?.id));
 }
 
+export function getPresetGroupState(presets, selectedIds, groupId) {
+  const group = Array.isArray(presets) ? presets.filter(preset => preset?.group === groupId) : [];
+  const selected = new Set(Array.isArray(selectedIds) ? selectedIds : []);
+  const selectedCount = group.filter(preset => selected.has(preset.id)).length;
+  return {
+    checked: group.length > 0 && selectedCount === group.length,
+    indeterminate: selectedCount > 0 && selectedCount < group.length
+  };
+}
+
+export function setPresetGroupSelection(presets, selectedIds, groupId, checked) {
+  const selected = new Set(Array.isArray(selectedIds) ? selectedIds : []);
+  for (const preset of Array.isArray(presets) ? presets : []) {
+    if (preset?.group !== groupId) continue;
+    if (checked) selected.add(preset.id);
+    else selected.delete(preset.id);
+  }
+  return getPresetIds(presets).filter(id => selected.has(id));
+}
+
 export function selectRandomPreset(presets, random = Math.random) {
   if (!Array.isArray(presets) || presets.length === 0) return null;
   const value = Number(random());
@@ -67,6 +87,10 @@ export function createPresetDraft(initialIds) {
       if (!selected) return;
       if (checked) selected.add(id);
       else selected.delete(id);
+    },
+    setGroup: (presets, groupId, checked) => {
+      if (!selected) return;
+      selected = new Set(setPresetGroupSelection(presets, [...selected], groupId, checked));
     },
     values: () => selected ? [...selected] : [],
     commit: (storage, presets, key = RANDOM_PRESET_STORAGE_KEY) => {

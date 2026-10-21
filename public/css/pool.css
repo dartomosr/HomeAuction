@@ -54,6 +54,8 @@
   gap: 8px;
 }
 
+.preset-options-grid[hidden] { display: none; }
+
 .preset-option-btn {
   display: flex;
   flex-direction: column;
@@ -96,6 +98,23 @@
   border-radius: 50%;
   background: var(--accent-primary);
   opacity: 0.75;
+}
+
+.experimental-presets-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+}
+
+.experimental-presets-toggle:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.experimental-presets-toggle[aria-expanded="false"] .settings-collapse-icon {
+  transform: rotate(-90deg);
 }
 
 .preset-option-btn:hover,
@@ -268,7 +287,23 @@
   .random-preset-dialog-card { max-height: 88vh; padding: 18px; }
 }
 
-.random-preset-settings-list { display: grid; gap: 8px; }
+.random-preset-settings-list { display: grid; gap: 14px; }
+
+.random-preset-settings-group { display: grid; gap: 7px; }
+
+.random-preset-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.random-preset-group-toggle input,
+.random-preset-setting-row input { accent-color: var(--accent-primary); }
+
+.random-preset-group-options { display: grid; gap: 7px; }
 
 .random-preset-setting-row {
   display: flex;
@@ -282,7 +317,6 @@
   cursor: pointer;
 }
 
-.random-preset-setting-row input { accent-color: var(--accent-primary); }
 .random-preset-settings-error { color: var(--danger, #ef6a78); font-size: 0.85rem; }
 
 @media (max-width: 520px) {
