@@ -357,6 +357,7 @@ dom.hostSettingsForm.addEventListener('submit', (e) => {
   e.preventDefault();
   socket.emit('update_settings', {
     maxPoints: Number(dom.setMaxPoints.value),
+    minimumBid: Number(dom.setMinimumBid.value),
     maxItems: Number(dom.setMaxItems.value),
     allowFreeItemsForAll: dom.setAllowFreeAll.checked,
     allowReactions: dom.setAllowReactions.checked,
@@ -365,7 +366,6 @@ dom.hostSettingsForm.addEventListener('submit', (e) => {
     keepZeroItems: dom.setKeepZero.checked,
     zeroItemWeight: Number(dom.setZeroWeight.value)
   });
-  showToast('Настройки обновлены');
 });
 
 dom.btnResetKeep.addEventListener('click', () => {
@@ -417,6 +417,7 @@ dom.btnDistributeEven.addEventListener('click', () => {
   const items = store.appState.items;
   const count = items.length;
   const total = store.appState.settings.maxPoints;
+  const minimumBid = Number(store.appState.settings.minimumBid) || 0;
   const limit = total - (store.appState.settings.restrictOwnPoints ? store.appState.settings.foreignOnlyPoints : 0);
   const allocation = items.map((_, i) => Math.floor(total / count) + (i < total % count ? 1 : 0));
   let ownTotal = allocation.reduce((sum, p, i) => sum + (items[i].canDelete ? p : 0), 0);
@@ -432,6 +433,9 @@ dom.btnDistributeEven.addEventListener('click', () => {
     const leftover = total - allocation.reduce((sum, p) => sum + p, 0);
     for (let i = 0; i < leftover; i++) allocation[others[i % others.length]]++;
   }
+  allocation.forEach((points, i) => {
+    if (points > 0 && points < minimumBid) allocation[i] = 0;
+  });
   items.forEach(it => { if (it.myPoints) socket.emit('set_points', { itemId: it.id, points: 0 }); });
   items.forEach((it, i) => { if (allocation[i]) socket.emit('set_points', { itemId: it.id, points: allocation[i] }); });
 });

@@ -94,6 +94,7 @@ describe('isolated backend unit checks', () => {
   test('starts with the expected default limits', () => {
     assert.equal(state.settings.maxPoints, 50);
     assert.equal(state.settings.maxItems, 5);
+    assert.equal(state.settings.minimumBid, 0);
     assert.equal(DEFAULT_SETTINGS.keepZeroItems, false);
     assert.equal(DEFAULT_SETTINGS.zeroItemWeight, 0.5);
     assert.equal(DEFAULT_SETTINGS.allowReactions, false);
@@ -146,6 +147,9 @@ describe('isolated backend unit checks', () => {
       keepZeroItems: true,
       zeroItemWeight: 0
     }), 0.5);
+    state.settings.minimumBid = 5;
+    assert.equal(getRawPoints({ allocations: { player1: 0 } }), 0);
+    assert.equal(getEffectivePoints({ allocations: { player1: 0 } }), 0);
   });
 
   test('loads a deduplicated initial save without spending host budget or slots', () => {
@@ -309,7 +313,8 @@ describe('socket handler scenarios', () => {
       ...DEFAULT_SETTINGS,
       maxPoints: 50,
       restrictOwnPoints: true,
-      foreignOnlyPoints: 25
+      foreignOnlyPoints: 25,
+      minimumBid: 25
     });
     host.receive('add_item', { title: 'Host item' });
     player.receive('add_item', { title: 'Player item' });
@@ -322,6 +327,124 @@ describe('socket handler scenarios', () => {
     assert.equal(ownItem.allocations.host, 25);
     assert.equal(foreignItem.allocations.host, 25);
     assert.equal(ownItem.allocations.host + foreignItem.allocations.host, 50);
+
+    host.receive('set_points', { itemId: ownItem.id, points: 30 });
+    host.receive('set_points', { itemId: foreignItem.id, points: 30 });
+    assert.equal(ownItem.allocations.host, 25);
+    assert.equal(foreignItem.allocations.host, 25);
+    assert.equal(ownItem.allocations.host + foreignItem.allocations.host, 50);
+  });
+
+  test('validates minimum bid against the flexible budget and rejects invalid values atomically', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    join(host, 'host', 'Host');
+    host.receive('update_settings', {
+      ...DEFAULT_SETTINGS,
+      maxPoints: 50,
+      restrictOwnPoints: true,
+      foreignOnlyPoints: 25,
+      minimumBid: 25
+    });
+    assert.equal(state.settings.minimumBid, 25);
+
+    for (const minimumBid of [-1, 1.5, NaN, Infinity, 26]) {
+      host.receive('update_settings', { ...state.settings, minimumBid });
+      assert.equal(state.settings.maxPoints, 50, `maxPoints changed for invalid minimum ${minimumBid}`);
+      assert.equal(state.settings.minimumBid, 25, `minimum changed for invalid value ${minimumBid}`);
+      assert.match(host.received.at(-2).args[0], /Минимальная ставка должна быть целым числом/);
+    }
+    host.receive('update_settings', { ...state.settings, minimumBid: 0 });
+    assert.equal(state.settings.minimumBid, 0);
+  });
+
+  test('allows zero or a bid at the minimum, rejects lower bids, and keeps the minimum per player', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    const playerA = connect('socket-a');
+    const playerB = connect('socket-b');
+    join(host, 'host', 'Host');
+    join(playerA, 'a', 'A');
+    join(playerB, 'b', 'B');
+    host.receive('update_settings', { ...DEFAULT_SETTINGS, minimumBid: 5 });
+    host.receive('add_item', { title: 'Option' });
+    const item = state.items[0];
+
+    playerA.receive('set_points', { itemId: item.id, points: 0 });
+    assert.equal(item.allocations.a, undefined);
+    playerA.receive('set_points', { itemId: item.id, points: 4 });
+    assert.equal(item.allocations.a, undefined);
+    assert.match(playerA.received.at(-2).args[0], /Минимальная ставка — 5/);
+
+    playerA.receive('set_points', { itemId: item.id, points: 5 });
+    playerB.receive('set_points', { itemId: item.id, points: 4 });
+    assert.equal(item.allocations.a, 5);
+    assert.equal(item.allocations.b, undefined);
+    playerB.receive('set_points', { itemId: item.id, points: 5 });
+    assert.equal(item.allocations.b, 5);
+    playerA.receive('set_points', { itemId: item.id, points: 0 });
+    assert.equal(item.allocations.a, undefined);
+    assert.equal(item.allocations.b, 5);
+  });
+
+  test('rejects a budget-clamped stake below the minimum without changing existing stakes', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    const player = connect('socket-player');
+    join(host, 'host', 'Host');
+    join(player, 'player', 'Player');
+    host.receive('update_settings', { ...DEFAULT_SETTINGS, minimumBid: 10 });
+    host.receive('add_item', { title: 'One' });
+    host.receive('add_item', { title: 'Two' });
+    host.receive('add_item', { title: 'Three' });
+    const [one, two, three] = state.items;
+
+    player.receive('set_points', { itemId: one.id, points: 40 });
+    player.receive('set_points', { itemId: two.id, points: 10 });
+    player.receive('set_points', { itemId: three.id, points: 10 });
+    assert.equal(one.allocations.player, 40);
+    assert.equal(two.allocations.player, 10);
+    assert.equal(three.allocations.player, undefined);
+    assert.match(player.received.at(-2).args[0], /Недостаточно свободных очков/);
+  });
+
+  test('removes existing bids below a raised minimum, notifies players, and resets readiness', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    const player = connect('socket-player');
+    join(host, 'host', 'Host');
+    join(player, 'player', 'Player');
+    host.receive('add_item', { title: 'Low' });
+    host.receive('add_item', { title: 'Valid' });
+    const [low, valid] = state.items;
+    player.receive('set_points', { itemId: low.id, points: 3 });
+    player.receive('set_points', { itemId: valid.id, points: 7 });
+    state.players.get('player').ready = true;
+
+    host.receive('update_settings', { ...state.settings, minimumBid: 5 });
+    assert.equal(state.settings.minimumBid, 5);
+    assert.equal(low.allocations.player, undefined);
+    assert.equal(valid.allocations.player, 7);
+    assert.equal(state.players.get('player').ready, false);
+    assert.ok(player.received.some(entry => entry.event === 'toast_error' && /ниже нового минимума/.test(entry.args[0])));
+  });
+
+  test('keeps legacy settings without minimumBid at zero and rejects edits outside the pool phase', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    const player = connect('socket-player');
+    join(host, 'host', 'Host');
+    join(player, 'player', 'Player');
+    const legacySettings = { ...DEFAULT_SETTINGS };
+    delete legacySettings.minimumBid;
+    host.receive('update_settings', legacySettings);
+    assert.equal(state.settings.minimumBid, 0);
+
+    player.receive('update_settings', { ...state.settings, minimumBid: 4 });
+    assert.equal(state.settings.minimumBid, 0);
+    state.phase = 'REVEAL';
+    host.receive('update_settings', { ...state.settings, minimumBid: 4 });
+    assert.equal(state.settings.minimumBid, 0);
   });
 
   test('transfers host from a spectator and enters REVEAL when active players are ready', () => {
@@ -412,8 +535,10 @@ describe('socket handler scenarios', () => {
     assert.notEqual(state.wheel.history[0].id, state.wheel.winner.id);
     assert.ok(state.items.find(item => item.id === state.wheel.history[0].id).eliminated);
 
+    state.settings.minimumBid = 5;
     host.receive('reset_auction', { clearItems: false });
     assert.equal(state.phase, 'POOL');
+    assert.equal(state.settings.minimumBid, 5);
     assert.equal(state.items.length, 2);
     assert.ok(state.items.every(item =>
       item.basePoints === 0 && Object.keys(item.allocations).length === 0
@@ -428,5 +553,8 @@ describe('socket handler scenarios', () => {
     assert.deepEqual(state.items, []);
     assert.equal(state.players.size, 1);
     assert.equal(state.players.has('host'), true);
+
+    host.receive('hard_reset_auction');
+    assert.equal(state.settings.minimumBid, 0);
   });
 });

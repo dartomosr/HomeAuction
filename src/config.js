@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const DEFAULT_SETTINGS = Object.freeze({
   maxPoints: 50,
   maxItems: 5,
+  minimumBid: 0,
   keepZeroItems: false,
   zeroItemWeight: 0.5,
   spinDuration: 5.5,

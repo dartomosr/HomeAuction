@@ -161,6 +161,13 @@ function registerSocketHandlers(io) {
     socket.on('update_settings', (newSettings) => {
       const player = state.players.get(currentToken);
       if (!player || !player.isHost || state.wheel.isSpinning) return;
+      if (!newSettings || typeof newSettings !== 'object') return;
+      if (state.phase !== 'POOL' && Object.prototype.hasOwnProperty.call(newSettings, 'minimumBid') &&
+          Number(newSettings.minimumBid) !== (state.settings.minimumBid ?? 0)) {
+        socket.emit('toast_error', 'Минимальную ставку можно менять только на этапе формирования пула.');
+        socket.emit('state_update', buildClientState(currentToken));
+        return;
+      }
 
       const maxPoints = Math.max(1, Math.min(100000, parseInt(newSettings.maxPoints, 10) || 50));
       const maxItems = Math.max(1, Math.min(50, parseInt(newSettings.maxItems, 10) || 5));
@@ -171,6 +178,30 @@ function registerSocketHandlers(io) {
       const restrictOwnPoints = Boolean(newSettings.restrictOwnPoints);
       const foreignOnlyPoints = restrictOwnPoints
         ? Math.max(0, Math.min(maxPoints, Math.floor(Number(newSettings.foreignOnlyPoints) || 0))) : 0;
+      const freePointLimit = maxPoints - foreignOnlyPoints;
+      const hasMinimumBid = Object.prototype.hasOwnProperty.call(newSettings, 'minimumBid');
+      const rawMinimumBid = hasMinimumBid ? newSettings.minimumBid : (state.settings.minimumBid ?? 0);
+      const minimumBid = typeof rawMinimumBid === 'string' && rawMinimumBid.trim() !== ''
+        ? Number(rawMinimumBid) : rawMinimumBid;
+      const validatedMinimumBid = Number.isSafeInteger(minimumBid) && minimumBid >= 0 && minimumBid <= freePointLimit
+        ? minimumBid
+        : (!hasMinimumBid && Number.isSafeInteger(minimumBid) && minimumBid > freePointLimit
+          ? freePointLimit
+          : null);
+      if (validatedMinimumBid === null) {
+        socket.emit('toast_error', `Минимальная ставка должна быть целым числом от 0 до ${freePointLimit}.`);
+        socket.emit('state_update', buildClientState(currentToken));
+        return;
+      }
+      const playersBelowMinimum = new Set();
+      if (validatedMinimumBid > 0) {
+        for (const item of state.items) {
+          if (item.mergedInto) continue;
+          for (const [playerToken, points] of Object.entries(item.allocations)) {
+            if (points > 0 && points < validatedMinimumBid) playersBelowMinimum.add(playerToken);
+          }
+        }
+      }
       const allowFreeItemsForAll = Boolean(newSettings.allowFreeItemsForAll);
       const allowReactions = Boolean(newSettings.allowReactions);
       const spinDuration = state.settings.spinDuration;
@@ -213,12 +244,36 @@ function registerSocketHandlers(io) {
         maxItems,
         keepZeroItems,
         zeroItemWeight,
+        minimumBid: validatedMinimumBid,
         spinDuration,
         restrictOwnPoints,
         foreignOnlyPoints,
         allowFreeItemsForAll,
         allowReactions
       };
+      const affectedPlayers = playersBelowMinimum;
+      if (validatedMinimumBid > 0) {
+        for (const item of state.items) {
+          if (item.mergedInto) continue;
+          for (const [playerToken, points] of Object.entries(item.allocations)) {
+            if (points > 0 && points < validatedMinimumBid) {
+              delete item.allocations[playerToken];
+              affectedPlayers.add(playerToken);
+            }
+          }
+        }
+      }
+      for (const playerToken of affectedPlayers) {
+        const affected = state.players.get(playerToken);
+        if (!affected) continue;
+        affected.ready = false;
+        if (affected.socketId) {
+          io.to(affected.socketId).emit(
+            'toast_error',
+            `Ставки ниже нового минимума (${validatedMinimumBid} очк.) удалены. Проверьте пул и отметьте готовность снова.`
+          );
+        }
+      }
       broadcastState();
     });
 
@@ -342,6 +397,15 @@ function registerSocketHandlers(io) {
       if (!item) return;
 
       const desired = Math.max(0, parseInt(points, 10) || 0);
+      const minimumBid = Number.isSafeInteger(state.settings.minimumBid) ? state.settings.minimumBid : 0;
+      const rejectBid = message => {
+        socket.emit('toast_error', message);
+        socket.emit('state_update', buildClientState(currentToken));
+      };
+      if (desired > 0 && desired < minimumBid) {
+        rejectBid(`Минимальная ставка — ${minimumBid} очк. Поставьте 0, чтобы оставить вариант без ставки или снять ставку.`);
+        return;
+      }
       let spentOnOthers = 0;
       for (const it of state.items) {
         if (it.id !== itemId && !it.mergedInto) {
@@ -362,6 +426,10 @@ function registerSocketHandlers(io) {
           item.createdByToken === currentToken ? ownLimit - spentOnOwnOthers : state.settings.maxPoints
         )
       );
+      if (desired > 0 && allowed < minimumBid) {
+        rejectBid(`Недостаточно свободных очков для ставки не ниже ${minimumBid}. Поставьте 0 или измените другие ставки.`);
+        return;
+      }
       if (allowed === 0) {
         delete item.allocations[currentToken];
       } else {

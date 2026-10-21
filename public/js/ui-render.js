@@ -10,6 +10,9 @@ function updatePointsSplitPreview() {
   dom.setForeignOnly.max = total;
   const reserve = dom.setRestrictOwn.checked
     ? Math.max(0, Math.min(total, Number(dom.setForeignOnly.value) || 0)) : 0;
+  const freePoints = total - reserve;
+  dom.setMinimumBid.max = freePoints;
+  if (Number(dom.setMinimumBid.value) > freePoints) dom.setMinimumBid.value = String(freePoints);
   dom.pointsSplitPreview.textContent = `${total - reserve} очк. — на свои и чужие; ${reserve} очк. — только на чужие.`;
 }
 
@@ -133,6 +136,7 @@ function renderSidebar(state) {
 
 // Сводка настроек
   dom.roMaxPoints.textContent = state.settings.maxPoints;
+  dom.roMinimumBid.textContent = state.settings.minimumBid > 0 ? `${state.settings.minimumBid} очк.` : 'Выключена';
   dom.roMaxItems.textContent = state.settings.maxItems;
   dom.roFreeItems.textContent = state.settings.allowFreeItemsForAll ? 'Разрешены всем' : 'Только Хост';
   const foreignReserve = state.settings.restrictOwnPoints ? state.settings.foreignOnlyPoints : 0;
@@ -150,8 +154,10 @@ function renderSidebar(state) {
     if (document.activeElement !== dom.setMaxPoints &&
         document.activeElement !== dom.setMaxItems &&
         document.activeElement !== dom.setForeignOnly &&
+        document.activeElement !== dom.setMinimumBid &&
         document.activeElement !== dom.setZeroWeight) {
       dom.setMaxPoints.value = state.settings.maxPoints;
+      dom.setMinimumBid.value = Number.isSafeInteger(state.settings.minimumBid) ? state.settings.minimumBid : 0;
       dom.setMaxItems.value = state.settings.maxItems;
       dom.setAllowFreeAll.checked = Boolean(state.settings.allowFreeItemsForAll);
       dom.setAllowReactions.checked = Boolean(state.settings.allowReactions);
@@ -346,6 +352,7 @@ function renderPoolView(state) {
     controls.className = 'pool-item-controls';
 
     const ownLimit = state.settings.maxPoints - reserve;
+    const minimumBid = Number(state.settings.minimumBid) || 0;
     const allowedByOwnership = item.canDelete
       ? Math.max(0, ownLimit - (state.me.mySpentOwnPoints - item.myPoints))
       : state.settings.maxPoints;
@@ -360,9 +367,12 @@ function renderPoolView(state) {
       b.addEventListener('click', () => {
         initAudio();
         playUiSliderSound();
+        let points = Math.max(0, item.myPoints + delta);
+        if (points > 0 && points < minimumBid) points = delta < 0 ? 0 : minimumBid;
+        if (points > maxPossibleForThisItem) points = 0;
         store.socket.emit('set_points', {
           itemId: item.id,
-          points: Math.max(0, item.myPoints + delta)
+          points
         });
       });
       return b;
@@ -372,13 +382,14 @@ function renderPoolView(state) {
     slider.type = 'range';
     slider.className = 'pts-slider';
     slider.min = 0;
-    slider.max = state.settings.maxPoints;
+    slider.max = maxPossibleForThisItem;
     slider.value = item.myPoints;
     slider.disabled = isLocked;
     slider.addEventListener('input', () => {
       initAudio();
       playUiSliderSound();
-      const clamped = Math.min(Number(slider.value), maxPossibleForThisItem);
+      let clamped = Math.min(Number(slider.value), maxPossibleForThisItem);
+      if (clamped > 0 && clamped < minimumBid) clamped = minimumBid <= maxPossibleForThisItem ? minimumBid : 0;
       slider.value = clamped;
       numInput.value = clamped;
     });
