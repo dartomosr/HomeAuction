@@ -8,7 +8,10 @@ const {
   buildClientState,
   normalizeItemTitle,
   addInitialItems,
-  importPoolItems
+  importPoolItems,
+  getReserveAllocation,
+  getPerOpponentUsage,
+  getPerOpponentFreeSpent
 } = require('./state');
 const { pickPredeterminedWinner, pickEliminatedItem } = require('./wheel-math');
 
@@ -21,6 +24,51 @@ function registerSocketHandlers(io) {
       if (player.socketId) {
         io.to(player.socketId).emit('state_update', buildClientState(token));
       }
+    }
+  }
+
+  function reconcilePerOpponentBids() {
+    if (state.settings.foreignReserveMode !== 'per_opponent' || state.phase !== 'POOL') return;
+    const { quotaPerOpponent, effectiveFreePoints } = getReserveAllocation();
+    for (const [token, player] of state.players) {
+      const usage = getPerOpponentUsage(token);
+      let changed = false;
+      for (const [author, total] of usage.byAuthor) {
+        let excess = total - quotaPerOpponent;
+        if (excess <= 0) continue;
+        for (const item of [...state.items].reverse()) {
+          if (item.mergedInto || item.createdByToken !== author) continue;
+          const current = item.allocations[token] || 0;
+          const reduction = Math.min(current, excess);
+          if (!reduction) continue;
+          if (current === reduction) delete item.allocations[token];
+          else item.allocations[token] = current - reduction;
+          excess -= reduction;
+          changed = true;
+          if (!excess) break;
+        }
+      }
+      let freeSpent = getPerOpponentFreeSpent(token);
+      if (freeSpent > effectiveFreePoints) {
+        let excess = freeSpent - effectiveFreePoints;
+        for (const item of [...state.items].reverse()) {
+          if (item.mergedInto) continue;
+          const current = item.allocations[token] || 0;
+          if (!current) continue;
+          const isOwn = item.createdByToken === token;
+          const authorTotal = usage.byAuthor.get(item.createdByToken) || 0;
+          const reducible = isOwn ? current : Math.max(0, authorTotal - quotaPerOpponent);
+          const reduction = Math.min(current, reducible, excess);
+          if (!reduction) continue;
+          if (current === reduction) delete item.allocations[token];
+          else item.allocations[token] = current - reduction;
+          if (!isOwn) usage.byAuthor.set(item.createdByToken, authorTotal - reduction);
+          excess -= reduction;
+          changed = true;
+          if (!excess) break;
+        }
+      }
+      if (changed) player.ready = false;
     }
   }
 
@@ -119,6 +167,7 @@ function registerSocketHandlers(io) {
       }
 
       socket.emit('joined', { token: playerToken });
+      reconcilePerOpponentBids();
       broadcastState();
       checkAllReady();
     });
@@ -153,6 +202,7 @@ function registerSocketHandlers(io) {
       }
 
       state.players.delete(targetToken);
+      reconcilePerOpponentBids();
       broadcastState();
       checkAllReady();
     });
@@ -176,9 +226,11 @@ function registerSocketHandlers(io) {
         ? Math.max(0.01, Math.min(100, parseFloat(newSettings.zeroItemWeight) || 0.5))
         : state.settings.zeroItemWeight;
       const restrictOwnPoints = Boolean(newSettings.restrictOwnPoints);
+      const foreignReserveMode = newSettings.foreignReserveMode === 'per_opponent' ? 'per_opponent' : 'total';
+      const freePointsBudget = Math.max(0, Math.min(maxPoints, Math.floor(Number(newSettings.freePointsBudget) || 0)));
       const foreignOnlyPoints = restrictOwnPoints
         ? Math.max(0, Math.min(maxPoints, Math.floor(Number(newSettings.foreignOnlyPoints) || 0))) : 0;
-      const freePointLimit = maxPoints - foreignOnlyPoints;
+      const freePointLimit = foreignReserveMode === 'per_opponent' ? maxPoints : maxPoints - foreignOnlyPoints;
       const hasMinimumBid = Object.prototype.hasOwnProperty.call(newSettings, 'minimumBid');
       const rawMinimumBid = hasMinimumBid ? newSettings.minimumBid : (state.settings.minimumBid ?? 0);
       const minimumBid = typeof rawMinimumBid === 'string' && rawMinimumBid.trim() !== ''
@@ -248,6 +300,8 @@ function registerSocketHandlers(io) {
         spinDuration,
         restrictOwnPoints,
         foreignOnlyPoints,
+        foreignReserveMode,
+        freePointsBudget,
         allowFreeItemsForAll,
         allowReactions
       };
@@ -274,6 +328,7 @@ function registerSocketHandlers(io) {
           );
         }
       }
+      reconcilePerOpponentBids();
       broadcastState();
     });
 
@@ -404,6 +459,25 @@ function registerSocketHandlers(io) {
       };
       if (desired > 0 && desired < minimumBid) {
         rejectBid(`Минимальная ставка — ${minimumBid} очк. Поставьте 0, чтобы оставить вариант без ставки или снять ставку.`);
+        return;
+      }
+      if (state.settings.foreignReserveMode === 'per_opponent') {
+        const usage = getPerOpponentUsage(currentToken);
+        const { quotaPerOpponent, effectiveFreePoints } = getReserveAllocation();
+        const oldPoints = Number(item.allocations[currentToken]) || 0;
+        let freeSpent = getPerOpponentFreeSpent(currentToken) - (item.createdByToken === currentToken ? oldPoints : Math.max(0, oldPoints - quotaPerOpponent));
+        if (item.createdByToken === currentToken) freeSpent += desired;
+        else {
+          const authorTotal = (usage.byAuthor.get(item.createdByToken) || 0) - oldPoints + desired;
+          freeSpent += Math.max(0, authorTotal - quotaPerOpponent);
+        }
+        if (freeSpent > effectiveFreePoints) {
+          rejectBid('Недостаточно свободных очков для этой ставки. Уменьшите ставку или измените другие ставки.');
+          return;
+        }
+        if (desired === 0) delete item.allocations[currentToken];
+        else item.allocations[currentToken] = desired;
+        broadcastState();
         return;
       }
       let spentOnOthers = 0;

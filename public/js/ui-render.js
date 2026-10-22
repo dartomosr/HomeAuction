@@ -8,6 +8,21 @@ import { showToast } from './ui-notifications.js';
 function updatePointsSplitPreview() {
   const total = Math.max(1, Number(dom.setMaxPoints.value) || 100);
   dom.setForeignOnly.max = total;
+  dom.setFreePointsBudget.max = total;
+  const perOpponent = dom.setReserveOpponent.checked;
+  dom.totalReserveGroup.classList.toggle('hidden', perOpponent);
+  dom.opponentReserveGroup.classList.toggle('hidden', !perOpponent);
+  const activeCount = (store.appState?.players || []).filter(player => !player.isSpectator).length;
+  const opponents = Math.max(0, activeCount - 1);
+  const freeBudget = Math.max(0, Math.min(total, Math.floor(Number(dom.setFreePointsBudget.value) || 0)));
+  const quota = opponents > 0 ? Math.floor((total - freeBudget) / opponents) : 0;
+  const effectiveFree = total - quota * opponents;
+  dom.opponentReservePreview.textContent = `Соперников: ${opponents} | Квота на каждого: ${quota} очков | Свободных: ${effectiveFree} очков`;
+  if (perOpponent) {
+    dom.setMinimumBid.max = total;
+    if (Number(dom.setMinimumBid.value) > total) dom.setMinimumBid.value = String(total);
+    return;
+  }
   const reserve = dom.setRestrictOwn.checked
     ? Math.max(0, Math.min(total, Number(dom.setForeignOnly.value) || 0)) : 0;
   const freePoints = total - reserve;
@@ -154,6 +169,7 @@ function renderSidebar(state) {
     if (document.activeElement !== dom.setMaxPoints &&
         document.activeElement !== dom.setMaxItems &&
         document.activeElement !== dom.setForeignOnly &&
+        document.activeElement !== dom.setFreePointsBudget &&
         document.activeElement !== dom.setMinimumBid &&
         document.activeElement !== dom.setZeroWeight) {
       dom.setMaxPoints.value = state.settings.maxPoints;
@@ -161,9 +177,10 @@ function renderSidebar(state) {
       dom.setMaxItems.value = state.settings.maxItems;
       dom.setAllowFreeAll.checked = Boolean(state.settings.allowFreeItemsForAll);
       dom.setAllowReactions.checked = Boolean(state.settings.allowReactions);
-      dom.setRestrictOwn.checked = Boolean(state.settings.restrictOwnPoints);
+      dom.setRestrictOwn.checked = state.settings.foreignReserveMode !== 'per_opponent';
+      dom.setReserveOpponent.checked = state.settings.foreignReserveMode === 'per_opponent';
       dom.setForeignOnly.value = state.settings.foreignOnlyPoints || 0;
-      dom.ownLimitGroup.classList.toggle('hidden', !dom.setRestrictOwn.checked);
+      dom.setFreePointsBudget.value = state.settings.freePointsBudget ?? 20;
       updatePointsSplitPreview();
       dom.setKeepZero.checked = state.settings.keepZeroItems;
       dom.setZeroWeight.value = state.settings.zeroItemWeight;
@@ -196,7 +213,14 @@ function renderPoolView(state) {
   dom.myMaxPointsEl.textContent = state.settings.maxPoints;
   dom.myItemsCountEl.textContent = state.me.myItemsCount;
   dom.myMaxItemsEl.textContent = state.settings.maxItems;
-  const reserve = state.settings.restrictOwnPoints ? state.settings.foreignOnlyPoints : 0;
+  const reserve = state.settings.restrictOwnPoints && state.settings.foreignReserveMode !== 'per_opponent' ? state.settings.foreignOnlyPoints : 0;
+  if (state.settings.foreignReserveMode === 'per_opponent') {
+    dom.poolFlexiblePoints.textContent = `${state.effectiveFreeSpent} / ${state.effectiveFreePoints}`;
+    dom.poolFlexibleNote.textContent = 'Свободные очки';
+    dom.poolForeignPoints.textContent = state.quotaPerOpponent;
+    dom.poolForeignUnit.textContent = ' очк.';
+    dom.poolForeignNote.textContent = 'Квота на каждого соперника';
+  } else {
   dom.poolFlexiblePoints.textContent = state.settings.maxPoints - reserve;
   dom.poolFlexibleNote.textContent = reserve
     ? 'Максимум, доступный для собственных лотов'
@@ -206,6 +230,7 @@ function renderPoolView(state) {
   dom.poolForeignNote.textContent = reserve
     ? 'Резерв: можно тратить только на чужие лоты'
     : 'Ограничения отключены';
+  }
 
   const isLocked = state.me.ready;
   const canUseFreeSlot = Boolean(state.me.isHost || state.settings.allowFreeItemsForAll);
@@ -277,6 +302,13 @@ function renderPoolView(state) {
     titleSpan.className = 'pool-item-title';
     titleSpan.textContent = item.title;
     left.appendChild(titleSpan);
+    if (state.settings.foreignReserveMode === 'per_opponent' && !item.isOwn) {
+      const quotaHint = document.createElement('span');
+      quotaHint.className = 'allocation-rule-note';
+      quotaHint.textContent = `${item.opponentPointsUsed} / ${state.quotaPerOpponent} очк.`;
+      quotaHint.title = 'Ставки на все лоты этого автора';
+      left.appendChild(quotaHint);
+    }
 
     if (item.isFreeSlot) {
       const freeBadge = document.createElement('span');

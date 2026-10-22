@@ -320,6 +320,77 @@ describe('socket handler scenarios', () => {
   beforeEach(resetState);
   afterEach(resetState);
 
+  test('per-opponent mode calculates equal quotas and carries division remainder into free points', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    join(host, 'host', 'Host');
+    const players = [];
+    for (let i = 0; i < 3; i++) {
+      const socket = connect(`socket-${i}`);
+      join(socket, `player${i}`, `Player ${i}`);
+      players.push(socket);
+    }
+    host.receive('update_settings', { ...DEFAULT_SETTINGS, maxPoints: 50, foreignReserveMode: 'per_opponent', freePointsBudget: 20 });
+    const client = buildClientState('host');
+    assert.equal(client.opponentsCount, 3);
+    assert.equal(client.quotaPerOpponent, 10);
+    assert.equal(client.effectiveFreePoints, 20);
+    host.receive('update_settings', { ...state.settings, freePointsBudget: 19 });
+    const remainder = buildClientState('host');
+    assert.equal(remainder.quotaPerOpponent, 10);
+    assert.equal(remainder.effectiveFreePoints, 20);
+  });
+
+  test('per-opponent stakes use each author quota and shared free points, rejecting excess atomically', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    const player = connect('socket-player');
+    const another = connect('socket-another');
+    join(host, 'host', 'Host');
+    join(player, 'player', 'Player');
+    join(another, 'another', 'Another');
+    host.receive('update_settings', { ...DEFAULT_SETTINGS, maxPoints: 30, foreignReserveMode: 'per_opponent', freePointsBudget: 10 });
+    host.receive('add_item', { title: 'Host lot' });
+    player.receive('add_item', { title: 'Player lot' });
+    another.receive('add_item', { title: 'Another lot' });
+    const hostLot = state.items.find(item => item.createdByToken === 'host');
+    const playerLot = state.items.find(item => item.createdByToken === 'player');
+    const anotherLot = state.items.find(item => item.createdByToken === 'another');
+    // Two opponents: quota 10 and free bank 10.
+    player.receive('set_points', { itemId: hostLot.id, points: 10 });
+    player.receive('set_points', { itemId: playerLot.id, points: 5 });
+    assert.equal(hostLot.allocations.player, 10);
+    assert.equal(playerLot.allocations.player, 5);
+    player.receive('set_points', { itemId: hostLot.id, points: 11 });
+    assert.equal(hostLot.allocations.player, 11);
+    player.receive('set_points', { itemId: anotherLot.id, points: 10 });
+    assert.equal(anotherLot.allocations.player, 10);
+    player.receive('set_points', { itemId: hostLot.id, points: 16 });
+    assert.equal(hostLot.allocations.player, 11);
+    assert.match(player.received.at(-2).args[0], /Недостаточно свободных очков/);
+    assert.equal(state.players.get('player').ready, false);
+  });
+
+  test('per-opponent quota is recalculated when active roster changes and invalid stakes are reduced', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    const a = connect('socket-a');
+    const b = connect('socket-b');
+    join(host, 'host', 'Host');
+    join(a, 'a', 'A');
+    join(b, 'b', 'B');
+    host.receive('update_settings', { ...DEFAULT_SETTINGS, maxPoints: 50, foreignReserveMode: 'per_opponent', freePointsBudget: 20 });
+    host.receive('add_item', { title: 'Host lot' });
+    const lot = state.items[0];
+    a.receive('set_points', { itemId: lot.id, points: 15 });
+    state.players.get('a').ready = true;
+    const c = connect('socket-c');
+    join(c, 'c', 'C');
+    assert.equal(buildClientState('a').quotaPerOpponent, 10);
+    assert.equal(lot.allocations.a, 10);
+    assert.equal(state.players.get('a').ready, false);
+  });
+
   test('reserves foreign-only points while limiting bids on a player’s own item', () => {
     const { connect } = createSocketHarness();
     const host = connect('socket-host');

@@ -454,10 +454,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 dom.setRestrictOwn.addEventListener('change', () => {
-  dom.ownLimitGroup.classList.toggle('hidden', !dom.setRestrictOwn.checked);
   updatePointsSplitPreview();
 });
+dom.setReserveOpponent.addEventListener('change', updatePointsSplitPreview);
 dom.setForeignOnly.addEventListener('input', updatePointsSplitPreview);
+dom.setFreePointsBudget.addEventListener('input', updatePointsSplitPreview);
 dom.setMaxPoints.addEventListener('input', updatePointsSplitPreview);
 dom.setKeepZero.addEventListener('change', () => {
   dom.zeroWeightGroup.classList.toggle('hidden', !dom.setKeepZero.checked);
@@ -482,6 +483,8 @@ dom.hostSettingsForm.addEventListener('submit', (e) => {
     allowReactions: dom.setAllowReactions.checked,
     restrictOwnPoints: dom.setRestrictOwn.checked,
     foreignOnlyPoints: Number(dom.setForeignOnly.value),
+    foreignReserveMode: dom.setReserveOpponent.checked ? 'per_opponent' : 'total',
+    freePointsBudget: Number(dom.setFreePointsBudget.value),
     keepZeroItems: dom.setKeepZero.checked,
     zeroItemWeight: Number(dom.setZeroWeight.value)
   });

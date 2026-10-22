@@ -274,14 +274,20 @@
                   <label for="setting-allow-reactions">Реакции (анонимные стрелки ▲/▼ и сортировка пула по рейтингу)</label>
                 </div>
 
-                <div class="form-group checkbox-group">
-                  <input type="checkbox" id="set-restrict-own" />
-                  <label for="set-restrict-own">Ограничить ставки на свои варианты</label>
-                </div>
-                <div id="own-limit-group" class="form-group hidden">
+                <div id="own-limit-group" class="form-group">
+                  <label>Распределение резерва ставок:</label>
+                  <label class="checkbox-group"><input type="radio" name="foreign-reserve-mode" id="set-reserve-total" value="total" checked /> Общий резерв на всех чужих</label>
+                  <label class="checkbox-group"><input type="radio" name="foreign-reserve-mode" id="set-reserve-opponent" value="per_opponent" /> Поровну на каждого соперника</label>
+                  <div id="total-reserve-group">
                   <label for="set-foreign-only">Очков исключительно для чужих вариантов:</label>
                   <input type="number" id="set-foreign-only" class="input-text" min="0" max="100" value="0" step="1" />
                   <p id="points-split-preview" class="settings-note">50 — на любые; 0 — только на чужие.</p>
+                  </div>
+                  <div id="opponent-reserve-group" class="hidden">
+                    <label for="set-free-points-budget">Свободный банк очков:</label>
+                    <input type="number" id="set-free-points-budget" class="input-text" min="0" max="100" value="20" step="1" />
+                    <p id="opponent-reserve-preview" class="settings-note"></p>
+                  </div>
                 </div>
 
                 <div class="form-group checkbox-group">

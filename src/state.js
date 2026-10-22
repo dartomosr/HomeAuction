@@ -74,6 +74,39 @@ function getAliveWheelItems() {
   return getActiveRevealItems().filter(item => !item.eliminated);
 }
 
+function getReserveAllocation(settings = state.settings, players = state.players) {
+  const activePlayersCount = Array.from(players.values()).filter(p => !p.isSpectator).length;
+  const opponentsCount = Math.max(0, activePlayersCount - 1);
+  const maxPoints = Number(settings.maxPoints) || 0;
+  if (settings.foreignReserveMode === 'per_opponent') {
+    const freeBudget = Math.max(0, Math.min(maxPoints, Math.floor(Number(settings.freePointsBudget) || 0)));
+    const quotaPerOpponent = opponentsCount > 0 ? Math.floor((maxPoints - freeBudget) / opponentsCount) : 0;
+    return { opponentsCount, quotaPerOpponent, effectiveFreePoints: maxPoints - quotaPerOpponent * opponentsCount };
+  }
+  return { opponentsCount, quotaPerOpponent: 0, effectiveFreePoints: maxPoints };
+}
+
+function getPerOpponentUsage(token, items = state.items) {
+  const byAuthor = new Map();
+  let ownSpent = 0;
+  for (const item of items) {
+    if (item.mergedInto) continue;
+    const points = Number(item.allocations[token]) || 0;
+    if (!points) continue;
+    if (item.createdByToken === token) ownSpent += points;
+    else byAuthor.set(item.createdByToken, (byAuthor.get(item.createdByToken) || 0) + points);
+  }
+  return { byAuthor, ownSpent };
+}
+
+function getPerOpponentFreeSpent(token, items = state.items, settings = state.settings, players = state.players) {
+  const { quotaPerOpponent } = getReserveAllocation(settings, players);
+  const { byAuthor, ownSpent } = getPerOpponentUsage(token, items);
+  let spent = ownSpent;
+  for (const points of byAuthor.values()) spent += Math.max(0, points - quotaPerOpponent);
+  return spent;
+}
+
 // Формируем персональное состояние для каждого игрока (без чужих очков в фазе POOL)
 function buildClientState(forToken) {
   const me = state.players.get(forToken);
@@ -94,6 +127,9 @@ function buildClientState(forToken) {
   }
 
   const isRevealed = state.phase === 'REVEAL' || state.phase === 'FINISHED';
+  const reserveAllocation = getReserveAllocation();
+  const myOpponentUsage = forToken ? getPerOpponentUsage(forToken) : { byAuthor: new Map(), ownSpent: 0 };
+  const myFreeSpent = forToken ? getPerOpponentFreeSpent(forToken) : 0;
   const activeReveal = isRevealed ? getActiveRevealItems() : [];
   const totalEffectivePoints = activeReveal.reduce((acc, it) => acc + getEffectivePoints(it), 0);
 
@@ -133,6 +169,7 @@ function buildClientState(forToken) {
           title: item.title,
           myPoints: myPts,
           isOwn,
+          opponentPointsUsed: myOpponentUsage.byAuthor.get(item.createdByToken) || 0,
           isSystem: Boolean(item.isSystem),
           isFreeSlot: Boolean(item.isFreeSlot),
           canDelete: isOwn,
@@ -231,6 +268,8 @@ function buildClientState(forToken) {
   return {
     phase: state.phase,
     settings: state.settings,
+    ...reserveAllocation,
+    effectiveFreeSpent: myFreeSpent,
     presetGroups: PRESET_GROUPS,
     presetCatalog: PRESET_CATALOG,
     hasHost: Boolean(state.hostToken && state.players.has(state.hostToken)),
@@ -354,5 +393,8 @@ module.exports = {
   buildClientState,
   normalizeItemTitle,
   addInitialItems,
-  importPoolItems
+  importPoolItems,
+  getReserveAllocation,
+  getPerOpponentUsage,
+  getPerOpponentFreeSpent
 };
