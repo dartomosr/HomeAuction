@@ -113,9 +113,14 @@ function buildClientState(forToken) {
   const isHostViewer = Boolean(me && me.isHost);
 
   const playersList = [];
+  const authorSlots = new Map();
+  let nextOpponentSlot = 1;
   for (const p of state.players.values()) {
+    if (!p.isSpectator && p.token !== forToken) authorSlots.set(p.token, nextOpponentSlot++);
     playersList.push({
       id: p.id,
+      authorKey: p.id,
+      authorSlot: !p.isSpectator && p.token !== forToken ? authorSlots.get(p.token) : 0,
       name: p.name,
       isHost: p.isHost,
       ready: p.ready,
@@ -130,6 +135,11 @@ function buildClientState(forToken) {
   const reserveAllocation = getReserveAllocation();
   const myOpponentUsage = forToken ? getPerOpponentUsage(forToken) : { byAuthor: new Map(), ownSpent: 0 };
   const myFreeSpent = forToken ? getPerOpponentFreeSpent(forToken) : 0;
+  for (const item of state.items) {
+    if (!authorSlots.has(item.createdByToken) && item.createdByToken !== forToken) {
+      authorSlots.set(item.createdByToken, nextOpponentSlot++);
+    }
+  }
   const activeReveal = isRevealed ? getActiveRevealItems() : [];
   const totalEffectivePoints = activeReveal.reduce((acc, it) => acc + getEffectivePoints(it), 0);
 
@@ -166,6 +176,8 @@ function buildClientState(forToken) {
       if (!isRevealed) {
         return {
           id: item.id,
+          authorKey: state.players.get(item.createdByToken)?.id || item.createdByToken,
+          authorSlot: item.createdByToken === forToken ? 0 : authorSlots.get(item.createdByToken),
           title: item.title,
           myPoints: myPts,
           isOwn,

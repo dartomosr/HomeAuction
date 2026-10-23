@@ -652,6 +652,76 @@
   gap: 12px;
 }
 
+.reserve-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.reserve-mode-row,
+.reserve-amount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reserve-mode-row select {
+  width: min(250px, 58%);
+}
+
+.reserve-amount-row input {
+  width: 65px;
+  flex: 0 0 65px;
+  text-align: right;
+}
+
+.reserve-preview {
+  margin: 0;
+  text-align: right;
+}
+
+.pool-author-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.pool-author-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 65%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-elevated));
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent-primary) 12%, transparent);
+}
+
+.pool-quota-badge {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.pool-author-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.pool-author-items:empty {
+  display: none;
+}
+
 .pool-item-count {
   display: inline-flex;
   min-width: 1.6em;

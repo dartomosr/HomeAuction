@@ -36,6 +36,8 @@ export const store = {
   poolFilter: ['all', 'own', 'others'].includes(readSetting('auction_pool_filter', 'all'))
     ? readSetting('auction_pool_filter', 'all')
     : 'all',
+  poolAuthorSlots: new Map(),
+  nextPoolAuthorSlot: 1,
   autoSpinActive: false,
   autoSpinTimer: null,
   activeSpinFrame: null,

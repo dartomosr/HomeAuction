@@ -271,7 +271,13 @@ function registerSocketHandlers(io) {
       }
 
       if (state.phase === 'POOL') {
-        const ownLimit = maxPoints - foreignOnlyPoints;
+        const activePlayers = Array.from(state.players.values()).filter(player => !player.isSpectator).length;
+        const opponents = Math.max(0, activePlayers - 1);
+        const opponentQuota = foreignReserveMode === 'per_opponent' && opponents > 0
+          ? Math.floor(foreignOnlyPoints / opponents) : 0;
+        const ownLimit = foreignReserveMode === 'per_opponent'
+          ? maxPoints - opponentQuota * opponents
+          : maxPoints - foreignOnlyPoints;
         for (const pToken of state.players.keys()) {
           let ownSpent = state.items.filter(it => !it.mergedInto && it.createdByToken === pToken)
             .reduce((sum, it) => sum + (it.allocations[pToken] || 0), 0);

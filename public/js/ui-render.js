@@ -8,27 +8,24 @@ import { showToast } from './ui-notifications.js';
 function updatePointsSplitPreview() {
   const total = Math.max(1, Number(dom.setMaxPoints.value) || 100);
   dom.setForeignOnly.max = total;
-  dom.setFreePointsBudget.max = total;
-  const perOpponent = dom.setReserveOpponent.checked;
-  dom.totalReserveGroup.classList.toggle('hidden', perOpponent);
-  dom.opponentReserveGroup.classList.toggle('hidden', !perOpponent);
+  const mode = dom.setReserveMode.value;
+  dom.reserveParameters.classList.toggle('hidden', mode === 'none');
   const activeCount = (store.appState?.players || []).filter(player => !player.isSpectator).length;
   const opponents = Math.max(0, activeCount - 1);
-  const freeBudget = Math.max(0, Math.min(total, Math.floor(Number(dom.setFreePointsBudget.value) || 0)));
-  const quota = opponents > 0 ? Math.floor((total - freeBudget) / opponents) : 0;
-  const effectiveFree = total - quota * opponents;
-  dom.opponentReservePreview.textContent = `Соперников: ${opponents} | Квота на каждого: ${quota} очков | Свободных: ${effectiveFree} очков`;
-  if (perOpponent) {
+  const requestedReserve = Math.max(0, Math.min(total, Math.floor(Number(dom.setForeignOnly.value) || 0)));
+  if (mode === 'per_opponent') {
+    const quota = opponents > 0 ? Math.floor(requestedReserve / opponents) : 0;
+    const foreignTotal = quota * opponents;
+    dom.pointsSplitPreview.textContent = `${opponents} соперников • по ${quota} очков на каждого (${foreignTotal} очков на чужих + ${total - foreignTotal} свободных)`;
     dom.setMinimumBid.max = total;
     if (Number(dom.setMinimumBid.value) > total) dom.setMinimumBid.value = String(total);
     return;
   }
-  const reserve = dom.setRestrictOwn.checked
-    ? Math.max(0, Math.min(total, Number(dom.setForeignOnly.value) || 0)) : 0;
+  const reserve = mode === 'total' ? requestedReserve : 0;
   const freePoints = total - reserve;
   dom.setMinimumBid.max = freePoints;
   if (Number(dom.setMinimumBid.value) > freePoints) dom.setMinimumBid.value = String(freePoints);
-  dom.pointsSplitPreview.textContent = `${total - reserve} очк. — на свои и чужие; ${reserve} очк. — только на чужие.`;
+  dom.pointsSplitPreview.textContent = `${reserve} очков на чужие • ${freePoints} свободных`;
 }
 
 function updateJoinPresetVisibility(state = store.appState) {
@@ -169,7 +166,6 @@ function renderSidebar(state) {
     if (document.activeElement !== dom.setMaxPoints &&
         document.activeElement !== dom.setMaxItems &&
         document.activeElement !== dom.setForeignOnly &&
-        document.activeElement !== dom.setFreePointsBudget &&
         document.activeElement !== dom.setMinimumBid &&
         document.activeElement !== dom.setZeroWeight) {
       dom.setMaxPoints.value = state.settings.maxPoints;
@@ -177,10 +173,10 @@ function renderSidebar(state) {
       dom.setMaxItems.value = state.settings.maxItems;
       dom.setAllowFreeAll.checked = Boolean(state.settings.allowFreeItemsForAll);
       dom.setAllowReactions.checked = Boolean(state.settings.allowReactions);
-      dom.setRestrictOwn.checked = state.settings.foreignReserveMode !== 'per_opponent';
-      dom.setReserveOpponent.checked = state.settings.foreignReserveMode === 'per_opponent';
+      dom.setReserveMode.value = !state.settings.restrictOwnPoints
+        ? 'none'
+        : state.settings.foreignReserveMode === 'per_opponent' ? 'per_opponent' : 'total';
       dom.setForeignOnly.value = state.settings.foreignOnlyPoints || 0;
-      dom.setFreePointsBudget.value = state.settings.freePointsBudget ?? 20;
       updatePointsSplitPreview();
       dom.setKeepZero.checked = state.settings.keepZeroItems;
       dom.setZeroWeight.value = state.settings.zeroItemWeight;
@@ -264,17 +260,38 @@ function renderPoolView(state) {
     if (store.poolFilter === 'others') return !item.isOwn;
     return true;
   });
-  if (state.settings.allowReactions) {
-    visibleItems = visibleItems
-      .map((item, index) => ({ item, index }))
-      .sort((a, b) =>
-        (b.item.reactionScore - a.item.reactionScore) ||
-        (b.item.upvotes - a.item.upvotes) ||
-        (a.index - b.index)
-      )
-      .map(({ item }) => item);
+  const sortByReaction = (items) => state.settings.allowReactions
+    ? items.map((item, index) => ({ item, index }))
+      .sort((a, b) => (b.item.reactionScore - a.item.reactionScore) ||
+        (b.item.upvotes - a.item.upvotes) || (a.index - b.index))
+      .map(({ item }) => item)
+    : items;
+  const grouped = state.settings.foreignReserveMode === 'per_opponent';
+  let renderGroups;
+  if (grouped) {
+    const slotForAuthor = (key) => {
+      if (!store.poolAuthorSlots.has(key)) {
+        store.poolAuthorSlots.set(key, store.nextPoolAuthorSlot++);
+      }
+      return store.poolAuthorSlots.get(key);
+    };
+    const opponents = (state.players || []).filter(player => !player.isSpectator && !player.isMe)
+      .map(player => ({ ...player, displaySlot: slotForAuthor(player.authorKey) }))
+      .sort((a, b) => a.displaySlot - b.displaySlot);
+    const groups = new Map([[0, { title: 'Мои варианты', items: [], own: true }]]);
+    opponents.forEach(player => groups.set(player.displaySlot, {
+      title: `Игрок ${player.displaySlot}`, items: [], own: false, slot: player.displaySlot
+    }));
+    visibleItems.forEach(item => {
+      const slot = item.isOwn ? 0 : slotForAuthor(item.authorKey);
+      if (!groups.has(slot)) groups.set(slot, { title: `Игрок ${slot}`, items: [], own: false, slot });
+      groups.get(slot).items.push(item);
+    });
+    renderGroups = [...groups.values()];
+  } else {
+    renderGroups = [{ items: sortByReaction(visibleItems) }];
   }
-  if (visibleItems.length === 0) {
+  if (!grouped && visibleItems.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted-text';
     empty.textContent = state.items.length === 0
@@ -290,7 +307,36 @@ function renderPoolView(state) {
     return;
   }
 
-  visibleItems.forEach((item) => {
+  for (const group of renderGroups) {
+    let groupContainer = dom.poolItemsList;
+    if (grouped) {
+      const section = document.createElement('section');
+      section.className = `pool-author-group${group.own ? ' is-own-group' : ''}`;
+      const heading = document.createElement('div');
+      heading.className = 'pool-author-heading';
+      const title = document.createElement('span');
+      title.textContent = group.own
+        ? `Мои варианты (свободных очков: ${state.effectiveFreePoints - state.effectiveFreeSpent})`
+        : group.title;
+      heading.appendChild(title);
+      if (!group.own) {
+        const used = group.items.reduce((max, item) => Math.max(max, item.opponentPointsUsed || 0), 0);
+        const remaining = Math.max(0, state.quotaPerOpponent - used);
+        const badge = document.createElement('span');
+        badge.className = 'pool-quota-badge';
+        badge.textContent = used > state.quotaPerOpponent
+          ? 'Осталось: 0 (тратятся свободные)'
+          : `Осталось: ${remaining} очков`;
+        heading.appendChild(badge);
+      }
+      section.appendChild(heading);
+      groupContainer = document.createElement('div');
+      groupContainer.className = 'pool-author-items';
+      section.appendChild(groupContainer);
+      dom.poolItemsList.appendChild(section);
+    }
+    const groupItems = grouped ? sortByReaction(group.items) : group.items;
+    for (const item of groupItems) {
     const card = document.createElement('div');
     card.className = `pool-item-card ${item.myPoints > 0 ? 'has-my-points' : ''}`;
     card.dataset.itemId = item.id;
@@ -376,8 +422,8 @@ function renderPoolView(state) {
     }
 
     if (isSpectator) {
-      dom.poolItemsList.appendChild(card);
-      return;
+      groupContainer.appendChild(card);
+      continue;
     }
 
     const controls = document.createElement('div');
@@ -388,7 +434,20 @@ function renderPoolView(state) {
     const allowedByOwnership = item.canDelete
       ? Math.max(0, ownLimit - (state.me.mySpentOwnPoints - item.myPoints))
       : state.settings.maxPoints;
-    const maxPossibleForThisItem = Math.max(0, Math.min(item.myPoints + state.me.remainingPoints, allowedByOwnership));
+    let maxPossibleForThisItem = Math.max(0, Math.min(item.myPoints + state.me.remainingPoints, allowedByOwnership));
+    if (state.settings.foreignReserveMode === 'per_opponent') {
+      const freeRemaining = Math.max(0, state.effectiveFreePoints - state.effectiveFreeSpent);
+      const authorQuotaRemaining = item.isOwn
+        ? 0
+        : Math.max(0, state.quotaPerOpponent - (item.opponentPointsUsed || 0));
+      const additionalCapacity = item.isOwn
+        ? freeRemaining
+        : authorQuotaRemaining + freeRemaining;
+      maxPossibleForThisItem = Math.max(item.myPoints, Math.min(
+        item.myPoints + state.me.remainingPoints,
+        item.myPoints + additionalCapacity
+      ));
+    }
 
     const makeStepBtn = (label, delta) => {
       const b = document.createElement('button');
@@ -414,7 +473,14 @@ function renderPoolView(state) {
     slider.type = 'range';
     slider.className = 'pts-slider';
     slider.min = 0;
-    slider.max = maxPossibleForThisItem;
+    const reserveMode = !state.settings.restrictOwnPoints
+      ? 'none'
+      : state.settings.foreignReserveMode === 'per_opponent' ? 'per_opponent' : 'total';
+    slider.max = reserveMode === 'per_opponent'
+      ? maxPossibleForThisItem
+      : item.canDelete && reserveMode === 'total'
+        ? Math.max(0, state.settings.maxPoints - state.settings.foreignOnlyPoints)
+        : state.settings.maxPoints;
     slider.value = item.myPoints;
     slider.disabled = isLocked;
     slider.addEventListener('input', () => {
@@ -448,8 +514,9 @@ function renderPoolView(state) {
     controls.appendChild(makeStepBtn('+10', 10));
 
     card.appendChild(controls);
-    dom.poolItemsList.appendChild(card);
-  });
+    groupContainer.appendChild(card);
+    }
+  }
 
   if (!dom.motionReduced.matches && oldPositions.size > 0) {
     const movedCards = [];

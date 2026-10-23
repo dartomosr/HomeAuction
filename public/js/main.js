@@ -453,12 +453,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-dom.setRestrictOwn.addEventListener('change', () => {
-  updatePointsSplitPreview();
-});
-dom.setReserveOpponent.addEventListener('change', updatePointsSplitPreview);
+dom.setReserveMode.addEventListener('change', updatePointsSplitPreview);
 dom.setForeignOnly.addEventListener('input', updatePointsSplitPreview);
-dom.setFreePointsBudget.addEventListener('input', updatePointsSplitPreview);
 dom.setMaxPoints.addEventListener('input', updatePointsSplitPreview);
 dom.setKeepZero.addEventListener('change', () => {
   dom.zeroWeightGroup.classList.toggle('hidden', !dom.setKeepZero.checked);
@@ -481,10 +477,12 @@ dom.hostSettingsForm.addEventListener('submit', (e) => {
     maxItems: Number(dom.setMaxItems.value),
     allowFreeItemsForAll: dom.setAllowFreeAll.checked,
     allowReactions: dom.setAllowReactions.checked,
-    restrictOwnPoints: dom.setRestrictOwn.checked,
+    restrictOwnPoints: dom.setReserveMode.value !== 'none',
     foreignOnlyPoints: Number(dom.setForeignOnly.value),
-    foreignReserveMode: dom.setReserveOpponent.checked ? 'per_opponent' : 'total',
-    freePointsBudget: Number(dom.setFreePointsBudget.value),
+    foreignReserveMode: dom.setReserveMode.value === 'per_opponent' ? 'per_opponent' : 'total',
+    freePointsBudget: dom.setReserveMode.value === 'per_opponent'
+      ? Math.max(0, Number(dom.setMaxPoints.value) - Number(dom.setForeignOnly.value))
+      : Number(dom.setMaxPoints.value),
     keepZeroItems: dom.setKeepZero.checked,
     zeroItemWeight: Number(dom.setZeroWeight.value)
   });
