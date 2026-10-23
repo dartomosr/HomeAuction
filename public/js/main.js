@@ -2,9 +2,10 @@ import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
-import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea } from './ui-render.js';
+import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea, initializeMobileBottomSheets } from './ui-render.js';
 import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
 import { getInitialItems } from './saves.js';
+import { triggerHaptic } from './haptics.js';
 import { createRandomModeFlow, createSpinPlan, createPresetDraft, filterEnabledPresets, getPresetGroupState, loadPresetIds, RANDOM_PRESET_STORAGE_KEY } from './random-mode.js';
 
 if (window.matchMedia('(max-width: 768px)').matches) {
@@ -16,6 +17,7 @@ if (window.matchMedia('(max-width: 768px)').matches) {
 }
 
 if (store.myName) dom.inputName.value = store.myName;
+initializeMobileBottomSheets();
 dom.inputSpectator.checked = store.isSpectator;
 updateJoinPresetVisibility();
 initSocketClient();
@@ -586,10 +588,12 @@ dom.btnClearPoints.addEventListener('click', () => {
 
 // Готовность
 dom.btnReady.addEventListener('click', () => {
+  triggerHaptic(store.appState && !store.appState.me.ready ? 'success' : 'light');
   if (store.soundEnabled) initAudio();
   playUiReadySound(Boolean(store.appState && !store.appState.me.ready));
   socket.emit('toggle_ready');
 });
+dom.btnReadyMobile.addEventListener('click', () => dom.btnReady.click());
 
 dom.btnMerge.addEventListener('click', () => {
   const sourceId = dom.mergeSource.value;
@@ -617,11 +621,13 @@ for (const [button, step] of [[dom.durationMinus, -5], [dom.durationPlus, 5]]) {
   });
 }
 dom.btnSpinWheel.addEventListener('click', () => {
+  triggerHaptic('medium');
   initAudio();
   if (!store.activeElimination) socket.emit('spin_wheel');
 });
 
 dom.btnAutoSpin.addEventListener('click', () => {
+  triggerHaptic('medium');
   initAudio();
   store.autoSpinActive = !store.autoSpinActive;
   dom.btnAutoSpin.textContent = store.autoSpinActive ? 'Остановить авто-крутку' : 'Авто-крутка до победителя';

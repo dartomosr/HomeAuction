@@ -8,6 +8,8 @@
 }
 
 body {
+  box-sizing: border-box;
+  padding: 0;
   background-color: var(--bg-main);
   background-image: var(--bg-pattern);
   background-size: var(--bg-pattern-size);
@@ -33,6 +35,10 @@ body {
    3. ШАПКА САЙТА (TOPBAR)
    ========================================================= */
 .topbar {
+  width: 100%;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -453,6 +459,8 @@ input[type="checkbox"]:disabled {
     position: static;
     gap: 8px;
     padding: 10px 12px;
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
   }
 
   .topbar-left,
@@ -492,6 +500,8 @@ input[type="checkbox"]:disabled {
   .join-wrapper {
     min-height: 0;
     padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
   }
 
   .join-card {

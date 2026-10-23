@@ -103,7 +103,7 @@ function resizeWheelCanvas() {
     store.activeElimination = null;
     dom.wheelStage.classList.remove('is-eliminating');
   }
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const ratio = window.devicePixelRatio || 1;
   const pixels = Math.round(side * ratio);
   if (dom.wheelCanvas.width !== pixels || dom.wheelCanvas.height !== pixels || store.wheelPixelRatio !== ratio) {
     dom.wheelCanvas.width = pixels;

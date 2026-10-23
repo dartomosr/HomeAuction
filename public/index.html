@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="anime">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Аукцион на выбывание</title>
   <link rel="icon" href="/icon.webp" type="image/webp" />
   <!-- Шрифты под разные стили -->
@@ -177,10 +177,18 @@
 
   <!-- Основной интерфейс аукциона -->
   <div id="screen-app" class="app-layout hidden">
+    <div class="mobile-sidebar-triggers">
+      <button type="button" id="mobile-open-players" class="mobile-sidebar-trigger" aria-controls="sheet-players" aria-expanded="false">
+        👥 <span id="mobile-players-trigger">0 / 0 готовы</span>
+      </button>
+      <button type="button" id="mobile-open-settings" class="mobile-sidebar-trigger hidden" aria-controls="sheet-settings" aria-expanded="false">
+        ⚙️ <span id="mobile-settings-trigger">Правила</span>
+      </button>
+    </div>
     <!-- Левая колонка: Участники и Настройки Хоста -->
     <aside class="sidebar">
       <!-- Список участников -->
-      <section class="card">
+      <section id="sidebar-players-panel" class="card">
         <div class="card-header-strip">
           <span>УЧАСТНИКИ</span>
           <span id="ready-counter">0 / 0 готовы</span>
@@ -192,7 +200,7 @@
       </section>
 
       <!-- Панель настроек (видна только Хосту, а остальным — в режиме чтения) -->
-      <section class="card">
+      <section id="sidebar-settings-panel" class="card">
         <div class="card-header-strip">
           <span>ПРАВИЛА И НАСТРОЙКИ</span>
         </div>
@@ -372,6 +380,14 @@
           </div>
         </div>
 
+        <div id="mobile-pool-dock" class="mobile-pool-dock hidden" aria-label="Баланс и готовность">
+          <div class="mobile-dock-balance">
+            <div class="mobile-dock-free-line"><span id="mobile-free-label">Осталось:</span> <strong id="mobile-free-pts">0</strong></div>
+            <div id="mobile-foreign-line" class="mobile-dock-foreign hidden">Соперникам: <strong id="mobile-foreign-pts">0</strong></div>
+          </div>
+          <button type="button" id="btn-ready-mobile" class="btn btn-primary btn-ready mobile-ready-button">Я ГОТОВ</button>
+        </div>
+
         <!-- Добавление нового варианта в общий список -->
         <div class="card add-item-card">
           <form id="form-add-item" class="add-item-form">
@@ -385,7 +401,7 @@
             />
             <div class="add-item-buttons">
               <button type="submit" id="btn-add-item" class="btn btn-secondary">
-                + ДОБАВИТЬ ВАРИАНТ
+                + Добавить
               </button>
               <button type="button" id="btn-add-free-item" class="btn btn-outline btn-free-add hidden" title="Добавить вариант бесплатно (без увеличения вашего счётчика лимита)">
                 + ДОП (ВНЕ ЛИМИТА)
@@ -519,6 +535,26 @@
         </div>
       </section>
     </main>
+
+    <div id="sheet-players" class="bottom-sheet" aria-hidden="true" inert>
+      <div class="bottom-sheet-content" role="dialog" aria-modal="true" aria-label="Участники">
+        <div class="bottom-sheet-header">
+          <span class="bottom-sheet-handle" aria-hidden="true"></span>
+          <button type="button" class="bottom-sheet-close" data-sheet-close aria-label="Закрыть участников">✕</button>
+        </div>
+        <div id="sheet-players-slot" class="bottom-sheet-slot"></div>
+      </div>
+    </div>
+
+    <div id="sheet-settings" class="bottom-sheet" aria-hidden="true" inert>
+      <div class="bottom-sheet-content" role="dialog" aria-modal="true" aria-label="Правила комнаты">
+        <div class="bottom-sheet-header">
+          <span class="bottom-sheet-handle" aria-hidden="true"></span>
+          <button type="button" class="bottom-sheet-close" data-sheet-close aria-label="Закрыть правила">✕</button>
+        </div>
+        <div id="sheet-settings-slot" class="bottom-sheet-slot"></div>
+      </div>
+    </div>
   </div>
 
   <button id="btn-help" type="button" class="btn help-floating-btn hidden" aria-label="Как пользоваться приложением" title="Как пользоваться приложением">?</button>

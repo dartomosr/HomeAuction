@@ -4,6 +4,7 @@ import { ELIMINATION_EFFECTS, THEME_WHEEL_PALETTES } from './constants.js';
 import { initAudio, playUiClickSound, playUiSliderSound } from './audio.js';
 import { renderAllItemsModal } from './ui-modals.js';
 import { showToast } from './ui-notifications.js';
+import { triggerHaptic } from './haptics.js';
 
 function updatePointsSplitPreview() {
   const total = Math.max(1, Number(dom.setMaxPoints.value) || 100);
@@ -93,6 +94,8 @@ function renderSidebar(state) {
   const activePlayers = state.players.filter((p) => !p.isSpectator);
   const readyCount = activePlayers.filter((p) => p.ready).length;
   dom.readyCounterEl.textContent = `${readyCount} / ${activePlayers.length} готовы`;
+  dom.mobilePlayersLabel.textContent = `${readyCount} / ${activePlayers.length} готовы`;
+  dom.mobileOpenSettings.classList.toggle('hidden', !state.me.isHost);
   dom.mySpectatorBadge.classList.toggle('hidden', !state.me.isSpectator);
 
   dom.playersListEl.innerHTML = '';
@@ -187,6 +190,59 @@ function renderSidebar(state) {
   }
 }
 
+function initializeMobileBottomSheets() {
+  const media = window.matchMedia('(max-width: 640px)');
+  const sheets = [dom.sheetPlayers, dom.sheetSettings];
+  const placePanels = () => {
+    if (media.matches) {
+      dom.sheetPlayersSlot.append(dom.sidebarPlayersPanel);
+      dom.sheetSettingsSlot.append(dom.sidebarSettingsPanel);
+    } else {
+      dom.sidebar.append(dom.sidebarPlayersPanel, dom.sidebarSettingsPanel);
+    }
+  };
+  const closeSheet = (sheet, restoreFocus = true) => {
+    if (!sheet.classList.contains('is-open')) return;
+    sheet.classList.remove('is-open');
+    sheet.setAttribute('aria-hidden', 'true');
+    sheet.inert = true;
+    const trigger = document.getElementById(sheet.dataset.triggerId);
+    trigger?.setAttribute('aria-expanded', 'false');
+    delete sheet.dataset.triggerId;
+    if (!sheets.some((candidate) => candidate.classList.contains('is-open'))) {
+      document.body.classList.remove('bottom-sheet-open');
+    }
+    if (restoreFocus && media.matches) trigger?.focus();
+  };
+  const openSheet = (sheet, trigger) => {
+    if (!media.matches || trigger.classList.contains('hidden')) return;
+    sheets.forEach((candidate) => closeSheet(candidate, false));
+    sheet.inert = false;
+    sheet.setAttribute('aria-hidden', 'false');
+    sheet.dataset.triggerId = trigger.id;
+    sheet.classList.add('is-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('bottom-sheet-open');
+    sheet.querySelector('[data-sheet-close]')?.focus();
+  };
+  placePanels();
+  media.addEventListener('change', () => {
+    sheets.forEach((sheet) => closeSheet(sheet, false));
+    placePanels();
+  });
+  dom.mobileOpenPlayers.addEventListener('click', () => openSheet(dom.sheetPlayers, dom.mobileOpenPlayers));
+  dom.mobileOpenSettings.addEventListener('click', () => openSheet(dom.sheetSettings, dom.mobileOpenSettings));
+  sheets.forEach((sheet) => {
+    sheet.querySelector('[data-sheet-close]').addEventListener('click', () => closeSheet(sheet));
+    sheet.addEventListener('click', (event) => {
+      if (event.target === sheet) closeSheet(sheet);
+    });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') sheets.forEach((sheet) => closeSheet(sheet));
+  });
+}
+
 function renderMainArea(state) {
   if (state.phase === 'POOL') {
     dom.viewPool.classList.remove('hidden');
@@ -200,12 +256,58 @@ function renderMainArea(state) {
   }
 }
 
+function renderMobileDock(state, override = null) {
+  const maxPoints = Number(state.settings.maxPoints) || 0;
+  const mode = state.settings.foreignReserveMode;
+  const totalReserve = state.settings.restrictOwnPoints && mode === 'total'
+    ? Math.max(0, Number(state.settings.foreignOnlyPoints) || 0)
+    : 0;
+  const hasReserve = mode === 'per_opponent' || totalReserve > 0;
+  let ownSpent = 0;
+  let foreignSpent = 0;
+  const spentByAuthor = new Map();
+
+  for (const item of state.items) {
+    const points = override?.itemId === item.id ? override.points : Number(item.myPoints) || 0;
+    if (item.isOwn) {
+      ownSpent += points;
+    } else {
+      foreignSpent += points;
+      const author = item.authorKey || item.id;
+      spentByAuthor.set(author, (spentByAuthor.get(author) || 0) + points);
+    }
+  }
+
+  const remaining = Math.max(0, maxPoints - ownSpent - foreignSpent);
+  let freeRemaining = remaining;
+  let foreignRemaining = 0;
+  if (mode === 'per_opponent') {
+    const quota = Math.max(0, Number(state.quotaPerOpponent) || 0);
+    const reserveUsed = [...spentByAuthor.values()].reduce((sum, spent) => sum + Math.min(quota, spent), 0);
+    const freeSpent = ownSpent + [...spentByAuthor.values()].reduce((sum, spent) => sum + Math.max(0, spent - quota), 0);
+    freeRemaining = Math.max(0, (Number(state.effectiveFreePoints) || 0) - freeSpent);
+    foreignRemaining = Math.max(0, (Number(state.opponentsCount) || 0) * quota - reserveUsed);
+  } else if (totalReserve > 0) {
+    const freeBudget = Math.max(0, maxPoints - totalReserve);
+    freeRemaining = Math.max(0, freeBudget - ownSpent - Math.max(0, foreignSpent - totalReserve));
+    foreignRemaining = Math.max(0, totalReserve - foreignSpent);
+  }
+
+  dom.myRemainingPointsEl.textContent = remaining;
+  dom.mobileFreeLabel.textContent = hasReserve ? 'Свободно:' : 'Осталось:';
+  dom.mobileFreePoints.textContent = hasReserve ? freeRemaining : remaining;
+  dom.mobileForeignPoints.textContent = foreignRemaining;
+  dom.mobileForeignLine.classList.toggle('hidden', !hasReserve);
+}
+
 function renderPoolView(state) {
   const isSpectator = Boolean(state.me.isSpectator);
   dom.poolDashboard.classList.toggle('hidden', isSpectator);
+  dom.mobilePoolDock.classList.toggle('hidden', isSpectator);
   dom.addItemCard.classList.toggle('hidden', isSpectator);
 
   dom.myRemainingPointsEl.textContent = state.me.remainingPoints;
+  renderMobileDock(state);
   dom.myMaxPointsEl.textContent = state.settings.maxPoints;
   dom.myItemsCountEl.textContent = state.me.myItemsCount;
   dom.myMaxItemsEl.textContent = state.settings.maxItems;
@@ -241,6 +343,8 @@ function renderPoolView(state) {
 
   dom.btnReady.textContent = isLocked ? '✓ ВЫ ГОТОВЫ (ОТМЕНИТЬ)' : 'Я ГОТОВ';
   dom.btnReady.classList.toggle('is-ready', isLocked);
+  dom.btnReadyMobile.textContent = isLocked ? '✓ ГОТОВЫ' : 'Я ГОТОВ';
+  dom.btnReadyMobile.classList.toggle('is-ready', isLocked);
 
   dom.poolItemCount.textContent = state.items.length;
   dom.poolItemFilters.querySelectorAll('[data-pool-filter]').forEach((button) => {
@@ -341,8 +445,12 @@ function renderPoolView(state) {
     card.className = `pool-item-card ${item.myPoints > 0 ? 'has-my-points' : ''}`;
     card.dataset.itemId = item.id;
 
+    const header = document.createElement('div');
+    header.className = 'pool-item-header';
     const left = document.createElement('div');
     left.className = 'pool-item-left';
+    const actions = document.createElement('div');
+    actions.className = 'pool-item-actions';
 
     const titleSpan = document.createElement('span');
     titleSpan.className = 'pool-item-title';
@@ -364,7 +472,8 @@ function renderPoolView(state) {
       left.appendChild(freeBadge);
     }
 
-    card.appendChild(left);
+    header.append(left, actions);
+    card.appendChild(header);
     if (state.settings.allowReactions) {
       const reactions = document.createElement('div');
       reactions.className = 'item-reactions';
@@ -384,6 +493,7 @@ function renderPoolView(state) {
             `${item.myReaction === type ? 'Снять' : 'Поставить'} ${type === 'up' ? 'положительную' : 'отрицательную'} реакцию`
           );
           reactionButton.addEventListener('click', () => {
+            triggerHaptic('light');
             if (store.soundEnabled) initAudio();
             playUiClickSound();
             store.socket.emit('toggle_reaction', { itemId: item.id, type });
@@ -391,7 +501,7 @@ function renderPoolView(state) {
         }
         reactions.appendChild(reactionButton);
       }
-      card.appendChild(reactions);
+      actions.appendChild(reactions);
     }
 
     // 1) Свой вариант: обычный красный крестик ✕
@@ -404,7 +514,7 @@ function renderPoolView(state) {
       delBtn.addEventListener('click', () => {
         store.socket.emit('delete_item', { itemId: item.id });
       });
-      left.appendChild(delBtn);
+      actions.appendChild(delBtn);
     }
     // 2) Чужой вариант (для Хоста): другой значок ⊘ Хост с пунктирной рамкой
     else if (!isSpectator && item.canHostDelete) {
@@ -418,7 +528,7 @@ function renderPoolView(state) {
           store.socket.emit('delete_item', { itemId: item.id });
         }
       });
-      left.appendChild(hostDelBtn);
+      actions.appendChild(hostDelBtn);
     }
 
     if (isSpectator) {
@@ -449,18 +559,24 @@ function renderPoolView(state) {
       ));
     }
 
-    const makeStepBtn = (label, delta) => {
+    const makeStepBtn = (label, delta, reset = false, stepClass = '') => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn btn-sm';
+      b.className = `btn btn-sm pool-step-btn ${stepClass}${reset ? ' pool-reset-btn' : ''}`;
       b.textContent = label;
       b.disabled = isLocked;
       b.addEventListener('click', () => {
+        triggerHaptic(reset || Math.abs(delta) >= 10 ? 'medium' : 'light');
         initAudio();
         playUiSliderSound();
-        let points = Math.max(0, item.myPoints + delta);
-        if (points > 0 && points < minimumBid) points = delta < 0 ? 0 : minimumBid;
-        if (points > maxPossibleForThisItem) points = 0;
+        let points = reset ? 0 : Math.max(0, (Number(numInput.value) || 0) + delta);
+        if (!reset) points = Math.min(points, maxPossibleForThisItem);
+        if (!reset && points > 0 && points < minimumBid) {
+          points = delta < 0 ? 0 : minimumBid <= maxPossibleForThisItem ? minimumBid : 0;
+        }
+        numInput.value = points;
+        slider.value = points;
+        renderMobileDock(state, { itemId: item.id, points });
         store.socket.emit('set_points', {
           itemId: item.id,
           points
@@ -490,8 +606,10 @@ function renderPoolView(state) {
       if (clamped > 0 && clamped < minimumBid) clamped = minimumBid <= maxPossibleForThisItem ? minimumBid : 0;
       slider.value = clamped;
       numInput.value = clamped;
+      renderMobileDock(state, { itemId: item.id, points: clamped });
     });
     slider.addEventListener('change', () => {
+      triggerHaptic('light');
       store.socket.emit('set_points', { itemId: item.id, points: Number(slider.value) });
     });
 
@@ -502,16 +620,36 @@ function renderPoolView(state) {
     numInput.max = maxPossibleForThisItem;
     numInput.value = item.myPoints;
     numInput.disabled = isLocked;
+    numInput.addEventListener('input', () => {
+      let preview = Math.max(0, Math.min(Number(numInput.value) || 0, maxPossibleForThisItem));
+      if (preview > 0 && preview < minimumBid) preview = minimumBid <= maxPossibleForThisItem ? minimumBid : 0;
+      renderMobileDock(state, { itemId: item.id, points: preview });
+    });
     numInput.addEventListener('change', () => {
-      store.socket.emit('set_points', { itemId: item.id, points: Number(numInput.value) });
+      triggerHaptic('light');
+      let points = Math.max(0, Math.min(Number(numInput.value) || 0, maxPossibleForThisItem));
+      if (points > 0 && points < minimumBid) points = minimumBid <= maxPossibleForThisItem ? minimumBid : 0;
+      numInput.value = points;
+      slider.value = points;
+      renderMobileDock(state, { itemId: item.id, points });
+      store.socket.emit('set_points', { itemId: item.id, points });
     });
 
-    controls.appendChild(makeStepBtn('-10', -10));
-    controls.appendChild(makeStepBtn('-1', -1));
-    controls.appendChild(slider);
-    controls.appendChild(numInput);
-    controls.appendChild(makeStepBtn('+1', 1));
-    controls.appendChild(makeStepBtn('+10', 10));
+    slider.classList.add('stake-slider');
+    numInput.classList.add('stake-value');
+    const stakeRow = document.createElement('div');
+    stakeRow.className = 'pool-stake-row';
+    stakeRow.append(slider, numInput);
+    const quickActions = document.createElement('div');
+    quickActions.className = 'pool-quick-actions';
+    quickActions.append(
+      makeStepBtn('-10', -10, false, 'step-minus-10'),
+      makeStepBtn('-1', -1, false, 'step-minus-1'),
+      makeStepBtn('0', 0, true, 'step-reset'),
+      makeStepBtn('+1', 1, false, 'step-plus-1'),
+      makeStepBtn('+10', 10, false, 'step-plus-10')
+    );
+    controls.append(stakeRow, quickActions);
 
     card.appendChild(controls);
     groupContainer.appendChild(card);
@@ -697,6 +835,6 @@ function renderRevealView(state) {
   }
 }
 
-export { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, renderSidebar, renderMainArea, renderPoolView, renderRevealView, showToast };
+export { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, renderSidebar, renderMainArea, renderPoolView, renderRevealView, showToast, initializeMobileBottomSheets };
 export { openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary } from './ui-modals.js';
 export { renderAllItemsModal };
