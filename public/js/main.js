@@ -83,14 +83,28 @@ function createPresetButton(preset, selectedId) {
 
   const title = document.createElement('strong');
   title.textContent = preset.name;
+  if (preset.subtitle) {
+    const badge = document.createElement('span');
+    badge.className = 'preset-option-badge';
+    badge.textContent = preset.subtitle;
+    button.appendChild(badge);
+  }
+  if (preset.description) {
+    const description = document.createElement('span');
+    description.className = 'preset-option-description';
+    description.textContent = preset.description;
+    button.appendChild(description);
+  }
   const details = document.createElement('ul');
   details.className = 'preset-option-details';
-  for (const value of getPresetDetails(preset.settings)) {
+  const presetDetails = Array.isArray(preset.features) ? preset.features : getPresetDetails(preset.settings);
+  for (const value of presetDetails) {
     const detail = document.createElement('li');
     detail.textContent = value;
     details.append(detail);
   }
-  button.append(title, details);
+  button.prepend(title);
+  button.append(details);
   return button;
 }
 

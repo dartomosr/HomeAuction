@@ -114,6 +114,22 @@ describe('isolated backend unit checks', () => {
     assert.equal(ROOM_PRESETS.chaos.zeroItemWeight, 5);
     assert.equal(ROOM_PRESETS.chaos.allowFreeItemsForAll, false);
     assert.equal(ROOM_PRESETS.chaos.allowReactions, true);
+    assert.equal(ROOM_PRESETS.investor.maxPoints, 100);
+    assert.equal(ROOM_PRESETS.investor.maxItems, 5);
+    assert.equal(ROOM_PRESETS.investor.foreignReserveMode, 'per_opponent');
+    assert.equal(ROOM_PRESETS.investor.foreignOnlyPoints, 60);
+    assert.equal(ROOM_PRESETS.investor.freePointsBudget, 40);
+    assert.equal(ROOM_PRESETS.investor.allowReactions, true);
+    assert.equal(ROOM_PRESETS.investor.keepZeroItems, false);
+    assert.equal(ROOM_PRESETS.investor.allowFreeItemsForAll, false);
+    const investorCatalogEntry = PRESET_CATALOG.find(preset => preset.id === 'investor');
+    assert.equal(investorCatalogEntry.group, 'experimental');
+    assert.deepEqual(investorCatalogEntry.features, [
+      '100 очков',
+      '5 лотов',
+      '40/60 резерв поровну',
+      'Реакции'
+    ]);
   });
 
   test('catalog registers the stable all-or-nothing preset without copying base rules', () => {
@@ -445,6 +461,21 @@ describe('socket handler scenarios', () => {
     host.receive('set_points', { itemId: first.id, points: 0 });
     assert.equal(first.allocations.host, undefined);
     assert.equal(ROOM_PRESETS.basic.minimumBid, 0);
+  });
+
+  test('investor preset applies 40 free points and equal 60-point opponent reserve on host join', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('socket-host');
+    join(host, 'host', 'Host', { preset: 'investor' });
+
+    assert.equal(state.settings.maxPoints, 100);
+    assert.equal(state.settings.maxItems, 5);
+    assert.equal(state.settings.foreignReserveMode, 'per_opponent');
+    assert.equal(state.settings.foreignOnlyPoints, 60);
+    assert.equal(state.settings.freePointsBudget, 40);
+    assert.equal(state.settings.allowReactions, true);
+    assert.equal(state.settings.keepZeroItems, false);
+    assert.equal(state.settings.allowFreeItemsForAll, false);
   });
 
   test('validates minimum bid against the flexible budget and rejects invalid values atomically', () => {

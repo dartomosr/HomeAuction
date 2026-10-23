@@ -39,6 +39,29 @@ const PRESET_CATALOG = Object.freeze([
     })
   }),
   Object.freeze({
+    id: 'investor',
+    name: 'Инвестор',
+    group: 'experimental',
+    features: Object.freeze([
+      '100 очков',
+      '5 лотов',
+      '40/60 резерв поровну',
+      'Реакции'
+    ]),
+    settings: Object.freeze({
+      ...DEFAULT_SETTINGS,
+      maxPoints: 100,
+      maxItems: 5,
+      restrictOwnPoints: true,
+      foreignOnlyPoints: 60,
+      foreignReserveMode: 'per_opponent',
+      freePointsBudget: 40,
+      allowReactions: true,
+      keepZeroItems: false,
+      allowFreeItemsForAll: false
+    })
+  }),
+  Object.freeze({
     id: 'chaos',
     name: 'Хаос',
     group: 'standard',
