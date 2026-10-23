@@ -7,6 +7,7 @@ const {
   CLOUDFLARE_START_TIMEOUT_MS,
   CLOUDFLARE_ADDRESS_TIMEOUT_MS,
   CLOUDFLARE_RECOVERY_TIMEOUT_MS,
+  PUBLIC_HEALTHCHECK_TIMEOUT_MS,
   classifyTunnelLine,
   createLineBuffer,
   normalizeProtocol,
@@ -14,10 +15,79 @@ const {
   buildTunnelArgs,
   mergeGoDebug,
   cloudflareFailureReason,
-  createTunnelFlow
+  createTunnelFlow,
+  getLocalIPv4,
+  startPublicHealthcheck
 } = require('../desktop/tunnel-utils');
+const { makeQrSvg, qrMatrix } = require('../desktop/ui/qr');
 
 describe('desktop Cloudflare tunnel flow', () => {
+  test('selects a non-internal physical LAN IPv4 and skips loopback and virtual adapters', () => {
+    assert.equal(getLocalIPv4({
+      'VirtualBox Host-Only Network': [{ address: '192.168.56.1', family: 'IPv4', internal: false }],
+      'Loopback Pseudo-Interface': [{ address: '127.0.0.1', family: 4, internal: true }],
+      Ethernet: [{ address: '8.8.8.8', family: 'IPv4', internal: false }],
+      'Wi-Fi': [{ address: '192.168.1.42', family: 4, internal: false }]
+    }), '192.168.1.42');
+    assert.equal(getLocalIPv4({ 'vEthernet (WSL)': [{ address: '172.20.0.1', family: 'IPv4', internal: false }] }), '');
+  });
+
+  test('starts a bounded public healthcheck without waiting or changing tunnel status', () => {
+    const request = new EventEmitter();
+    request.destroy = () => {};
+    const timers = new Map();
+    let timerId = 0;
+    const results = [];
+    let tunnelStatus = 'Подключён';
+    let requestedUrl = '';
+    const cancel = startPublicHealthcheck('https://game.trycloudflare.com', {
+      timeoutMs: PUBLIC_HEALTHCHECK_TIMEOUT_MS,
+      get(url, options, callback) {
+        requestedUrl = url;
+        assert.equal(options.timeout, PUBLIC_HEALTHCHECK_TIMEOUT_MS);
+        request.respond = statusCode => callback({ statusCode, resume() {} });
+        return request;
+      },
+      setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms }); return id; },
+      clearTimeout(id) { timers.delete(id); },
+      onResult(available) { results.push(available); if (!available) tunnelStatus = 'Подключён'; }
+    });
+
+    assert.equal(requestedUrl, 'https://game.trycloudflare.com/');
+    assert.equal(tunnelStatus, 'Подключён');
+    assert.deepEqual(results, [], 'the call returns while the network request is still pending');
+    assert.equal([...timers.values()][0].ms, 7000);
+    request.respond(503);
+    assert.deepEqual(results, [false]);
+    assert.equal(tunnelStatus, 'Подключён');
+    assert.equal(timers.size, 0);
+    cancel();
+  });
+
+  test('marks a public healthcheck available only for HTTP 200', () => {
+    const request = new EventEmitter();
+    request.destroy = () => {};
+    let result;
+    startPublicHealthcheck('https://game.trycloudflare.com', {
+      get(_url, _options, callback) {
+        callback({ statusCode: 200, resume() {} });
+        return request;
+      },
+      onResult(available) { result = available; }
+    });
+    assert.equal(result, true);
+  });
+
+  test('creates a scalable QR SVG for a local Wi-Fi address', () => {
+    const matrix = qrMatrix('http://192.168.1.42:3000');
+    assert.ok([21, 25, 29, 33].includes(matrix.length));
+    assert.ok(matrix.every(row => row.length === matrix.length));
+    const svg = makeQrSvg('http://192.168.1.42:3000');
+    assert.match(svg, /^<svg .*<rect width="100%" height="100%" fill="#181926"\/><path d="M/);
+    assert.match(svg, /fill="#f3f4f8"\/><\/svg>$/);
+    assert.equal(qrMatrix('x'.repeat(60)).length, 37);
+  });
+
   test('accepts supported protocols and builds exact auto and HTTP/2 arguments', () => {
     assert.deepEqual(normalizeProtocol('HTTP2'), { protocol: 'http2', invalidValue: null });
     assert.deepEqual(normalizeProtocol('unknown'), { protocol: 'auto', invalidValue: 'unknown' });

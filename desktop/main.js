@@ -12,7 +12,9 @@ const {
   buildTunnelArgs,
   mergeGoDebug,
   parsePublicTunnelUrl,
-  createTunnelFlow
+  createTunnelFlow,
+  getLocalIPv4,
+  startPublicHealthcheck
 } = require('./tunnel-utils');
 
 const execFileAsync = promisify(execFile);
@@ -24,10 +26,12 @@ const localAppDirectory = path.join(
 const state = {
   server: 'Запускается',
   serverAddress: '',
+  wifiAddress: '',
   tunnel: 'Остановлен',
   publicAddress: '',
   tunnelDiagnostic: '',
   tunnelState: 'stopped',
+  externalHealth: 'idle',
   protocol: 'auto',
   log: []
 };
@@ -45,6 +49,7 @@ let isQuitting = false;
 let exitStarted = false;
 let tunnelStarting = false;
 let tunnelGeneration = 0;
+let healthcheckCancel;
 
 function publishState() {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -271,6 +276,8 @@ async function ensureServerStarted() {
   await fsp.access(serverExecutable);
   const port = await findFreePort();
   state.serverAddress = `http://127.0.0.1:${port}`;
+  const localIp = getLocalIPv4();
+  state.wifiAddress = localIp ? `http://${localIp}:${port}` : '';
   state.publicAddress = '';
   setServerStatus('Запускается');
   addLog(`Выбран свободный порт ${port}. Запуск сервера...`);
@@ -298,6 +305,7 @@ async function ensureServerStarted() {
     if (!serverStopping && !isQuitting) {
       setServerStatus('Ошибка');
       state.publicAddress = '';
+      state.wifiAddress = '';
       addLog(`Сервер завершился (код ${code ?? 'нет'}, сигнал ${signal ?? 'нет'}).`);
       void stopTunnel();
     } else {
@@ -328,6 +336,29 @@ function ensureTunnelFlow(binaryPath, generation) {
     setTimeout, clearTimeout,
     onState(patch) {
       if (generation !== tunnelGeneration || isQuitting) return;
+      const connectedAddress = patch.tunnelState === 'connected' && patch.publicAddress;
+      if (connectedAddress) {
+        healthcheckCancel?.();
+        Object.assign(state, patch, { externalHealth: 'checking' });
+        publishState();
+        const address = connectedAddress;
+        healthcheckCancel = startPublicHealthcheck(address, {
+          onResult(available) {
+            if (generation !== tunnelGeneration || state.publicAddress !== address || state.tunnelState !== 'connected') return;
+            state.externalHealth = available ? 'available' : 'warning';
+            publishState();
+            if (!available) {
+              addLog('Предупреждение: фоновый healthcheck не вернул 200 OK. Ссылка может быть рабочей для внешних устройств.', 'Туннель');
+            }
+          }
+        });
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, 'publicAddress') && !patch.publicAddress) {
+        healthcheckCancel?.();
+        healthcheckCancel = null;
+        patch.externalHealth = 'idle';
+      }
       Object.assign(state, patch); publishState();
     },
     onLog: (message, source) => { if (generation === tunnelGeneration) addLog(message, source); },
@@ -358,6 +389,7 @@ async function startTunnel() {
   tunnelGeneration++;
   const generation = tunnelGeneration;
   state.publicAddress = '';
+  state.externalHealth = 'idle';
   state.tunnelDiagnostic = '';
   state.tunnelState = 'connecting';
   tunnelStopping = false;
@@ -418,6 +450,8 @@ async function terminateProcessTree(child) {
 
 async function stopTunnel() {
   tunnelGeneration++;
+  healthcheckCancel?.();
+  healthcheckCancel = null;
   tunnelStopping = true;
   if (tunnelFlow) await tunnelFlow.stop();
   else { state.tunnel = 'Остановлен'; state.tunnelState = 'stopped'; state.publicAddress = ''; state.tunnelDiagnostic = ''; publishState(); }
@@ -432,6 +466,7 @@ async function stopServer() {
     serverReady = false;
     setServerStatus('Остановлен');
     state.serverAddress = '';
+    state.wifiAddress = '';
     return;
   }
   serverStopping = true;
@@ -441,13 +476,14 @@ async function stopServer() {
   await terminateProcessTree(child);
   serverStopping = false;
   state.serverAddress = '';
+  state.wifiAddress = '';
   addLog('Сервер остановлен.');
 }
 
 async function openAddress(kind) {
-  const address = kind === 'local' ? state.serverAddress : state.publicAddress;
+  const address = kind === 'local' ? (state.wifiAddress || state.serverAddress) : state.publicAddress;
   if (!address || (kind === 'local'
-    ? !/^http:\/\/127\.0\.0\.1:\d+$/.test(address)
+    ? ![state.serverAddress, state.wifiAddress].includes(address)
     : parsePublicTunnelUrl(address) !== address)) {
     throw new Error('Адрес сейчас недоступен.');
   }
@@ -455,7 +491,7 @@ async function openAddress(kind) {
 }
 
 function copyAddress(kind) {
-  const address = kind === 'local' ? state.serverAddress : state.publicAddress;
+  const address = kind === 'local' ? (state.wifiAddress || state.serverAddress) : state.publicAddress;
   if (!address) throw new Error('Адрес сейчас недоступен.');
   clipboard.writeText(address);
 }
@@ -504,10 +540,11 @@ function showError(error) {
 function createMainWindow() {
   const windowIconPath = path.join(__dirname, 'ui', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   mainWindow = new BrowserWindow({
-    width: 760,
-    height: 760,
-    minWidth: 620,
-    minHeight: 620,
+    width: 980,
+    height: 700,
+    minWidth: 900,
+    minHeight: 650,
+    useContentSize: true,
     show: false,
     autoHideMenuBar: true,
     title: 'HomeAuction',

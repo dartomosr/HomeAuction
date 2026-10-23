@@ -21,62 +21,89 @@
       <span id="server-chip" class="status-chip status-starting">Запускается</span>
     </header>
 
-    <section class="card">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">ЛОКАЛЬНЫЙ ДОСТУП</span>
-          <h2>Сервер</h2>
-        </div>
-        <span id="server-status" class="status-text">Запускается</span>
-      </div>
-      <div class="address-row">
-        <code id="local-address">Ожидание свободного порта…</code>
-        <div class="actions">
-          <button id="open-local" class="button secondary" disabled>Открыть</button>
-          <button id="copy-local" class="button secondary" disabled>Копировать</button>
-        </div>
-      </div>
-      <p class="hint">Веб-интерфейс игры откроется в браузере.</p>
-    </section>
+    <div class="dashboard">
+      <div class="left-column">
+        <section class="card access-card">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">ЛОКАЛЬНЫЙ ДОСТУП</span>
+              <h2>Сервер</h2>
+            </div>
+            <span id="server-status" class="status-text">Запускается</span>
+          </div>
+          <div class="address-row">
+            <code id="local-address">Ожидание свободного порта…</code>
+            <div class="actions">
+              <button id="open-local" class="button secondary" disabled>Открыть</button>
+              <button id="copy-local" class="button secondary" disabled>Копировать</button>
+            </div>
+          </div>
+          <p class="hint">Подключение для игроков в одной локальной сети.</p>
+        </section>
 
-    <section class="card">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">ВРЕМЕННЫЙ ПУБЛИЧНЫЙ АДРЕС</span>
-          <h2>Cloudflare Tunnel</h2>
-        </div>
-        <span id="tunnel-status" class="status-text" aria-live="polite">Остановлен</span>
-      </div>
-      <div class="address-row">
-        <code id="public-address">Адрес появится после подключения</code>
-        <div class="actions">
-          <button id="open-public" class="button secondary" disabled>Открыть</button>
-          <button id="copy-public" class="button secondary" disabled>Копировать</button>
-        </div>
-      </div>
-      <p id="tunnel-diagnostic" class="diagnostic hidden"></p>
-      <div class="tunnel-actions">
-        <button id="start-tunnel" class="button primary">Запустить туннель</button>
-        <button id="stop-tunnel" class="button secondary" disabled>Остановить туннель</button>
-      </div>
-    </section>
+        <section class="card access-card">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">ВРЕМЕННЫЙ ПУБЛИЧНЫЙ АДРЕС</span>
+              <h2>Cloudflare Tunnel</h2>
+            </div>
+            <span id="tunnel-status" class="status-text" aria-live="polite">Остановлен</span>
+          </div>
+          <div class="address-row">
+            <div class="address-details">
+              <code id="public-address">Адрес появится после подключения</code>
+              <span id="external-health" class="health-badge hidden" role="status" tabindex="0"></span>
+            </div>
+            <div class="actions">
+              <button id="open-public" class="button secondary" disabled>Открыть</button>
+              <button id="copy-public" class="button secondary" disabled>Копировать</button>
+            </div>
+          </div>
+          <p id="tunnel-diagnostic" class="diagnostic hidden"></p>
+          <div class="tunnel-actions">
+            <button id="start-tunnel" class="button primary">Запустить туннель</button>
+            <button id="stop-tunnel" class="button secondary" disabled>Остановить туннель</button>
+          </div>
+        </section>
 
-    <section class="card log-card">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">ПОСЛЕДНИЕ 200 СТРОК</span>
-          <h2>Журнал</h2>
-        </div>
-      </div>
-      <pre id="log" class="log" aria-live="polite">Запуск приложения…</pre>
-    </section>
+        <section class="card log-card">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">ПОСЛЕДНИЕ 200 СТРОК</span>
+              <h2>Журнал</h2>
+            </div>
+          </div>
+          <pre id="log" class="log" aria-live="polite">Запуск приложения…</pre>
+        </section>
 
-    <footer class="footer">
-      <button id="minimize" class="button secondary">Свернуть в трей</button>
-      <button id="quit" class="button danger">Выйти</button>
-    </footer>
+        <footer class="footer">
+          <button id="minimize" class="button secondary">Свернуть в трей</button>
+          <button id="quit" class="button danger">Выйти</button>
+        </footer>
+      </div>
+
+      <aside class="card qr-card" aria-labelledby="qr-title">
+        <div class="qr-heading">
+          <h2 id="qr-title">Быстрое подключение</h2>
+        </div>
+        <div class="qr-source-tabs" role="tablist" aria-label="Источник подключения для QR-кода">
+          <button id="qr-source-wifi" class="qr-source-tab active" type="button" role="tab" aria-selected="true">Локально (Wi-Fi)</button>
+          <button id="qr-source-cloud" class="qr-source-tab" type="button" role="tab" aria-selected="false" disabled>Облако (Интернет)</button>
+        </div>
+        <div id="qr-frame" class="qr-frame" role="button" tabindex="0" aria-label="Скопировать ссылку подключения">
+          <img id="connection-qr" class="connection-qr" alt="QR-код для подключения к HomeAuction">
+          <span class="qr-logo" aria-hidden="true">A</span>
+          <div id="qr-placeholder" class="qr-placeholder">Локальный адрес появится после запуска сервера</div>
+        </div>
+        <p id="qr-instructions" class="qr-instructions">Отсканируйте камерой телефона в одной сети Wi-Fi</p>
+        <code id="qr-address" class="qr-address">Ожидание адреса…</code>
+        <span id="qr-copy-feedback" class="qr-copy-feedback" role="status" aria-live="polite"></span>
+        <span id="qr-health" class="qr-health"></span>
+      </aside>
+    </div>
     <div id="toast" class="toast" role="status"></div>
   </main>
+  <script src="qr.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

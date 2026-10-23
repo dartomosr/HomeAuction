@@ -1,9 +1,70 @@
 'use strict';
 
+const https = require('node:https');
+
 const ANSI = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 const CLOUDFLARE_START_TIMEOUT_MS = 30000;
 const CLOUDFLARE_ADDRESS_TIMEOUT_MS = 10000;
 const CLOUDFLARE_RECOVERY_TIMEOUT_MS = 30000;
+const PUBLIC_HEALTHCHECK_TIMEOUT_MS = 7000;
+
+function getLocalIPv4(networkInterfaces = require('node:os').networkInterfaces()) {
+  const virtualName = /virtual|vmware|virtualbox|hyper-v|vethernet|wsl|docker|loopback|\btap\b|\btun\b|vpn/i;
+  const candidates = [];
+  for (const [name, addresses] of Object.entries(networkInterfaces || {})) {
+    if (virtualName.test(name)) continue;
+    for (const address of addresses || []) {
+      const family = address.family;
+      if (address.internal || (family !== 'IPv4' && family !== 4)) continue;
+      const ip = String(address.address || '');
+      if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip) || ip.startsWith('127.') || ip.startsWith('169.254.')) continue;
+      candidates.push({ ip, private: /^(10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(ip) });
+    }
+  }
+  candidates.sort((a, b) => Number(b.private) - Number(a.private));
+  return candidates[0]?.ip || '';
+}
+
+function startPublicHealthcheck(address, {
+  get = https.get,
+  timeoutMs = PUBLIC_HEALTHCHECK_TIMEOUT_MS,
+  onResult = () => {},
+  setTimeout: schedule = setTimeout,
+  clearTimeout: cancelTimer = clearTimeout
+} = {}) {
+  let finished = false;
+  let request;
+  const timer = schedule(() => {
+    request?.destroy();
+    finish(false);
+  }, timeoutMs);
+  const finish = available => {
+    if (finished) return;
+    finished = true;
+    cancelTimer(timer);
+    onResult(Boolean(available));
+  };
+  try {
+    const url = new URL(address);
+    if (url.protocol !== 'https:') {
+      finish(false);
+      return () => {};
+    }
+    request = get(url.toString(), { timeout: timeoutMs }, response => {
+      response.resume?.();
+      finish(response.statusCode === 200);
+    });
+    request.once('error', () => finish(false));
+  } catch {
+    finish(false);
+  }
+  return () => {
+    if (finished) return;
+    finished = true;
+    cancelTimer(timer);
+    request?.destroy();
+  };
+}
 
 function normalizeProtocol(value) {
   const raw = String(value || '').trim().toLowerCase();
@@ -329,6 +390,9 @@ module.exports = {
   CLOUDFLARE_START_TIMEOUT_MS,
   CLOUDFLARE_ADDRESS_TIMEOUT_MS,
   CLOUDFLARE_RECOVERY_TIMEOUT_MS,
+  PUBLIC_HEALTHCHECK_TIMEOUT_MS,
+  getLocalIPv4,
+  startPublicHealthcheck,
   normalizeProtocol,
   createLineBuffer,
   classifyTunnelLine,
