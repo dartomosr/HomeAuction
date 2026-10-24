@@ -100,9 +100,9 @@
 | Команда | Назначение |
 | --- | --- |
 | `npm run build:exe` | Собрать автономный сервер `dist/HomeAuctionServer.exe` (включает Node.js, зависимости, `public/` и `cloudflared`). |
-| `npm run build:desktop` | Собрать портативный Electron-клиент в папку `dist/HomeAuction/` (при отсутствии серверного EXE соберёт его автоматически). |
+| `npm run build:desktop` | Собрать портативный Electron-клиент в `dist/HomeAuction/` и автоматически создать SFX-архив, если найден 7-Zip с SFX-модулем (при отсутствии серверного EXE соберёт его автоматически). |
 | `npm run build:all` | Выполнить полную сборку сервера и настольного клиента одной командой. |
-| `npm run build:sfx` | Упаковать `dist/HomeAuction/` в единый архив `dist/HomeAuction-Portable.exe` (требуется установленный 7-Zip). |
+| `npm run build:sfx` | Вручную упаковать `dist/HomeAuction/` в `dist/HomeAuction-Portable.exe` (требуется установленный 7-Zip с SFX-модулем). |
 | `npm run start:desktop` | Запустить настольный Electron-клиент в режиме разработки. |
 | `npm run clean:dist` | Очистить каталог `dist/`. |
 
@@ -111,11 +111,10 @@
 ```powershell
 npm ci
 npm run build:all
-npm run build:sfx
 ```
 
 - Скрипт `build:desktop` использует уже установленный или закэшированный Electron runtime без повторного скачивания через `electron-builder` (если runtime отсутствует, скрипт укажет ожидаемый путь кэша). Бинарник `cloudflared` скачивается автоматически только если его ещё нет.
-- Команда `build:sfx` ищет `7z.exe` и `7z.sfx` в `PATH`, реестре или стандартных путях установки 7-Zip и упаковывает содержимое `dist/HomeAuction/` в `dist/HomeAuction-Portable.exe`. Для распространения достаточно передать либо один `HomeAuction-Portable.exe`, либо папку `dist/HomeAuction/` (передавать `dist/HomeAuctionServer.exe` отдельно не нужно — он уже включён внутрь `HomeAuction/server/`).
+- `build:desktop` заменяет иконку `HomeAuction.exe` из `desktop/ui/icon.ico`, затем ищет `7z.exe` и `7z.sfx` в `SEVENZIP_PATH`/`SEVENZIP_DIR`, `PATH` и стандартных каталогах Windows и автоматически создаёт `dist/HomeAuction-Portable.exe` с LZMA2, уровнем сжатия 9 и solid-режимом. Если ICO или `rcedit` недоступны, выводится предупреждение и сборка продолжает работу с текущей иконкой. Итоговый SFX проверяется после склейки, и его модуль не изменяется. Если 7-Zip или SFX-модуль не найден, папка `dist/HomeAuction/` остаётся готовой, SFX-шаг можно запустить через `npm run build:sfx`. Для распространения достаточно передать либо один `HomeAuction-Portable.exe`, либо папку `dist/HomeAuction/` (передавать `dist/HomeAuctionServer.exe` отдельно не нужно — он уже включён внутрь `HomeAuction/server/`).
 
 ### Диагностика Cloudflare Tunnel
 

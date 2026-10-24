@@ -1,5 +1,5 @@
 import { access, mkdir, mkdtemp, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,28 +17,32 @@ const requiredPaths = [
 ];
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { stdio: 'inherit', ...options });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(`${command} завершился с кодом ${result.status ?? 'неизвестен'}.`);
-  }
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'inherit', ...options });
+    const interrupt = () => child.kill();
+    const cleanup = () => {
+      process.removeListener('SIGINT', interrupt);
+      process.removeListener('SIGTERM', interrupt);
+    };
+    process.once('SIGINT', interrupt);
+    process.once('SIGTERM', interrupt);
+    child.once('error', (error) => {
+      cleanup();
+      reject(error);
+    });
+    child.once('close', (code, signal) => {
+      cleanup();
+      if (code === 0) resolve();
+      else reject(new Error(`${command} завершился с кодом ${code ?? signal ?? 'неизвестен'}.`));
+    });
+  });
 }
 
-function registryInstallPaths() {
-  const paths = [];
-  for (const key of [
-    'HKLM\\Software\\7-Zip',
-    'HKLM\\Software\\WOW6432Node\\7-Zip',
-    'HKCU\\Software\\7-Zip'
-  ]) {
-    const result = spawnSync('reg.exe', ['query', key, '/v', 'Path64'], {
-      encoding: 'utf8',
-      windowsHide: true
-    });
-    const match = result.stdout?.match(/Path64\s+REG_SZ\s+(.+?)\s*$/im);
-    if (match) paths.push(match[1].trim());
-  }
-  return paths;
+function configured7ZipDirectory(value) {
+  const configuredPath = path.resolve(value.trim());
+  return ['7z', '7z.exe'].includes(path.basename(configuredPath).toLowerCase())
+    ? path.dirname(configuredPath)
+    : configuredPath;
 }
 
 async function find7Zip() {
@@ -46,28 +50,24 @@ async function find7Zip() {
     throw new Error('Сборка Windows SFX доступна только на Windows.');
   }
 
-  const candidates = [];
-  if (process.env.SEVEN_ZIP_PATH) {
-    const configuredPath = process.env.SEVEN_ZIP_PATH;
-    candidates.push(path.basename(configuredPath).toLowerCase() === '7z.exe'
-      ? path.dirname(configuredPath)
-      : configuredPath);
-  }
+  const candidates = [process.env.SEVENZIP_PATH, process.env.SEVENZIP_DIR, process.env.SEVEN_ZIP_PATH]
+    .filter(Boolean)
+    .map(configured7ZipDirectory);
 
-  const where = spawnSync('where.exe', ['7z.exe'], {
+  const lookup = process.platform === 'win32' ? 'where.exe' : 'which';
+  const where = spawnSync(lookup, ['7z'], {
     encoding: 'utf8',
     windowsHide: true
   });
   if (where.status === 0) {
     candidates.push(...where.stdout.split(/\r?\n/).filter(Boolean).map(path.dirname));
   }
-  candidates.push(...registryInstallPaths());
   candidates.push(
-    path.join(process.env.ProgramW6432 || 'C:\\Program Files', '7-Zip'),
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', '7-Zip'),
     path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', '7-Zip')
   );
 
-  for (const directory of [...new Set(candidates)]) {
+  for (const directory of [...new Set(candidates.map(candidate => path.resolve(candidate)))]) {
     const executable = path.join(directory, '7z.exe');
     const module = path.join(directory, '7z.sfx');
     try {
@@ -95,12 +95,25 @@ await Promise.all(requiredPaths.map(async (requiredPath) => {
   }
 }));
 
-const sevenZip = await find7Zip();
+let sevenZip;
+try {
+  sevenZip = await find7Zip();
+} catch (error) {
+  console.warn(`WARN: ${error.message}`);
+  console.warn('SFX пропущен; папка dist/HomeAuction остаётся доступна для распространения.');
+  process.exitCode = 0;
+  sevenZip = null;
+}
+if (!sevenZip) process.exit(0);
 await mkdir(outputDirectory, { recursive: true });
 
 const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'homeauction-sfx-'));
 const archivePath = path.join(temporaryDirectory, 'HomeAuction.7z');
-const temporaryOutputPath = path.join(outputDirectory, `.HomeAuction-Portable-${process.pid}.tmp`);
+const temporaryOutputPath = path.join(outputDirectory, `.HomeAuction-Portable-${process.pid}.tmp.exe`);
+const abortController = new AbortController();
+const abortBuild = () => abortController.abort();
+process.on('SIGINT', abortBuild);
+process.on('SIGTERM', abortBuild);
 const sfxConfig = Buffer.from(
   ';!@Install@!UTF-8!\r\n' +
   'Title="HomeAuction Portable"\r\n' +
@@ -112,35 +125,56 @@ const sfxConfig = Buffer.from(
 
 try {
   console.log(`Архивация содержимого ${path.relative(projectDirectory, portableDirectory)}...`);
-  run(sevenZip.executable, [
+  await run(sevenZip.executable, [
     'a',
     '-t7z',
-    '-mx=1',
+    '-mx=9',
+    '-m0=LZMA2',
+    '-ms=on',
     '-mmt=on',
     '-r',
     archivePath,
     '*'
-  ], { cwd: portableDirectory });
+  ], { cwd: portableDirectory, signal: abortController.signal });
 
-  run(sevenZip.executable, ['t', archivePath]);
+  await run(sevenZip.executable, ['t', archivePath], { signal: abortController.signal });
 
-  await pipeline(createReadStream(sevenZip.module), createWriteStream(temporaryOutputPath));
-  await writeFile(temporaryOutputPath, sfxConfig, { flag: 'a' });
-  await pipeline(createReadStream(archivePath), createWriteStream(temporaryOutputPath, { flags: 'a' }));
+  // Собираем SFX последовательным потоком: модуль, конфигурация и проверенный архив.
+  await pipeline(createReadStream(sevenZip.module), createWriteStream(temporaryOutputPath), {
+    signal: abortController.signal
+  });
+  await writeFile(temporaryOutputPath, sfxConfig, {
+    flag: 'a',
+    signal: abortController.signal
+  });
+  await pipeline(createReadStream(archivePath), createWriteStream(temporaryOutputPath, { flags: 'a' }), {
+    signal: abortController.signal
+  });
 
-  const [moduleInfo, archiveInfo, outputInfo] = await Promise.all([
+  const [moduleInfo, archiveInfo, assembledInfo] = await Promise.all([
     stat(sevenZip.module),
     stat(archivePath),
     stat(temporaryOutputPath)
   ]);
-  if (outputInfo.size !== moduleInfo.size + sfxConfig.length + archiveInfo.size) {
+  if (assembledInfo.size !== moduleInfo.size + sfxConfig.length + archiveInfo.size) {
     throw new Error('Не удалось проверить целостность собранного SFX-файла.');
   }
 
+  // Проверяем самораспаковывающийся EXE, не изменяя модуль SFX и его overlay.
+  await run(sevenZip.executable, ['t', temporaryOutputPath], { signal: abortController.signal });
+
+  const outputInfo = await stat(temporaryOutputPath);
   await rename(temporaryOutputPath, outputPath);
   console.log(`Готово: ${path.relative(projectDirectory, outputPath)}`);
   console.log(`Размер: ${(outputInfo.size / 1024 / 1024).toFixed(1)} MiB`);
 } finally {
-  await rm(temporaryDirectory, { recursive: true, force: true });
-  await rm(temporaryOutputPath, { force: true });
+  const cleanupResults = await Promise.allSettled([
+    rm(temporaryDirectory, { recursive: true, force: true }),
+    rm(temporaryOutputPath, { force: true })
+  ]);
+  process.removeListener('SIGINT', abortBuild);
+  process.removeListener('SIGTERM', abortBuild);
+  for (const result of cleanupResults) {
+    if (result.status === 'rejected') console.warn(`WARN: временный файл не удалён: ${result.reason.message}`);
+  }
 }

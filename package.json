@@ -22,7 +22,8 @@
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
-    "@yao-pkg/pkg": "^6.23.0"
+    "@yao-pkg/pkg": "^6.23.0",
+    "rcedit": "^5.0.2"
   },
   "workspaces": [
     "desktop"
