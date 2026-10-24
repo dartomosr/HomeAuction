@@ -446,6 +446,15 @@
   color: var(--text-muted);
 }
 
+.status-award {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--accent-primary);
+  border-left: 3px solid var(--accent-secondary);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
 .sidebar-hint {
   font-size: 0.8rem;
   color: var(--text-muted);

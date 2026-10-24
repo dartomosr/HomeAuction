@@ -11,7 +11,8 @@ const state = {
     predeterminedWinnerId: null,
     isSpinning: false,
     history: [], // Список выбывших по порядку
-    winner: null
+    winner: null,
+    awards: null
   }
 };
 
@@ -105,6 +106,82 @@ function getPerOpponentFreeSpent(token, items = state.items, settings = state.se
   let spent = ownSpent;
   for (const points of byAuthor.values()) spent += Math.max(0, points - quotaPerOpponent);
   return spent;
+}
+
+function calculateRoundAwards(players, items, winnerId, firstEliminatedId, availablePoints) {
+  const playerList = Array.isArray(players) ? players : Array.from(players?.values?.() || []);
+  const itemList = Array.isArray(items) ? items : [];
+  const winner = itemList.find(item => item.id === winnerId);
+  const firstEliminated = itemList.find(item => item.id === firstEliminatedId);
+  const defaultBank = Math.max(0, Number(availablePoints) || 0);
+  const validTokens = new Set(playerList.map(player => player.token));
+  const awards = {};
+  const scores = playerList.map(player => {
+    const bets = itemList.map(item => ({
+      item,
+      points: Math.max(0, Number(item.allocations?.[player.token]) || 0)
+    }));
+    const total = bets.reduce((sum, bet) => sum + bet.points, 0);
+    const winnerBet = winner ? bets.find(bet => bet.item.id === winner.id)?.points || 0 : 0;
+    const firstBet = firstEliminated ? bets.find(bet => bet.item.id === firstEliminated.id)?.points || 0 : 0;
+    const foreignTotal = bets.reduce((sum, bet) => sum +
+      (bet.item.createdByToken !== player.token && validTokens.has(bet.item.createdByToken) ? bet.points : 0), 0);
+    return { player, bets, total, winnerBet, firstBet, foreignTotal };
+  });
+
+  const leaders = (field, exclude = () => false) => {
+    const candidates = scores.filter(score => !score.player.isSpectator && !exclude(score) && score[field] > 0);
+    const max = Math.max(0, ...candidates.map(score => score[field]));
+    return candidates.filter(score => score[field] === max)
+      .sort((a, b) => (b[field] / Math.max(1, Number(b.player.availablePoints ?? b.player.bank) || defaultBank)) -
+        (a[field] / Math.max(1, Number(a.player.availablePoints ?? a.player.bank) || defaultBank)) ||
+        String(a.player.id).localeCompare(String(b.player.id)));
+  };
+  const investor = leaders('winnerBet', score => score.player.token === winner?.createdByToken);
+  const miss = leaders('firstBet');
+  const diplomat = leaders('foreignTotal').filter(score => score.foreignTotal > 0 &&
+    score.player.token !== winner?.createdByToken && score.player.token !== firstEliminated?.createdByToken);
+
+  for (const score of scores) {
+    const { player } = score;
+    if (player.isSpectator) {
+      awards[player.id] = { title: 'НАБЛЮДАТЕЛЬ', hint: 'Пассивное участие в раунде' };
+      continue;
+    }
+    if (score.player.token === winner?.createdByToken) {
+      awards[player.id] = { title: 'ТРИУМФАТОР', hint: 'Автор победившего варианта' };
+      continue;
+    }
+    if (investor[0]?.player.token === player.token) {
+      awards[player.id] = { title: 'ИНВЕСТОР', hint: `Наибольший вклад в победителя: ${score.winnerBet} очк.` };
+      continue;
+    }
+    if (miss[0]?.player.token === player.token && score.firstBet > 0) {
+      awards[player.id] = { title: 'ПРОМАХ', hint: `Сгорело на первом вылете: ${score.firstBet} очк.` };
+      continue;
+    }
+    if (diplomat[0]?.player.token === player.token && score.foreignTotal > 0) {
+      awards[player.id] = { title: 'ДИПЛОМАТ', hint: `Вложено в чужие лоты: ${score.foreignTotal} очк.` };
+      continue;
+    }
+    const playerBank = Math.max(0, Number(player.availablePoints ?? player.bank) || defaultBank);
+    const allIn = score.bets.find(bet => bet.points > 0 && playerBank > 0 && bet.points >= playerBank * 0.9);
+    if (allIn) {
+      awards[player.id] = { title: 'ВА-БАНК', hint: `Ставка ва-банк: ${allIn.points} очк. в один лот` };
+      continue;
+    }
+    const positiveBets = score.bets.filter(bet => bet.points > 0);
+    const maxBet = Math.max(...positiveBets.map(bet => bet.points));
+    const minBet = Math.min(...positiveBets.map(bet => bet.points));
+    if (positiveBets.length >= 3 && maxBet - minBet <= maxBet * 0.35) {
+      awards[player.id] = { title: 'БАЛАНСИР', hint: `Равномерное распределение по ${positiveBets.length} лотам` };
+      continue;
+    }
+    if (score.total <= 2) {
+      awards[player.id] = { title: 'НАБЛЮДАТЕЛЬ', hint: 'Пассивное участие в раунде' };
+    }
+  }
+  return awards;
 }
 
 // Формируем персональное состояние для каждого игрока (без чужих очков в фазе POOL)
@@ -303,7 +380,8 @@ function buildClientState(forToken) {
       isSpinning: state.wheel.isSpinning,
       hasStarted: state.wheel.predeterminedWinnerId !== null,
       history: state.wheel.history,
-      winner: state.wheel.winner
+      winner: state.wheel.winner,
+      awards: state.wheel.awards || null
     }
   };
 }
@@ -408,5 +486,6 @@ module.exports = {
   importPoolItems,
   getReserveAllocation,
   getPerOpponentUsage,
-  getPerOpponentFreeSpent
+  getPerOpponentFreeSpent,
+  calculateRoundAwards
 };

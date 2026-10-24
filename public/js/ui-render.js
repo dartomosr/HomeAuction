@@ -90,7 +90,21 @@ function updateSoundButton() {
   dom.btnSound.textContent = store.soundEnabled ? 'Звук: ВКЛ' : 'Звук: ВЫКЛ';
 }
 
+let awardsRevealTimer = null;
+let displayedAwards = null;
+
 function renderSidebar(state) {
+  if (state.phase !== 'FINISHED') {
+    displayedAwards = null;
+    if (awardsRevealTimer) clearTimeout(awardsRevealTimer);
+    awardsRevealTimer = null;
+  } else if (!displayedAwards && state.wheel?.awards && !awardsRevealTimer) {
+    awardsRevealTimer = setTimeout(() => {
+      awardsRevealTimer = null;
+      displayedAwards = state.wheel?.awards || null;
+      if (store.appState) renderSidebar(store.appState);
+    }, 700);
+  }
   const activePlayers = state.players.filter((p) => !p.isSpectator);
   const readyCount = activePlayers.filter((p) => p.ready).length;
   dom.readyCounterEl.textContent = `${readyCount} / ${activePlayers.length} готовы`;
@@ -124,8 +138,10 @@ function renderSidebar(state) {
       rightWrap.appendChild(spectatorTag);
     } else {
       const status = document.createElement('span');
-      status.className = `player-status ${p.ready ? 'status-ready' : 'status-wait'}`;
-      status.textContent = p.ready ? 'ГОТОВ' : 'ДУМАЕТ';
+      const award = displayedAwards?.[p.id];
+      status.className = `player-status ${award ? 'status-award' : (p.ready ? 'status-ready' : 'status-wait')}`;
+      status.textContent = award?.title || (p.ready ? 'ГОТОВ' : 'ДУМАЕТ');
+      if (award) status.title = award.hint;
       rightWrap.appendChild(status);
     }
 

@@ -11,7 +11,8 @@ const {
   buildClientState,
   addInitialItems,
   importPoolItems,
-  getAliveWheelItems
+  getAliveWheelItems,
+  calculateRoundAwards
 } = require(path.join(ROOT, 'src', 'state.js'));
 const {
   pickPredeterminedWinner,
@@ -98,6 +99,79 @@ describe('isolated backend unit checks', () => {
     assert.equal(DEFAULT_SETTINGS.keepZeroItems, false);
     assert.equal(DEFAULT_SETTINGS.zeroItemWeight, 0.5);
     assert.equal(DEFAULT_SETTINGS.allowReactions, false);
+  });
+
+  test('awards round titles in priority order and resolves investor ties by bank share', () => {
+    const players = [
+      { id: 'a', token: 'a' }, { id: 'b', token: 'b' },
+      { id: 'c', token: 'c' }, { id: 'd', token: 'd' }
+    ];
+    const items = [
+      { id: 'win', createdByToken: 'a', allocations: { b: 20, c: 10 } },
+      { id: 'first', createdByToken: 'c', allocations: { b: 20, c: 30 } },
+      { id: 'other', createdByToken: 'd', allocations: { b: 10, c: 10, d: 12 } },
+      { id: 'other3', createdByToken: 'a', allocations: { d: 1 } },
+      { id: 'other2', createdByToken: 'a', allocations: { c: 10 } }
+    ];
+    const awards = calculateRoundAwards(players, items, 'win', 'first', 50);
+    assert.equal(awards.a.title, 'ТРИУМФАТОР');
+    assert.equal(awards.b.title, 'ИНВЕСТОР');
+    assert.equal(awards.b.hint, 'Наибольший вклад в победителя: 20 очк.');
+    assert.equal(awards.c.title, 'ПРОМАХ');
+    assert.equal(awards.c.hint, 'Сгорело на первом вылете: 30 очк.');
+    assert.equal(awards.d, undefined);
+
+    const tied = calculateRoundAwards([
+      { id: 'small', token: 'small', availablePoints: 20 }, { id: 'large', token: 'large', availablePoints: 10 }, { id: 'author', token: 'author' }
+    ], [
+      { id: 'winner', createdByToken: 'author', allocations: { small: 10, large: 10 } },
+      { id: 'first', createdByToken: 'author', allocations: {} },
+      { id: 'investor-own', createdByToken: 'small', allocations: { small: 1 } },
+      { id: 'own-small', createdByToken: 'small', allocations: {} },
+      { id: 'own-large', createdByToken: 'large', allocations: {} }
+    ], 'winner', 'first', 50);
+    assert.equal(tied.large.title, 'ИНВЕСТОР');
+  });
+
+  test('awards va-bank, balancer, and observer to remaining participants', () => {
+    const players = [
+      { id: 'allin', token: 'allin' }, { id: 'balance', token: 'balance' },
+      { id: 'quiet', token: 'quiet' }, { id: 'viewer', token: 'viewer', isSpectator: true }
+    ];
+    const items = [
+      { id: 'winner', createdByToken: 'author', allocations: {} },
+      { id: 'first', createdByToken: 'author', allocations: {} },
+      { id: 'allin-lot', createdByToken: 'allin', allocations: { allin: 46 } },
+      { id: 'mine', createdByToken: 'allin', allocations: { allin: 1 } },
+      { id: 'x', createdByToken: 'balance', allocations: { balance: 10 } },
+      { id: 'y', createdByToken: 'balance', allocations: { balance: 11 } },
+      { id: 'z', createdByToken: 'balance', allocations: { balance: 12 } }
+    ];
+    const awards = calculateRoundAwards(players, items, 'winner', 'first', 50);
+    assert.equal(awards.allin.title, 'ВА-БАНК');
+    assert.equal(awards.allin.hint, 'Ставка ва-банк: 46 очк. в один лот');
+    assert.equal(awards.balance.title, 'БАЛАНСИР');
+    assert.equal(awards.balance.hint, 'Равномерное распределение по 3 лотам');
+    assert.equal(awards.quiet.title, 'НАБЛЮДАТЕЛЬ');
+    assert.equal(awards.viewer.title, 'НАБЛЮДАТЕЛЬ');
+    assert.equal(Object.keys(awards).length, players.length);
+    const diplomacy = calculateRoundAwards([
+      { id: 'diplomat', token: 'diplomat' }, { id: 'owner', token: 'owner' },
+      { id: 'investor', token: 'investor' }, { id: 'broker', token: 'broker' },
+      { id: 'saver', token: 'saver' }, { id: 'helper', token: 'helper' }
+    ], [
+      { id: 'winner', createdByToken: 'owner', allocations: { diplomat: 5, investor: 10, broker: 1, saver: 1, helper: 1 } },
+      { id: 'first', createdByToken: 'owner', allocations: { investor: 1 } },
+      { id: 'investor-own', createdByToken: 'investor', allocations: { investor: 1 } },
+      { id: 'own', createdByToken: 'diplomat', allocations: { diplomat: 2 } },
+      { id: 'foreign', createdByToken: 'broker', allocations: { diplomat: 8 } },
+      { id: 'broker-own', createdByToken: 'broker', allocations: { broker: 1 } },
+      { id: 'owner-own', createdByToken: 'owner', allocations: { owner: 1 } },
+      { id: 'saver-own', createdByToken: 'saver', allocations: { saver: 1 } },
+      { id: 'helper-own', createdByToken: 'helper', allocations: { helper: 1 } }
+    ], 'winner', 'first', 50);
+    assert.equal(diplomacy.diplomat.title, 'ДИПЛОМАТ');
+    assert.equal(diplomacy.diplomat.hint, 'Вложено в чужие лоты: 13 очк.');
   });
 
   test('exports the expected room presets', () => {

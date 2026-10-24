@@ -11,7 +11,8 @@ const {
   importPoolItems,
   getReserveAllocation,
   getPerOpponentUsage,
-  getPerOpponentFreeSpent
+  getPerOpponentFreeSpent,
+  calculateRoundAwards
 } = require('./state');
 const { pickPredeterminedWinner, pickEliminatedItem } = require('./wheel-math');
 
@@ -572,6 +573,7 @@ function registerSocketHandlers(io) {
           title: aliveItems[0].title,
           totalPoints: getRawPoints(aliveItems[0])
         };
+        state.wheel.awards = calculateRoundAwards(Array.from(state.players.values()), state.items, aliveItems[0].id, state.wheel.history[0]?.id, state.settings.maxPoints);
         broadcastState();
         return;
       }
@@ -641,6 +643,7 @@ function registerSocketHandlers(io) {
             title: remaining[0].title,
             totalPoints: getRawPoints(remaining[0])
           };
+          state.wheel.awards = calculateRoundAwards(Array.from(state.players.values()), state.items, remaining[0].id, state.wheel.history[0]?.id, state.settings.maxPoints);
         }
 
         broadcastState();
@@ -659,7 +662,7 @@ function registerSocketHandlers(io) {
       state.hostToken = null;
       state.players.clear();
       state.items = [];
-      state.wheel = { predeterminedWinnerId: null, isSpinning: false, history: [], winner: null };
+      state.wheel = { predeterminedWinnerId: null, isSpinning: false, history: [], winner: null, awards: null };
       for (const sock of io.sockets.sockets.values()) sock.data.auctionToken = null;
       io.emit('auction_hard_reset');
       io.emit('state_update', buildClientState(null));
@@ -675,7 +678,8 @@ function registerSocketHandlers(io) {
         predeterminedWinnerId: null,
         isSpinning: false,
         history: [],
-        winner: null
+        winner: null,
+        awards: null
       };
 
       for (const p of state.players.values()) {
