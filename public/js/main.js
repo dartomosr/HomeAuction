@@ -489,6 +489,7 @@ dom.hostSettingsForm.addEventListener('submit', (e) => {
   e.preventDefault();
   socket.emit('update_settings', {
     maxPoints: Number(dom.setMaxPoints.value),
+    distributionMode: dom.setDistributionMode.value,
     minimumBid: Number(dom.setMinimumBid.value),
     maxItems: Number(dom.setMaxItems.value),
     allowFreeItemsForAll: dom.setAllowFreeAll.checked,

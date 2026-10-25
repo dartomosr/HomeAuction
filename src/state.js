@@ -62,6 +62,19 @@ function getEffectivePoints(item, settings = state.settings) {
   return raw === 0 ? 0 : raw;
 }
 
+function redistributeOwnItems(token, items = state.items, settings = state.settings) {
+  if (settings.distributionMode !== 'equal_split') return;
+  const ownedItems = items.filter(item => item.createdByToken === token && !item.mergedInto &&
+    !item.isFreeSlot && !item.isSystem);
+  if (!ownedItems.length) return;
+  const share = Math.round(((Number(settings.maxPoints) || 0) / ownedItems.length) * 10) / 10;
+  for (const item of ownedItems) {
+    if (!item.allocations) item.allocations = {};
+    if (share > 0) item.allocations[token] = share;
+    else delete item.allocations[token];
+  }
+}
+
 function getActiveRevealItems() {
   return state.items.filter(item => {
     if (item.mergedInto) return false;
@@ -478,6 +491,7 @@ module.exports = {
   state,
   getRawPoints,
   getEffectivePoints,
+  redistributeOwnItems,
   getActiveRevealItems,
   getAliveWheelItems,
   buildClientState,

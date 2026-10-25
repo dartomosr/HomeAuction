@@ -5,6 +5,7 @@ import { initAudio, playUiClickSound, playUiSliderSound } from './audio.js';
 import { renderAllItemsModal } from './ui-modals.js';
 import { showToast } from './ui-notifications.js';
 import { triggerHaptic } from './haptics.js';
+import { getSettingsRuleGroups } from './settings-layout.js';
 
 function updatePointsSplitPreview() {
   const total = Math.max(1, Number(dom.setMaxPoints.value) || 100);
@@ -34,6 +35,34 @@ function updateJoinPresetVisibility(state = store.appState) {
   const isHidden = roomHasPlayers || dom.inputSpectator.checked;
   dom.joinPresetGroup.classList.toggle('hidden', isHidden);
   if (isHidden) document.dispatchEvent(new Event('auction:initial-save-unavailable'));
+}
+
+function renderSettingsRuleGroups(settings) {
+  const rows = {
+    minimumBid: dom.roMinimumBid.closest('.stat-row'),
+    freeItems: dom.roFreeItems.closest('.stat-row'),
+    flexiblePoints: dom.roFlexiblePoints.closest('.stat-row'),
+    foreignPoints: dom.roForeignPoints.closest('.stat-row'),
+    support: dom.ruleZeroItems.closest('.stat-row'),
+    reactions: dom.ruleReactions.closest('.stat-row'),
+    distributionMode: dom.roDistributionMode.closest('.stat-row')
+  };
+  const groups = getSettingsRuleGroups(settings);
+  const equalSplit = settings.distributionMode === 'equal_split';
+  rows.flexiblePoints.hidden = equalSplit;
+  rows.foreignPoints.hidden = equalSplit;
+  rows.distributionMode.hidden = !equalSplit;
+  for (const key of groups.primary) {
+    const row = rows[key];
+    if (row.parentElement !== dom.settingsPrimaryOptions) dom.settingsPrimaryOptions.appendChild(row);
+  }
+  for (const key of groups.additional) {
+    const row = rows[key];
+    if (row.parentElement !== dom.settingsAdditionalContent) dom.settingsAdditionalContent.appendChild(row);
+  }
+  const visibleAdditionalRows = [...dom.settingsAdditionalContent.querySelectorAll('.stat-row')]
+    .filter(row => !row.hidden).length;
+  dom.settingsAdditional.hidden = visibleAdditionalRows === 0;
 }
 
 function renderEffectsControls() {
@@ -178,16 +207,19 @@ function renderSidebar(state) {
     ? `До ${state.settings.zeroItemWeight} очк.`
     : 'Выключена';
   dom.ruleReactions.textContent = state.settings.allowReactions ? 'Включены' : 'Выключены';
+  renderSettingsRuleGroups(state.settings);
 
   // Если мы Хост — показываем форму настроек
   if (state.me.isHost) {
     dom.hostSettingsForm.classList.remove('hidden');
     if (document.activeElement !== dom.setMaxPoints &&
         document.activeElement !== dom.setMaxItems &&
+        document.activeElement !== dom.setDistributionMode &&
         document.activeElement !== dom.setForeignOnly &&
         document.activeElement !== dom.setMinimumBid &&
         document.activeElement !== dom.setZeroWeight) {
       dom.setMaxPoints.value = state.settings.maxPoints;
+      dom.setDistributionMode.value = state.settings.distributionMode || 'manual';
       dom.setMinimumBid.value = Number.isSafeInteger(state.settings.minimumBid) ? state.settings.minimumBid : 0;
       dom.setMaxItems.value = state.settings.maxItems;
       dom.setAllowFreeAll.checked = Boolean(state.settings.allowFreeItemsForAll);
@@ -279,6 +311,11 @@ function renderMobileDock(state, override = null) {
     ? Math.max(0, Number(state.settings.foreignOnlyPoints) || 0)
     : 0;
   const hasReserve = mode === 'per_opponent' || totalReserve > 0;
+  const equalSplit = state.settings.distributionMode === 'equal_split';
+  const ownItems = state.items.filter(item => item.isOwn && !item.isFreeSlot && !item.isSystem);
+  const perItemBudget = ownItems.length
+    ? Number(ownItems[0].myPoints) || 0
+    : Math.round((maxPoints || 0) * 10) / 10;
   let ownSpent = 0;
   let foreignSpent = 0;
   const spentByAuthor = new Map();
@@ -310,10 +347,10 @@ function renderMobileDock(state, override = null) {
   }
 
   dom.myRemainingPointsEl.textContent = remaining;
-  dom.mobileFreeLabel.textContent = hasReserve ? 'Свободно:' : 'Осталось:';
-  dom.mobileFreePoints.textContent = hasReserve ? freeRemaining : remaining;
+  dom.mobileFreeLabel.textContent = equalSplit ? 'На вариант:' : hasReserve ? 'Свободно:' : 'Осталось:';
+  dom.mobileFreePoints.textContent = equalSplit ? perItemBudget : hasReserve ? freeRemaining : remaining;
   dom.mobileForeignPoints.textContent = foreignRemaining;
-  dom.mobileForeignLine.classList.toggle('hidden', !hasReserve);
+  dom.mobileForeignLine.classList.toggle('hidden', equalSplit || !hasReserve);
 }
 
 function renderPoolView(state) {
@@ -327,6 +364,7 @@ function renderPoolView(state) {
   dom.myMaxPointsEl.textContent = state.settings.maxPoints;
   dom.myItemsCountEl.textContent = state.me.myItemsCount;
   dom.myMaxItemsEl.textContent = state.settings.maxItems;
+  const equalSplit = state.settings.distributionMode === 'equal_split';
   const reserve = state.settings.restrictOwnPoints && state.settings.foreignReserveMode !== 'per_opponent' ? state.settings.foreignOnlyPoints : 0;
   if (state.settings.foreignReserveMode === 'per_opponent') {
     dom.poolFlexiblePoints.textContent = `${state.effectiveFreeSpent} / ${state.effectiveFreePoints}`;
@@ -345,6 +383,16 @@ function renderPoolView(state) {
     ? 'Резерв: можно тратить только на чужие лоты'
     : 'Ограничения отключены';
   }
+  dom.poolFlexibleLabel.textContent = equalSplit ? 'БАЛЛЫ НА ВАРИАНТ' : 'СВОБОДНЫЕ БАЛЛЫ';
+  if (equalSplit) {
+    const ownItems = state.items.filter(item => item.isOwn && !item.isFreeSlot && !item.isSystem);
+    const perItemBudget = ownItems.length
+      ? Number(ownItems[0].myPoints) || 0
+      : Math.round((Number(state.settings.maxPoints) || 0) * 10) / 10;
+    dom.poolFlexiblePoints.textContent = Number(perItemBudget.toFixed(1)).toLocaleString('ru-RU');
+    dom.poolFlexibleNote.textContent = 'Очки делятся равно на все свои варианты';
+  }
+  dom.poolForeignPoints.closest('.stat-box').classList.toggle('hidden', equalSplit);
 
   const isLocked = state.me.ready;
   const canUseFreeSlot = Boolean(state.me.isHost || state.settings.allowFreeItemsForAll);
@@ -472,6 +520,18 @@ function renderPoolView(state) {
     titleSpan.className = 'pool-item-title';
     titleSpan.textContent = item.title;
     left.appendChild(titleSpan);
+    const autoSplitOwnItem = state.settings.distributionMode === 'equal_split' && item.isOwn &&
+      !item.isFreeSlot && !item.isSystem;
+    if (autoSplitOwnItem) {
+      const authorItemCount = state.items.filter(candidate => candidate.isOwn &&
+        !candidate.isFreeSlot && !candidate.isSystem).length;
+      const shareBadge = document.createElement('span');
+      shareBadge.className = 'equal-split-badge';
+      const amount = Number(item.myPoints.toFixed(1)).toLocaleString('ru-RU');
+      shareBadge.textContent = `${amount} очк. · 1/${authorItemCount}`;
+      shareBadge.title = `Равная доля: ${Number((100 / authorItemCount).toFixed(1))}% бюджета`;
+      left.appendChild(shareBadge);
+    }
     if (state.settings.foreignReserveMode === 'per_opponent' && !item.isOwn) {
       const quotaHint = document.createElement('span');
       quotaHint.className = 'allocation-rule-note';
@@ -548,6 +608,11 @@ function renderPoolView(state) {
     }
 
     if (isSpectator) {
+      groupContainer.appendChild(card);
+      continue;
+    }
+
+    if (autoSplitOwnItem) {
       groupContainer.appendChild(card);
       continue;
     }

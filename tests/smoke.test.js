@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { describe, test } = require('node:test');
+const { ROOM_PRESETS } = require('../src/config.js');
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(__dirname, '..');
@@ -92,6 +93,10 @@ describe('smoke checks', () => {
 
     assert.deepEqual(duplicateIds, [], `Duplicate HTML IDs: ${[...new Set(duplicateIds)].join(', ')}`);
     assert.deepEqual(missingIds, [], `DOM IDs missing from index.html: ${missingIds.join(', ')}`);
+    for (const id of ['settings-primary-options', 'settings-additional', 'settings-additional-content', 'ro-distribution-mode', 'pool-flexible-label']) {
+      assert.ok(ids.includes(id), `Missing dynamic settings group: #${id}`);
+    }
+    assert.ok(ids.includes('set-distribution-mode'), 'Missing distribution mode setting');
     const copyResultButton = html.match(/<button\b[^>]*\bid=["']btn-copy-result["'][^>]*>[\s\S]*?<\/button>/i);
     assert.ok(copyResultButton, 'Missing result-copy button');
     assert.match(copyResultButton[0], /\bdisabled\b/);
@@ -100,6 +105,46 @@ describe('smoke checks', () => {
     for (const id of ['saves-modal', 'saves-help-toggle', 'saves-help-box', 'clear-initial-save-btn']) {
       assert.ok(ids.includes(id), `Missing saves UI element: #${id}`);
     }
+  });
+
+  test('groups active room rules above inactive additions', async () => {
+    const { getSettingsRuleGroups } = await import(pathToFileURL(
+      path.join(PUBLIC_DIR, 'js', 'settings-layout.js')
+    ).href);
+    const basic = getSettingsRuleGroups(ROOM_PRESETS.basic);
+    assert.deepEqual(basic.primary, []);
+    assert.deepEqual(basic.additional, [
+      'minimumBid', 'freeItems', 'flexiblePoints', 'foreignPoints', 'support', 'reactions'
+    ]);
+
+    const diplomacy = getSettingsRuleGroups(ROOM_PRESETS.diplomacy);
+    assert.deepEqual(diplomacy.primary, ['flexiblePoints', 'foreignPoints', 'reactions']);
+    assert.deepEqual(diplomacy.additional, ['minimumBid', 'freeItems', 'support']);
+
+    const chaos = getSettingsRuleGroups(ROOM_PRESETS.chaos);
+    assert.deepEqual(chaos.primary, ['support', 'reactions']);
+    assert.deepEqual(chaos.additional, ['minimumBid', 'freeItems', 'flexiblePoints', 'foreignPoints']);
+
+    const allActive = getSettingsRuleGroups({
+      maxPoints: 60,
+      minimumBid: 1,
+      allowFreeItemsForAll: true,
+      restrictOwnPoints: true,
+      foreignReserveMode: 'total',
+      foreignOnlyPoints: 10,
+      keepZeroItems: true,
+      zeroItemWeight: 0.5,
+      allowReactions: true
+    });
+    assert.equal(allActive.additional.length, 0);
+
+    const equalSplit = getSettingsRuleGroups({
+      ...ROOM_PRESETS['one-for-all'],
+      distributionMode: 'equal_split'
+    });
+    assert.deepEqual(equalSplit.primary, ['distributionMode']);
+    assert.equal(equalSplit.additional.includes('flexiblePoints'), false);
+    assert.equal(equalSplit.additional.includes('foreignPoints'), false);
   });
 
   test('validates named relative JavaScript imports and re-exports', async () => {

@@ -12,6 +12,7 @@ const {
   getReserveAllocation,
   getPerOpponentUsage,
   getPerOpponentFreeSpent,
+  redistributeOwnItems,
   calculateRoundAwards
 } = require('./state');
 const { pickPredeterminedWinner, pickEliminatedItem } = require('./wheel-math');
@@ -222,6 +223,10 @@ function registerSocketHandlers(io) {
 
       const maxPoints = Math.max(1, Math.min(100000, parseInt(newSettings.maxPoints, 10) || 50));
       const maxItems = Math.max(1, Math.min(50, parseInt(newSettings.maxItems, 10) || 5));
+      const distributionMode = newSettings.distributionMode === 'equal_split'
+        ? 'equal_split'
+        : Object.prototype.hasOwnProperty.call(newSettings, 'distributionMode')
+          ? 'manual' : (state.settings.distributionMode || 'manual');
       const keepZeroItems = Boolean(newSettings.keepZeroItems);
       const zeroItemWeight = Object.prototype.hasOwnProperty.call(newSettings, 'zeroItemWeight')
         ? Math.max(0.01, Math.min(100, parseFloat(newSettings.zeroItemWeight) || 0.5))
@@ -251,6 +256,8 @@ function registerSocketHandlers(io) {
         for (const item of state.items) {
           if (item.mergedInto) continue;
           for (const [playerToken, points] of Object.entries(item.allocations)) {
+            if (distributionMode === 'equal_split' && item.createdByToken === playerToken &&
+                !item.isFreeSlot && !item.isSystem) continue;
             if (points > 0 && points < validatedMinimumBid) playersBelowMinimum.add(playerToken);
           }
         }
@@ -301,6 +308,7 @@ function registerSocketHandlers(io) {
       state.settings = {
         maxPoints,
         maxItems,
+        distributionMode,
         keepZeroItems,
         zeroItemWeight,
         minimumBid: validatedMinimumBid,
@@ -312,11 +320,16 @@ function registerSocketHandlers(io) {
         allowFreeItemsForAll,
         allowReactions
       };
+      if (distributionMode === 'equal_split') {
+        for (const token of state.players.keys()) redistributeOwnItems(token);
+      }
       const affectedPlayers = playersBelowMinimum;
       if (validatedMinimumBid > 0) {
         for (const item of state.items) {
           if (item.mergedInto) continue;
           for (const [playerToken, points] of Object.entries(item.allocations)) {
+            if (distributionMode === 'equal_split' && item.createdByToken === playerToken &&
+                !item.isFreeSlot && !item.isSystem) continue;
             if (points > 0 && points < validatedMinimumBid) {
               delete item.allocations[playerToken];
               affectedPlayers.add(playerToken);
@@ -415,6 +428,8 @@ function registerSocketHandlers(io) {
         mergedInto: null
       });
 
+      redistributeOwnItems(currentToken);
+
       broadcastState();
       socket.emit('item_added');
     });
@@ -424,6 +439,7 @@ function registerSocketHandlers(io) {
       if (!player || player.isSpectator || state.phase !== 'POOL') return;
 
       const result = importPoolItems(items, currentToken, player);
+      if (result.added > 0) redistributeOwnItems(currentToken);
       if (result.added > 0) player.ready = false;
       socket.emit('pool_import_result', result);
       broadcastState();
@@ -443,9 +459,11 @@ function registerSocketHandlers(io) {
 
       if (isOwner && !player.ready) {
         state.items.splice(idx, 1);
+        redistributeOwnItems(targetItem.createdByToken);
         broadcastState();
       } else if (isHost) {
         state.items.splice(idx, 1);
+        redistributeOwnItems(targetItem.createdByToken);
         broadcastState();
       }
     });
@@ -457,6 +475,8 @@ function registerSocketHandlers(io) {
 
       const item = state.items.find(it => it.id === itemId && !it.mergedInto);
       if (!item) return;
+      if (state.settings.distributionMode === 'equal_split' && item.createdByToken === currentToken &&
+          !item.isFreeSlot && !item.isSystem) return;
 
       const desired = Math.max(0, parseInt(points, 10) || 0);
       const minimumBid = Number.isSafeInteger(state.settings.minimumBid) ? state.settings.minimumBid : 0;

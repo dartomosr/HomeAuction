@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const DEFAULT_SETTINGS = Object.freeze({
   maxPoints: 50,
   maxItems: 5,
+  distributionMode: 'manual',
   minimumBid: 0,
   keepZeroItems: false,
   zeroItemWeight: 0.5,
@@ -80,6 +81,24 @@ const PRESET_CATALOG = Object.freeze([
     name: 'Всё или ничего',
     group: 'experimental',
     settings: Object.freeze({ ...DEFAULT_SETTINGS, minimumBid: 50 })
+  }),
+  Object.freeze({
+    id: 'one-for-all',
+    name: '1 на все',
+    group: 'experimental',
+    experimental: true,
+    features: Object.freeze(['60 очков', '5 вариантов', 'Авто-сплит бюджета поровну']),
+    settings: Object.freeze({
+      ...DEFAULT_SETTINGS,
+      maxPoints: 60,
+      maxItems: 5,
+      distributionMode: 'equal_split',
+      restrictOwnPoints: false,
+      foreignOnlyPoints: 0,
+      foreignReserveMode: 'total',
+      allowReactions: false,
+      keepZeroItems: false
+    })
   })
 ]);
 

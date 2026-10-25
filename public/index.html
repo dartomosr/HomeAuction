@@ -206,6 +206,7 @@
         </div>
 
         <div id="settings-readonly" class="settings-summary">
+          <div id="settings-primary-options" class="settings-primary-options">
           <div class="stat-row">
             <span>Очков у каждого:</span>
             <strong id="ro-max-points">50</strong>
@@ -214,6 +215,14 @@
             <span>Вариантов от игрока:</span>
             <strong id="ro-max-items">5</strong>
           </div>
+          <div class="stat-row" hidden>
+            <span>Распределение баллов:</span>
+            <strong id="ro-distribution-mode">Равное</strong>
+          </div>
+          </div>
+          <details id="settings-additional" class="settings-additional">
+            <summary>Дополнения</summary>
+            <div id="settings-additional-content" class="settings-additional-content">
           <div class="stat-row">
             <span>Минимальная ставка:</span>
             <strong id="ro-minimum-bid">Выключена</strong>
@@ -238,6 +247,8 @@
             <span>Реакции:</span>
             <strong id="rule-reactions">Выключены</strong>
           </div>
+            </div>
+          </details>
         </div>
 
         <!-- Редактируемая форма только для Хоста -->
@@ -260,6 +271,14 @@
                 <div class="form-group">
                   <label for="set-max-points">Очков каждому игроку:</label>
                   <input type="number" id="set-max-points" class="input-text" min="1" max="100000" value="50" />
+                </div>
+
+                <div class="form-group">
+                  <label for="set-distribution-mode">Распределение очков:</label>
+                  <select id="set-distribution-mode" class="input-text">
+                    <option value="manual">Ручной</option>
+                    <option value="equal_split">Поровну на свои («1 на все»)</option>
+                  </select>
                 </div>
 
                 <div class="form-group">
@@ -347,7 +366,7 @@
             </div>
 
             <div class="stat-box allocation-rule-box">
-              <span class="stat-label">СВОБОДНЫЕ БАЛЛЫ</span>
+              <span id="pool-flexible-label" class="stat-label">СВОБОДНЫЕ БАЛЛЫ</span>
               <div class="stat-value"><span id="pool-flexible-points">50</span> <small>очк.</small></div>
               <span id="pool-flexible-note" class="allocation-rule-note">Все очки доступны свободно</span>
             </div>

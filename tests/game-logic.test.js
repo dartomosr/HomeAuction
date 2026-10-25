@@ -223,6 +223,55 @@ describe('isolated backend unit checks', () => {
     assert.equal(ROOM_PRESETS.basic.minimumBid, 0);
   });
 
+  test('one-for-all is an experimental preset and manual remains the default', () => {
+    const preset = ROOM_PRESETS['one-for-all'];
+    const catalogEntry = PRESET_CATALOG.find(entry => entry.id === 'one-for-all');
+    assert.equal(DEFAULT_SETTINGS.distributionMode, 'manual');
+    assert.equal(catalogEntry.group, 'experimental');
+    assert.equal(catalogEntry.experimental, true);
+    assert.equal(preset.maxPoints, 60);
+    assert.equal(preset.maxItems, 5);
+    assert.equal(preset.distributionMode, 'equal_split');
+    assert.equal(preset.foreignOnlyPoints, 0);
+    assert.equal(preset.allowReactions, false);
+    assert.equal(preset.keepZeroItems, false);
+  });
+
+  test('equal split allocates shares on add, rejects own manual stakes, and recalculates after deletion', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('equal-split-host');
+    join(host, 'equal-split-token', 'Host', { preset: 'one-for-all' });
+    const add = title => host.receive('add_item', { title });
+    const shares = () => state.items.map(item => item.allocations['equal-split-token']);
+
+    add('One');
+    assert.deepEqual(shares(), [60]);
+    add('Two');
+    assert.deepEqual(shares(), [30, 30]);
+    add('Three');
+    assert.deepEqual(shares(), [20, 20, 20]);
+
+    host.receive('set_points', { itemId: state.items[0].id, points: 59 });
+    assert.deepEqual(shares(), [20, 20, 20]);
+    host.receive('delete_item', { itemId: state.items[1].id });
+    assert.deepEqual(shares(), [30, 30]);
+  });
+
+  test('switching an existing room to equal split recalculates current lots and manual mode stays editable', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('mode-switch-host');
+    join(host, 'mode-switch-token', 'Host');
+    host.receive('add_item', { title: 'One' });
+    const first = state.items[0];
+    host.receive('add_item', { title: 'Two' });
+    host.receive('set_points', { itemId: first.id, points: 17 });
+    host.receive('update_settings', { ...DEFAULT_SETTINGS, distributionMode: 'equal_split' });
+    assert.deepEqual(state.items.map(item => item.allocations['mode-switch-token']), [25, 25]);
+    host.receive('update_settings', { ...DEFAULT_SETTINGS, distributionMode: 'manual' });
+    host.receive('set_points', { itemId: first.id, points: 17 });
+    assert.equal(first.allocations['mode-switch-token'], 17);
+  });
+
   test('reports whether the room has a host', () => {
     assert.equal(buildClientState(null).hasHost, false);
     state.players.set('host-token', {
