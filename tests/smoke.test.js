@@ -107,6 +107,25 @@ describe('smoke checks', () => {
     }
   });
 
+  test('validates stage and launcher markup contracts and emoji-free stage UI', async () => {
+    for (const [htmlFile, scriptFile] of [
+      ['public/stage.html', 'public/js/stage.js'],
+      ['desktop/ui/index.html', 'desktop/ui/renderer.js']
+    ]) {
+      const [html, script] = await Promise.all([
+        fs.readFile(path.join(ROOT, htmlFile), 'utf8'),
+        fs.readFile(path.join(ROOT, scriptFile), 'utf8')
+      ]);
+      const ids = [...html.matchAll(/\bid=["']([^"']+)["']/g)].map(match => match[1]);
+      assert.equal(ids.length, new Set(ids).size, `Duplicate IDs in ${htmlFile}`);
+      const references = [...script.matchAll(/(?:getElementById|byId)\(['"]([^'"]+)['"]\)/g)].map(match => match[1]);
+      for (const id of references) assert.ok(ids.includes(id), `${htmlFile} is missing #${id}`);
+      assert.doesNotMatch(html + script, /\p{Extended_Pictographic}|\uFE0F/u);
+    }
+    const stage = await fs.readFile(path.join(PUBLIC_DIR, 'js', 'stage.js'), 'utf8');
+    assert.doesNotMatch(stage, /socket\.emit\s*\(/, 'Stage sends no participation events');
+  });
+
   test('groups active room rules above inactive additions', async () => {
     const { getSettingsRuleGroups } = await import(pathToFileURL(
       path.join(PUBLIC_DIR, 'js', 'settings-layout.js')

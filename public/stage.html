@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>HomeAuction · Трансляция</title>
+  <link rel="icon" href="/icon.webp">
+  <link rel="stylesheet" href="/css/stage.css">
+</head>
+<body>
+  <div class="mesh" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-lines" aria-hidden="true"><i></i><i></i><i></i></div>
+  <main class="stage">
+    <header class="hud">
+      <div class="room">
+        <div class="room-brand"><img src="/icon.webp" alt="" width="48" height="48"><span id="room-name">HomeAuction</span></div>
+        <span id="connection-status" class="connection" role="status">Подключение...</span>
+      </div>
+      <div id="bank-card" class="bank glass"><div class="bank-orbit" aria-hidden="true"></div><div><span class="label">БАНК ВЕЧЕРА</span><strong id="bank-accessible" aria-label="0 очков"><span id="bank-value" aria-hidden="true">0</span> <small aria-hidden="true">очков</small></strong></div><svg class="bank-spark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 3c0 14 7 21 21 21-14 0-21 7-21 21 0-14-7-21-21-21C17 24 24 17 24 3Z"/></svg></div>
+      <div class="readiness glass">
+        <span id="ready-label">Готовы: 0 из 0</span>
+        <div id="ready-progress" class="progress" role="progressbar" aria-label="Готовность комнаты" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+      </div>
+      <button id="sound-toggle" class="sound-toggle glass" type="button" aria-label="Включить звук" aria-pressed="false" title="Включить звук"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9Z"/><path class="sound-on" d="M16 8c2 2 2 6 0 8m3-11c4 4 4 10 0 14"/><path class="sound-off" d="m17 9 5 6m0-6-5 6"/></svg><span class="sound-equalizer" aria-hidden="true"><i></i><i></i><i></i></span></button>
+    </header>
+
+    <section id="pool-scene" class="showcase" aria-labelledby="pool-title">
+      <div class="section-heading showcase-heading"><div><p class="eyebrow"><span class="eyebrow-line"></span> ВЕЧЕР НАЧИНАЕТСЯ С ИДЕИ</p><h1 id="pool-title">Что выберем <em>сегодня?</em></h1></div><div class="showcase-status"><span id="activity" class="activity-pill" role="status">Ваши телефоны решают</span><span id="item-count" class="count">Вариантов: 0</span></div></div>
+      <div id="lot-grid" class="lot-grid"></div>
+      <div class="carousel-footer"><span class="pool-hint">Идеи на экране. Интрига в телефоне.</span><div id="pagination" class="pagination" aria-label="Страницы вариантов"></div><span id="page-label" class="page-label"></span></div>
+    </section>
+
+    <section id="phase-teaser" class="teaser" hidden>
+      <div class="glass teaser-card"><div class="orbit" aria-hidden="true"><i></i><i></i><i></i></div><p class="eyebrow">МОМЕНТ ИСТИНЫ</p><h1>Идет вращение колеса...</h1><p>Все ставки сделаны. Дальше решает случай.</p></div>
+    </section>
+
+    <footer class="bottom-panel">
+      <section class="roster glass" aria-labelledby="players-title"><div class="section-heading"><h2 id="players-title">Участники</h2><span id="player-count" class="count">0 в комнате</span></div><div id="players" class="players"></div><div id="players-page" class="page-label"></div></section>
+      <aside class="join glass"><div class="qr-aura"><img id="join-qr" alt="QR-код для подключения к игре" hidden></div><div><span class="eyebrow">ВАШ ПРОПУСК НА ВЕЧЕР</span><h2>Подключение к игре</h2><p id="join-hint">Отсканируйте камерой телефона</p><span id="join-address">Ожидание ссылки...</span></div></aside>
+    </footer>
+  </main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/stage-qr.js"></script>
+  <script type="module" src="/js/stage.js"></script>
+</body>
+</html>

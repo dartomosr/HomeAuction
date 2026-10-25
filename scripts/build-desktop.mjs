@@ -189,7 +189,7 @@ try {
   await patchExecutableIcon(packagedExecutable, path.join(desktopDirectory, 'ui', 'icon.ico'), 'HomeAuction');
 
   await mkdir(appDirectory, { recursive: true });
-  for (const file of ['main.js', 'preload.js', 'process-job.ps1', 'tunnel-utils.js']) {
+  for (const file of ['main.js', 'preload.js', 'process-job.ps1', 'tunnel-utils.js', 'window-mode.js']) {
     await copyFile(path.join(desktopDirectory, file), path.join(appDirectory, file));
   }
   await cp(path.join(desktopDirectory, 'ui'), path.join(appDirectory, 'ui'), {

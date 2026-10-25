@@ -198,6 +198,25 @@ function calculateRoundAwards(players, items, winnerId, firstEliminatedId, avail
 }
 
 // Формируем персональное состояние для каждого игрока (без чужих очков в фазе POOL)
+function buildStageState() {
+  const players = Array.from(state.players.values()).filter(player => !player.isSpectator);
+  const activeTokens = new Set(players.map(player => player.token));
+  const items = state.items.filter(item => !item.mergedInto);
+  return {
+    phase: state.phase,
+    roomName: 'HomeAuction',
+    totalBank: items.reduce((bank, item) => bank + Object.entries(item.allocations || {})
+      .reduce((sum, [token, points]) => sum + (activeTokens.has(token) ? points : 0), 0), 0),
+    players: players.map(({ id, name, ready, online }) => ({ id, name, ready, online })),
+    items: items.map(item => ({
+      id: item.id,
+      title: item.title,
+      upvotes: getReactionSummary(item, null).upvotes,
+      downvotes: getReactionSummary(item, null).downvotes
+    }))
+  };
+}
+
 function buildClientState(forToken) {
   const me = state.players.get(forToken);
   const isHostViewer = Boolean(me && me.isHost);
@@ -495,6 +514,7 @@ module.exports = {
   getActiveRevealItems,
   getAliveWheelItems,
   buildClientState,
+  buildStageState,
   normalizeItemTitle,
   addInitialItems,
   importPoolItems,

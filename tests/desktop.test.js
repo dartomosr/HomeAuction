@@ -83,9 +83,16 @@ describe('desktop Cloudflare tunnel flow', () => {
     assert.ok([21, 25, 29, 33].includes(matrix.length));
     assert.ok(matrix.every(row => row.length === matrix.length));
     const svg = makeQrSvg('http://192.168.1.42:3000');
-    assert.match(svg, /^<svg .*<rect width="100%" height="100%" fill="#181926"\/><path d="M/);
-    assert.match(svg, /fill="#f3f4f8"\/><\/svg>$/);
+    assert.match(svg, /^<svg .*viewBox="0 0 \d+ \d+"/);
+    assert.match(svg, /fill="#e5def3"/);
+    assert.match(svg, /fill="#292447"/);
+    assert.equal([...svg.matchAll(/width="7" height="7" rx="1.25"/g)].length, 3);
+    assert.match(svg, /width="1" height="1" rx=".16"/);
+    assert.throws(() => makeQrSvg('test', { foreground: '" onload="bad' }), /hexadecimal/);
     assert.equal(qrMatrix('x'.repeat(60)).length, 37);
+    const stageSvg = makeQrSvg('http://192.168.1.42:3000', { background: '#ffffff', foreground: '#171a28' });
+    assert.match(stageSvg, /fill="#ffffff"/);
+    assert.match(stageSvg, /fill="#171a28"/);
   });
 
   test('accepts supported protocols and builds exact auto and HTTP/2 arguments', () => {

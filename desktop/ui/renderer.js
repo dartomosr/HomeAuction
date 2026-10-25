@@ -14,6 +14,91 @@ let latestState = null;
 let qrSource = 'wifi';
 let renderedQrAddress = '';
 let qrCopyTimer;
+let selectedTab = 'management';
+let fullscreen = false;
+const stageFrame = document.getElementById('stage-frame');
+
+function postToStage(message) {
+  if (!stageFrame.getAttribute('src')) return;
+  stageFrame.contentWindow.postMessage(message, new URL(stageFrame.src).origin);
+}
+
+function publishStageVisibility() {
+  postToStage({ type: 'homeauction:stage-visibility', active: selectedTab === 'game' && !document.hidden });
+}
+
+function renderWindowMode(mode = {}) {
+  fullscreen = Boolean(mode.fullscreen);
+  const immersive = fullscreen && selectedTab === 'game';
+  document.body.classList.toggle('immersive', immersive);
+  document.getElementById('immersive-controls').hidden = !immersive;
+  const button = document.getElementById('fullscreen-button');
+  button.setAttribute('aria-label', fullscreen ? 'Выйти из полного экрана' : 'Полный экран');
+  button.title = fullscreen ? 'Выйти из полного экрана · F11 / Esc' : 'Полный экран · F11';
+  button.setAttribute('aria-pressed', String(fullscreen));
+}
+
+function publishStageAddress() {
+  if (!latestState || !stageFrame.getAttribute('src')) return;
+  const address = latestState.tunnel === 'Подключён' && latestState.publicAddress
+    ? latestState.publicAddress : latestState.wifiAddress;
+  postToStage({ type: 'homeauction:stage-connection', address: address || '' });
+}
+
+function renderStage(state) {
+  const available = state.server === 'Запущен' && Boolean(state.serverAddress);
+  document.getElementById('stage-waiting').hidden = Boolean(available);
+  stageFrame.hidden = !available;
+  if (!available) {
+    stageFrame.removeAttribute('src');
+    return;
+  }
+  if (selectedTab === 'game' || stageFrame.getAttribute('src')) {
+    const url = new URL('/?mode=stage', state.serverAddress).href;
+    if (stageFrame.getAttribute('src') !== url) stageFrame.src = url;
+    else publishStageAddress();
+  }
+}
+
+function selectTab(tab) {
+  selectedTab = tab;
+  for (const name of ['management', 'game']) {
+    const selected = name === tab;
+    const button = document.getElementById(`tab-${name}`);
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
+    document.getElementById(`${name}-panel`).hidden = !selected;
+  }
+  if (latestState) renderStage(latestState);
+  renderWindowMode({ fullscreen });
+  publishStageVisibility();
+}
+
+for (const name of ['management', 'game']) {
+  const button = document.getElementById(`tab-${name}`);
+  button.addEventListener('click', () => selectTab(name));
+  button.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'management' : event.key === 'End' ? 'game'
+      : selectedTab === 'game' ? 'management' : 'game';
+    selectTab(next);
+    document.getElementById(`tab-${next}`).focus();
+  });
+}
+stageFrame.addEventListener('load', () => { publishStageAddress(); publishStageVisibility(); });
+document.addEventListener('visibilitychange', publishStageVisibility);
+document.getElementById('fullscreen-button').addEventListener('click', () => runAction(() => window.homeAuction.toggleFullscreen()));
+document.getElementById('immersive-exit').addEventListener('click', () => runAction(() => window.homeAuction.exitFullscreen()));
+document.getElementById('immersive-management').addEventListener('click', () => {
+  selectTab('management');
+  document.getElementById('tab-management').focus();
+});
+if (window.homeAuction?.onWindowMode) {
+  window.homeAuction.onWindowMode(renderWindowMode);
+  window.homeAuction.getWindowMode().then(renderWindowMode).catch(error => showToast(error.message));
+}
 
 function renderConnectionQr(state, animate = false) {
   const wifiAddress = state.wifiAddress || '';
@@ -38,9 +123,15 @@ function renderConnectionQr(state, animate = false) {
     ? 'Публичная ссылка появится после подключения туннеля'
     : 'Локальный адрес появится после запуска сервера';
   if (address && address !== renderedQrAddress) {
-    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.HomeAuctionQR.makeQrSvg(address))}`;
-    renderedQrAddress = address;
-    animate = true;
+    try {
+      image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.HomeAuctionQR.makeQrSvg(address))}`;
+      renderedQrAddress = address;
+      animate = true;
+    } catch {
+      image.classList.add('hidden');
+      placeholder.classList.remove('hidden');
+      placeholder.textContent = 'Используйте ссылку под кодом';
+    }
   }
   if (address && animate) {
     image.classList.remove('qr-refresh');
@@ -60,7 +151,7 @@ function renderConnectionQr(state, animate = false) {
     qrHealth.textContent = state.externalHealth === 'available'
       ? '✓ Доступен извне'
       : state.externalHealth === 'warning'
-        ? '⚠️ Внешняя проверка не ответила'
+        ? 'Внешняя проверка не ответила'
         : 'Проверка внешней доступности…';
     qrHealth.classList.toggle('health-available', state.externalHealth === 'available');
     qrHealth.classList.toggle('health-warning', state.externalHealth === 'warning');
@@ -83,6 +174,7 @@ function setStatus(element, label, value) {
 }
 
 function render(state) {
+  renderStage(state);
   statusElements.server.textContent = state.server;
   statusElements.server.className = `status-text ${
     state.server === 'Запущен' ? 'status-running' :
@@ -114,7 +206,7 @@ function render(state) {
   healthBadge.classList.toggle('hidden', !['available', 'warning'].includes(state.externalHealth));
   healthBadge.textContent = state.externalHealth === 'available'
     ? '✓ Доступен извне'
-    : '⚠️ Внешняя проверка не ответила';
+    : 'Внешняя проверка не ответила';
   healthBadge.title = state.externalHealth === 'warning'
     ? 'Запрос изнутри сети не подтвердил доступность (это нормально для некоторых провайдеров/NAT). Попробуйте открыть ссылку с мобильного интернета.'
     : 'Публичная ссылка ответила на проверочный запрос с HTTP 200.';
@@ -129,7 +221,7 @@ function render(state) {
     (['Ошибка', 'Ошибка подключения'].includes(state.tunnel)
       ? 'Публичный доступ недоступен. Локальная игра продолжает работать.'
       : '');
-  tunnelDiagnostic.classList.toggle('warning', state.tunnelDiagnostic.startsWith('Предупреждение:'));
+  tunnelDiagnostic.classList.toggle('warning', (state.tunnelDiagnostic || '').startsWith('Предупреждение:'));
   tunnelDiagnostic.classList.toggle('reconnecting', state.tunnelState === 'reconnecting');
   tunnelDiagnostic.classList.toggle('hidden', !tunnelDiagnostic.textContent);
   logElement.replaceChildren();

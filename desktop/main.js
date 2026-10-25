@@ -6,6 +6,7 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { promisify } = require('node:util');
+const { bindWindowMode } = require('./window-mode');
 const {
   normalizeProtocol,
   createLineBuffer,
@@ -37,6 +38,7 @@ const state = {
 };
 
 let mainWindow;
+let windowMode;
 let tray;
 let serverProcess;
 let tunnelProcess;
@@ -540,10 +542,10 @@ function showError(error) {
 function createMainWindow() {
   const windowIconPath = path.join(__dirname, 'ui', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   mainWindow = new BrowserWindow({
-    width: 980,
-    height: 700,
-    minWidth: 900,
-    minHeight: 650,
+    width: 1180,
+    height: 780,
+    minWidth: 760,
+    minHeight: 540,
     useContentSize: true,
     show: false,
     autoHideMenuBar: true,
@@ -554,10 +556,12 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      autoplayPolicy: 'no-user-gesture-required'
     }
   });
   mainWindow.loadFile(path.join(__dirname, 'ui', 'index.html'));
+  windowMode = bindWindowMode(mainWindow);
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     publishState();
@@ -617,6 +621,12 @@ async function stopJobGuard() {
 }
 
 function registerIpcHandlers() {
+  for (const [action, method] of [['get-window-mode', 'getState'], ['toggle-fullscreen', 'toggle'], ['exit-fullscreen', 'exit']]) {
+    ipcMain.handle(`homeauction:${action}`, event => {
+      if (!mainWindow || event.senderFrame !== mainWindow.webContents.mainFrame) return;
+      return windowMode?.[method]();
+    });
+  }
   ipcMain.handle('homeauction:get-state', () => ({ ...state, log: [...state.log] }));
   ipcMain.handle('homeauction:start-tunnel', async () => {
     await startTunnel();

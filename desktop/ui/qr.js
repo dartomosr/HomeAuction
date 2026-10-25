@@ -131,15 +131,29 @@ function qrMatrix(text) {
   return matrix;
 }
 
-function makeQrSvg(text) {
+function makeQrSvg(text, { background = '#e5def3', foreground = '#292447' } = {}) {
+  if (![background, foreground].every(color => /^#(?:[\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/i.test(color))) {
+    throw new Error('QR colors must be hexadecimal.');
+  }
   const matrix = qrMatrix(text);
   const quietZone = 4;
   const size = matrix.length + quietZone * 2;
   const blocks = [];
+  const finders = [[0, 0], [matrix.length - 7, 0], [0, matrix.length - 7]];
   matrix.forEach((row, y) => row.forEach((dark, x) => {
-    if (dark) blocks.push(`M${x + quietZone},${y + quietZone}h1v1h-1z`);
+    const inFinder = finders.some(([left, top]) => x >= left && x < left + 7 && y >= top && y < top + 7);
+    if (dark && !inFinder) blocks.push(`<rect x="${x + quietZone}" y="${y + quietZone}" width="1" height="1" rx=".16"/>`);
   }));
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#181926"/><path d="${blocks.join('')}" fill="#f3f4f8"/></svg>`;
+  const rings = finders.map(([x, y]) => {
+    const left = x + quietZone;
+    const top = y + quietZone;
+    return `<rect x="${left}" y="${top}" width="7" height="7" rx="1.25" fill="${foreground}"/>` +
+      `<rect x="${left + 1}" y="${top + 1}" width="5" height="5" rx=".8" fill="${background}"/>` +
+      `<rect x="${left + 2}" y="${top + 2}" width="3" height="3" rx=".6" fill="${foreground}"/>`;
+  }).join('');
+  // Four-module quiet zone stays solid and unobstructed. Decoration lives outside
+  // the code; rounded shapes preserve the original matrix at every module center.
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="3" fill="${background}"/><g fill="${foreground}">${blocks.join('')}</g>${rings}</svg>`;
 }
 
 if (typeof module !== 'undefined') module.exports = { qrMatrix, makeQrSvg };

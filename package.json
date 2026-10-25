@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/smoke.test.js tests/game-logic.test.js tests/desktop.test.js tests/random-mode.test.js",
+    "test": "node --test tests/smoke.test.js tests/game-logic.test.js tests/desktop.test.js tests/random-mode.test.js tests/stage.test.js",
     "tunnel": "npx cloudflared tunnel --protocol auto --url http://127.0.0.1:3000",
     "build:exe": "node scripts/build-exe.mjs",
     "build:desktop": "node scripts/build-desktop.mjs",
@@ -31,6 +31,7 @@
   "pkg": {
     "assets": [
       "public/**/*",
+      "desktop/ui/qr.js",
       "build/cloudflared.exe",
       "node_modules/socket.io/client-dist/**/*"
     ]

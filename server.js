@@ -11,6 +11,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+app.get('/', (req, res, next) => {
+  if (req.query.mode === 'stage') return res.sendFile(path.join(__dirname, 'public', 'stage.html'));
+  next();
+});
+app.get('/stage-qr.js', (_req, res) => res.sendFile(path.join(__dirname, 'desktop', 'ui', 'qr.js')));
 app.use(express.static(path.join(__dirname, 'public')));
 registerSocketHandlers(io);
 

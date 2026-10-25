@@ -9,6 +9,7 @@ const {
   getRawPoints,
   getEffectivePoints,
   buildClientState,
+  buildStageState,
   addInitialItems,
   importPoolItems,
   getAliveWheelItems,
@@ -57,12 +58,13 @@ function createSocketHarness() {
 
   registerSocketHandlers(io);
 
-  function connect(id) {
+  function connect(id, auth = {}) {
     const handlers = new Map();
     const received = [];
     const socket = {
       id,
       data: {},
+      handshake: { auth },
       received,
       emit(event, ...args) {
         received.push({ event, args });
@@ -74,6 +76,9 @@ function createSocketHarness() {
         const handler = handlers.get(event);
         assert.ok(handler, `No socket handler registered for ${event}`);
         handler(...args);
+      },
+      hasHandler(event) {
+        return handlers.has(event);
       }
     };
     connected.set(id, socket);
@@ -99,6 +104,20 @@ describe('isolated backend unit checks', () => {
     assert.equal(DEFAULT_SETTINGS.keepZeroItems, false);
     assert.equal(DEFAULT_SETTINGS.zeroItemWeight, 0.5);
     assert.equal(DEFAULT_SETTINGS.allowReactions, false);
+  });
+
+  test('stage bank counts only active participant allocations on unmerged lots', () => {
+    state.players.set('a', { id: 'a', token: 'a', name: 'A', online: false, ready: true });
+    state.players.set('spectator', { id: 's', token: 'spectator', isSpectator: true });
+    state.items = [
+      { id: 'a', title: 'A', basePoints: 90, allocations: { a: 7, spectator: 10, removed: 20 } },
+      { id: 'b', title: 'Merged', allocations: { a: 7 }, mergedInto: 'a' }
+    ];
+    const stage = buildStageState();
+    assert.equal(stage.totalBank, 7);
+    assert.equal(stage.items.length, 1);
+    assert.deepEqual(stage.players, [{ id: 'a', name: 'A', ready: true, online: false }]);
+    assert.deepEqual(Object.keys(stage.items[0]).sort(), ['downvotes', 'id', 'title', 'upvotes']);
   });
 
   test('awards round titles in priority order and resolves investor ties by bank share', () => {
@@ -458,6 +477,55 @@ describe('isolated backend unit checks', () => {
 describe('socket handler scenarios', () => {
   beforeEach(resetState);
   afterEach(resetState);
+
+  test('stage roles stay passive, hide stakes and track readiness without joining', () => {
+    const { connect } = createSocketHarness();
+    const stage = connect('screen', { role: 'stage' });
+    const otherScreen = connect('other-screen', { role: 'spectator-screen' });
+    const latest = socket => socket.received.filter(event => event.event === 'state_update').at(-1).args[0];
+    assert.equal(state.players.size, 0);
+    assert.equal(state.hostToken, null);
+    for (const screen of [stage, otherScreen]) {
+      assert.deepEqual(latest(screen).players, []);
+      for (const event of ['join', 'add_item', 'set_points', 'toggle_ready', 'toggle_reaction',
+        'update_settings', 'reset_auction', 'hard_reset_auction', 'spin_wheel']) {
+        assert.equal(screen.hasHandler(event), false, `System screen must not handle ${event}`);
+      }
+    }
+    const host = connect('host-socket');
+    const spectator = connect('spectator-socket');
+    join(host, 'host', 'Host');
+    join(spectator, 'spectator', 'Spectator', { isSpectator: true });
+    host.receive('add_item', { title: 'Private stakes' });
+    const item = state.items[0];
+    item.basePoints = 100;
+    host.receive('set_points', { itemId: item.id, points: 12 });
+    host.receive('update_settings', { ...state.settings, allowReactions: true });
+    spectator.receive('toggle_reaction', { itemId: item.id, type: 'up' });
+    assert.equal(latest(stage).totalBank, 12, 'Base points are not distributed player points');
+    assert.equal(latest(stage).players.length, 1, 'Spectators and system screens are excluded');
+    assert.deepEqual(latest(stage).items, [{ id: item.id, title: item.title, upvotes: 1, downvotes: 0 }]);
+    assert.equal(JSON.stringify(latest(stage)).includes('allocations'), false);
+    assert.equal(JSON.stringify(latest(stage)).includes('host-socket'), false);
+    assert.equal('me' in latest(stage), false);
+    host.receive('toggle_ready');
+    assert.equal(state.phase, 'REVEAL', 'Screens do not prevent all-ready transition');
+    assert.equal(latest(stage).phase, 'REVEAL');
+    assert.equal(latest(otherScreen).phase, 'REVEAL');
+    host.receive('hard_reset_auction');
+    assert.equal(latest(stage).phase, 'POOL');
+    assert.equal(latest(stage).totalBank, 0);
+    assert.deepEqual(latest(stage).players, []);
+    assert.deepEqual(latest(stage).items, []);
+    assert.equal('allItems' in latest(stage), false, 'Reset retains the safe stage payload');
+    const reconnect = connect('reconnected-screen', { role: 'stage' });
+    assert.deepEqual(latest(reconnect), latest(stage));
+    stage.receive('disconnect');
+    const updateCount = stage.received.length;
+    join(host, 'host', 'New host');
+    assert.equal(stage.received.length, updateCount, 'Disconnected screen subscription is removed');
+    assert.equal(latest(reconnect).players.length, 1);
+  });
 
   test('per-opponent mode calculates equal quotas and carries division remainder into free points', () => {
     const { connect } = createSocketHarness();

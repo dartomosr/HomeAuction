@@ -1,0 +1,136 @@
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const { EventEmitter } = require('node:events');
+const { bindWindowMode } = require('../desktop/window-mode');
+const model = import('../public/js/stage-model.js');
+const audio = import('../public/js/stage-audio.js');
+
+test('stage ranks by net votes, then upvotes, preserving ties and source order', async () => {
+  const { rankStageItems } = await model;
+  const items = [
+    { id: 'a', upvotes: 2, downvotes: 1 },
+    { id: 'b', upvotes: 5, downvotes: 4 },
+    { id: 'c', upvotes: 2, downvotes: 0 },
+    { id: 'd', upvotes: 2, downvotes: 1 }
+  ];
+  assert.deepEqual(rankStageItems(items).map(item => item.id), ['c', 'b', 'a', 'd']);
+  assert.deepEqual(items.map(item => item.id), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(rankStageItems([{ id: 'zero' }, { id: 'negative', upvotes: 0, downvotes: 1 }]).map(item => item.id), ['zero', 'negative']);
+});
+
+test('stage deltas suppress initial/reconnect sounds and distinguish votes, joins and readiness', async () => {
+  const { stageChanges } = await model;
+  const previous = { items: [{ id: 'a', upvotes: 1, downvotes: 1 }], players: [{ id: 'p', ready: false }] };
+  assert.deepEqual(stageChanges(null, previous), { added: [], reactions: [], joined: [], ready: [], allReady: false });
+  const next = { items: [{ id: 'a', upvotes: 2, downvotes: 0 }, { id: 'b', upvotes: 0, downvotes: 0 }], players: [{ id: 'p', ready: true }, { id: 'q', ready: false }] };
+  const changes = stageChanges(previous, next);
+  assert.deepEqual(changes.reactions, [{ id: 'a', up: 1, down: -1 }]);
+  assert.deepEqual(changes.added, [next.items[1]]);
+  assert.deepEqual(changes.joined, [next.players[1]]);
+  assert.deepEqual(changes.ready, [next.players[0]]);
+  assert.equal(changes.allReady, false);
+  const ready = { ...next, players: next.players.map(player => ({ ...player, ready: true })) };
+  assert.equal(stageChanges(next, ready).allReady, true);
+  assert.equal(stageChanges(ready, ready).allReady, false);
+  assert.equal(stageChanges(ready, { items: [], players: [] }).allReady, false);
+});
+
+test('carousel freezes when hidden, advances once after delays and adapts to compact scenes', async () => {
+  const { advanceCarousel, stageCapacity } = await model;
+  assert.deepEqual(advanceCarousel(3000, 60000, false), { elapsed: 3000, advance: false });
+  assert.deepEqual(advanceCarousel(3000, 1000, true), { elapsed: 4000, advance: false });
+  assert.deepEqual(advanceCarousel(3000, 60000, true), { elapsed: 0, advance: true });
+  assert.deepEqual(stageCapacity(1920, 1080), { columns: 3, rows: 2, items: 6, players: 6 });
+  assert.deepEqual(stageCapacity(720, 440), { columns: 2, rows: 1, items: 2, players: 4 });
+  assert.equal(stageCapacity(720, 600).items, 4);
+});
+
+test('native fullscreen synchronizes state and handles F11 repeats and Escape', () => {
+  const window = new EventEmitter();
+  window.webContents = new EventEmitter();
+  let fullscreen = false;
+  const published = [];
+  const requested = [];
+  window.isFullScreen = () => fullscreen;
+  window.setFullScreen = value => { requested.push(value); };
+  window.webContents.send = (event, state) => published.push({ event, state });
+  const mode = bindWindowMode(window);
+  let prevented = 0;
+  const event = { preventDefault: () => prevented++ };
+  window.webContents.emit('before-input-event', event, { type: 'keyDown', key: 'F11' });
+  window.webContents.emit('before-input-event', event, { type: 'keyDown', key: 'F11', isAutoRepeat: true });
+  assert.deepEqual(requested, [true]);
+  fullscreen = true;
+  window.emit('enter-full-screen');
+  assert.deepEqual(mode.getState(), { fullscreen: true });
+  assert.deepEqual(published.at(-1), { event: 'homeauction:window-mode', state: { fullscreen: true } });
+  window.webContents.emit('before-input-event', event, { type: 'keyDown', key: 'Escape' });
+  assert.deepEqual(requested, [true, false]);
+  fullscreen = false;
+  window.emit('leave-full-screen');
+  window.webContents.emit('before-input-event', event, { type: 'keyDown', key: 'Escape' });
+  assert.equal(prevented, 3);
+  mode.toggle();
+  mode.exit();
+  assert.deepEqual(requested, [true, false, true, false]);
+});
+
+function audioContextMock() {
+  const scheduled = [];
+  const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime(value) { this.value = value; } });
+  const node = () => ({ connect(other) { return other; }, disconnect() {} });
+  const context = {
+    state: 'running', currentTime: 1, sampleRate: 100, destination: node(),
+    createGain: () => ({ ...node(), gain: param() }),
+    createDynamicsCompressor: () => ({ ...node(), threshold: param(), knee: param(), ratio: param() }),
+    createConvolver: node,
+    createBuffer: (_channels, length) => ({ getChannelData: () => new Float32Array(length) }),
+    createStereoPanner: () => ({ ...node(), pan: param() }),
+    createOscillator: () => ({ ...node(), frequency: param(), start(time) { scheduled.push(time); }, stop() {} }),
+    createBufferSource: () => ({ ...node(), start(time) { scheduled.push(time); }, stop() {} }),
+    createBiquadFilter: () => ({ ...node(), Q: param(), frequency: param() })
+  };
+  return { context, scheduled };
+}
+
+test('stage sound persists mute, gates hidden screens and bounds repeated reaction bursts', async () => {
+  const { StageSound } = await audio;
+  const values = new Map([['homeauction-stage-muted', 'true']]);
+  const storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) };
+  const { context, scheduled } = audioContextMock();
+  let created = 0;
+  const sound = new StageSound({ storage, contextFactory: () => { created++; return context; } });
+  await sound.unlock();
+  assert.equal(created, 0);
+  assert.equal(sound.play('lot'), false);
+  sound.setMuted(false);
+  await sound.unlock();
+  assert.equal(created, 1);
+  assert.equal(values.get('homeauction-stage-muted'), 'false');
+  assert.equal(sound.play('up'), true);
+  const count = scheduled.length;
+  assert.equal(sound.play('up'), false);
+  assert.equal(scheduled.length, count);
+  sound.setActive(false);
+  context.currentTime++;
+  assert.equal(sound.play('ready'), false);
+  assert.equal(sound.master.gain.value, 0);
+  sound.setActive(true);
+  sound.setMuted(true);
+  assert.equal(sound.play('all-ready'), false);
+  assert.equal(sound.master.gain.value, 0);
+  assert.equal(new StageSound({ storage }).muted, true);
+});
+
+test('all stage cues schedule finite audio without requiring localStorage access', async () => {
+  const { StageSound } = await audio;
+  for (const kind of ['lot', 'up', 'down', 'ready', 'all-ready', 'page']) {
+    const { context, scheduled } = audioContextMock();
+    const sound = new StageSound({ storage: { getItem() { throw new Error('Disabled'); }, setItem() { throw new Error('Disabled'); } }, contextFactory: () => context });
+    await sound.unlock();
+    assert.equal(sound.play(kind), true, kind);
+    assert.ok(scheduled.length > 0 && scheduled.every(Number.isFinite), kind);
+    sound.setMuted(true);
+    assert.equal(sound.play(kind), false);
+  }
+});

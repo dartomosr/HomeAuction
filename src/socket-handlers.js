@@ -6,6 +6,7 @@ const {
   getActiveRevealItems,
   getAliveWheelItems,
   buildClientState,
+  buildStageState,
   normalizeItemTitle,
   addInitialItems,
   importPoolItems,
@@ -20,12 +21,17 @@ const { pickPredeterminedWinner, pickEliminatedItem } = require('./wheel-math');
 function registerSocketHandlers(io) {
   let pendingSpinTimer = null;
   let spinGeneration = 0;
+  const stageScreens = new Set();
 
   function broadcastState() {
     for (const [token, player] of state.players.entries()) {
       if (player.socketId) {
         io.to(player.socketId).emit('state_update', buildClientState(token));
       }
+    }
+    if (stageScreens.size > 0) {
+      const snapshot = buildStageState();
+      for (const socket of stageScreens) socket.emit('state_update', snapshot);
     }
   }
 
@@ -96,6 +102,13 @@ function registerSocketHandlers(io) {
   }
 
   io.on('connection', (socket) => {
+    // Системные экраны не получают обработчиков участия и не регистрируются игроками.
+    if (['stage', 'spectator-screen'].includes(socket.handshake?.auth?.role)) {
+      stageScreens.add(socket);
+      socket.emit('state_update', buildStageState());
+      socket.on('disconnect', () => stageScreens.delete(socket));
+      return;
+    }
     let currentToken = null;
     socket.emit('state_update', buildClientState(null));
 
@@ -685,7 +698,9 @@ function registerSocketHandlers(io) {
       state.wheel = { predeterminedWinnerId: null, isSpinning: false, history: [], winner: null, awards: null };
       for (const sock of io.sockets.sockets.values()) sock.data.auctionToken = null;
       io.emit('auction_hard_reset');
-      io.emit('state_update', buildClientState(null));
+      for (const sock of io.sockets.sockets.values()) {
+        sock.emit('state_update', stageScreens.has(sock) ? buildStageState() : buildClientState(null));
+      }
     });
 
     // Сброс аукциона для новой игры Хостом
