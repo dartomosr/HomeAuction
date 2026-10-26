@@ -82,13 +82,28 @@ export class StageSound {
     oscillator.stop(start + duration + .02);
   }
 
+  tick(speed = .5, duel = false) {
+    const ctx = this.context;
+    if (this.muted || !this.active || !ctx || ctx.state !== 'running' || this.voices > 12) return false;
+    if (ctx.currentTime - (this.lastPlayed.get('tick') ?? -Infinity) < .035) return false;
+    this.lastPlayed.set('tick', ctx.currentTime);
+    const frequency = (duel ? 170 : 300) + Math.max(0, Math.min(1, speed)) * 450;
+    this.note(frequency, 0, .055, duel ? .17 : .13, .1, frequency * .55);
+    return true;
+  }
+
   play(kind) {
     const ctx = this.context;
     if (this.muted || !this.active || !ctx || ctx.state !== 'running' || this.voices > 12) return false;
     const now = ctx.currentTime;
     if (now - (this.lastPlayed.get(kind) ?? -Infinity) < .16) return false;
     this.lastPlayed.set(kind, now);
-    if (kind === 'page') {
+    if (kind === 'elimination') {
+      this.note(110, 0, .85, .28, 0, 45);
+      this.note(330, .025, .45, .10, -.15, 85);
+    } else if (kind === 'countdown') {
+      this.note(440, 0, .15, .12, 0, 330);
+    } else if (kind === 'page') {
       const buffer = ctx.createBuffer(1, ctx.sampleRate * .38, ctx.sampleRate);
       const samples = buffer.getChannelData(0);
       for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;

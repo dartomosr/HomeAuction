@@ -202,9 +202,22 @@ function buildStageState() {
   const players = Array.from(state.players.values()).filter(player => !player.isSpectator);
   const activeTokens = new Set(players.map(player => player.token));
   const items = state.items.filter(item => !item.mergedInto);
+  const revealed = state.phase !== 'POOL';
+  const alive = getAliveWheelItems();
+  const inverseTotal = alive.reduce((sum, item) => sum + 1 / getEffectivePoints(item), 0);
+  const contributors = item => Object.entries(item.allocations || {})
+    .filter(([, points]) => points > 0)
+    .map(([token, points]) => ({ name: getPlayerNameByToken(token, 'Удалённый игрок'), points }))
+    .sort((a, b) => b.points - a.points);
   return {
     phase: state.phase,
     roomName: 'HomeAuction',
+    ...(revealed ? { wheel: {
+      isSpinning: state.wheel.isSpinning,
+      history: state.wheel.history.map(entry => ({ ...entry })),
+      winner: state.wheel.winner ? { ...state.wheel.winner } : null,
+      spin: state.wheel.presentationSpin || null
+    } } : {}),
     totalBank: items.reduce((bank, item) => bank + Object.entries(item.allocations || {})
       .reduce((sum, [token, points]) => sum + (activeTokens.has(token) ? points : 0), 0), 0),
     players: players.map(({ id, name, ready, online }) => ({ id, name, ready, online })),
@@ -212,7 +225,15 @@ function buildStageState() {
       id: item.id,
       title: item.title,
       upvotes: getReactionSummary(item, null).upvotes,
-      downvotes: getReactionSummary(item, null).downvotes
+      downvotes: getReactionSummary(item, null).downvotes,
+      ...(revealed ? {
+        totalPoints: getRawPoints(item),
+        effectivePoints: getEffectivePoints(item),
+        eliminated: Boolean(item.eliminated),
+        droppedZero: !getRawPoints(item) && !state.settings.keepZeroItems,
+        roundElimShare: alive.includes(item) && inverseTotal > 0 ? 100 / getEffectivePoints(item) / inverseTotal : 0,
+        contributors: contributors(item)
+      } : {})
     }))
   };
 }

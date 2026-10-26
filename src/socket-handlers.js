@@ -22,8 +22,13 @@ function registerSocketHandlers(io) {
   let pendingSpinTimer = null;
   let spinGeneration = 0;
   const stageScreens = new Set();
+  let wheelPresentation = { active: false, nextSpinAt: 0 };
 
   function broadcastState() {
+    if (state.phase !== 'REVEAL' || !state.players.get(state.hostToken)?.online) {
+      wheelPresentation = { active: false, nextSpinAt: 0 };
+      for (const screen of stageScreens) screen.emit('wheel_presentation', { ...wheelPresentation, serverNow: Date.now() });
+    }
     for (const [token, player] of state.players.entries()) {
       if (player.socketId) {
         io.to(player.socketId).emit('state_update', buildClientState(token));
@@ -106,10 +111,19 @@ function registerSocketHandlers(io) {
     if (['stage', 'spectator-screen'].includes(socket.handshake?.auth?.role)) {
       stageScreens.add(socket);
       socket.emit('state_update', buildStageState());
+      socket.emit('wheel_presentation', { ...wheelPresentation, serverNow: Date.now() });
       socket.on('disconnect', () => stageScreens.delete(socket));
       return;
     }
     let currentToken = null;
+    socket.on('wheel_presentation', (data = {}) => {
+      const player = state.players.get(currentToken);
+      if (!player?.isHost || player.socketId !== socket.id) return;
+      const active = Boolean(data?.active) && state.phase === 'REVEAL';
+      const waitMs = Number.isFinite(data?.waitMs) ? Math.max(0, Math.min(10000, data.waitMs)) : 0;
+      wheelPresentation = { active, nextSpinAt: active && waitMs > 0 ? Date.now() + waitMs : 0 };
+      for (const screen of stageScreens) screen.emit('wheel_presentation', { ...wheelPresentation, serverNow: Date.now() });
+    });
     socket.emit('state_update', buildClientState(null));
 
     socket.on('join', (joinData = {}) => {
@@ -641,20 +655,22 @@ function registerSocketHandlers(io) {
         };
       });
 
-      state.wheel.isSpinning = true;
-      broadcastState();
-
       const durationSec = state.settings.spinDuration;
       const extraSpins = Math.max(6, Math.round(durationSec * 0.85)) + Math.floor(Math.random() * 3);
 
-      io.emit('wheel_spin', {
+      const presentationSpin = {
         slices,
         eliminatedId: eliminatedItem.id,
         eliminatedTitle: eliminatedItem.title,
         targetFraction,
         extraSpins,
-        durationSec
-      });
+        durationSec,
+        startedAt: Date.now()
+      };
+      state.wheel.isSpinning = true;
+      state.wheel.presentationSpin = presentationSpin;
+      broadcastState();
+      io.emit('wheel_spin', presentationSpin);
 
       const thisSpin = ++spinGeneration;
       pendingSpinTimer = setTimeout(() => {
@@ -662,10 +678,16 @@ function registerSocketHandlers(io) {
         pendingSpinTimer = null;
         eliminatedItem.eliminated = true;
         state.wheel.isSpinning = false;
+        state.wheel.presentationSpin = null;
         state.wheel.history.push({
           id: eliminatedItem.id,
           title: eliminatedItem.title,
-          totalPoints: getRawPoints(eliminatedItem)
+          totalPoints: getRawPoints(eliminatedItem),
+          roundElimShare: slices.find(slice => slice.id === eliminatedItem.id).share * 100,
+          contributors: Object.entries(eliminatedItem.allocations || {})
+            .filter(([, points]) => points > 0)
+            .map(([token, points]) => ({ name: state.players.get(token)?.name || 'Удалённый игрок', points }))
+            .sort((a, b) => b.points - a.points)
         });
 
         const remaining = getAliveWheelItems();

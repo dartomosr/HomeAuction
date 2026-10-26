@@ -1,5 +1,20 @@
 export const PAGE_DURATION = 10000;
 
+export const STAGE_COLORS = ['#a998ef', '#6ccfe0', '#ed9bb5', '#e9bd7b', '#88cba8', '#adacf5', '#ed947d', '#80b9ef'];
+export const REVEAL_TIMING = { compact: 300, flip: 450, hold: 1350, collapse: 500 };
+export function revealLayout(count, width, height) {
+  const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count) * width / Math.max(1, height) / 1.8)));
+  return { columns, rows: Math.max(1, Math.ceil(count / columns)) };
+}
+export function stageWheelItems(state) {
+  const items = state?.items || [];
+  return items.map((item, index) => ({ ...item, color: STAGE_COLORS[index % STAGE_COLORS.length], share: (item.roundElimShare || 0) / 100 }))
+    .filter(item => !item.eliminated && !item.droppedZero);
+}
+export function riskLabel(value) {
+  return Number.isFinite(value) ? `${new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)}%` : 'нет данных';
+}
+
 export function rankStageItems(items) {
   // Stable ties preserve the order of proposals, rather than making equal cards jitter.
   return [...items].sort((a, b) =>

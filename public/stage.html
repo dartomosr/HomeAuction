@@ -14,10 +14,11 @@
   <main class="stage">
     <header class="hud">
       <div class="room">
-        <div class="room-brand"><img src="/icon.webp" alt="" width="48" height="48"><span id="room-name">HomeAuction</span></div>
+        <div class="room-brand"><svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="49" fill="var(--logo-back, #95586e)"/><path d="M17 91 43 5h18l28 86H73L50 22 30 91Z" fill="#34314e"/><path d="M12 91 40 5h18l28 86H70L48 22 26 91Z" fill="#e8c253"/><path d="M8 91 36 5h22l29 86H68l-6-19H31l-6 19Zm28-31h22L47 23Z" fill="currentColor"/></svg><span id="room-name">HomeAuction</span></div>
         <span id="connection-status" class="connection" role="status">Подключение...</span>
       </div>
       <div id="bank-card" class="bank glass"><div class="bank-orbit" aria-hidden="true"></div><div><span class="label">БАНК ВЕЧЕРА</span><strong id="bank-accessible" aria-label="0 очков"><span id="bank-value" aria-hidden="true">0</span> <small aria-hidden="true">очков</small></strong></div><svg class="bank-spark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 3c0 14 7 21 21 21-14 0-21 7-21 21 0-14-7-21-21-21C17 24 24 17 24 3Z"/></svg></div>
+      <div id="round-status" class="round-status" hidden><span id="round-kicker" class="round-kicker">КОЛЕСО НА ВЫБЫВАНИЕ</span><strong id="round-title">МОМЕНТ ИСТИНЫ</strong><span id="round-progress" class="round-progress" aria-hidden="true"></span></div>
       <div class="readiness glass">
         <span id="ready-label">Готовы: 0 из 0</span>
         <div id="ready-progress" class="progress" role="progressbar" aria-label="Готовность комнаты" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
@@ -31,8 +32,23 @@
       <div class="carousel-footer"><span class="pool-hint">Идеи на экране. Интрига в телефоне.</span><div id="pagination" class="pagination" aria-label="Страницы вариантов"></div><span id="page-label" class="page-label"></span></div>
     </section>
 
-    <section id="phase-teaser" class="teaser" hidden>
-      <div class="glass teaser-card"><div class="orbit" aria-hidden="true"><i></i><i></i><i></i></div><p class="eyebrow">МОМЕНТ ИСТИНЫ</p><h1>Идет вращение колеса...</h1><p>Все ставки сделаны. Дальше решает случай.</p></div>
+    <section id="wheel-scene" class="wheel-scene" hidden aria-label="Колесо на выбывание">
+      <aside class="wheel-column contenders-column"><div class="column-heading"><h2>Претенденты</h2><span id="contender-count" class="column-count">00</span></div><div id="contenders" class="wheel-list"></div><p class="column-footnote">Очки сохраняют интригу</p></aside>
+      <div class="wheel-center">
+        <div id="wheel-arena" class="wheel-arena">
+          <div class="arena-aura" aria-hidden="true"></div>
+          <div class="arena-orbit" aria-hidden="true"></div>
+          <div id="arena-impact" class="arena-impact" aria-hidden="true"></div>
+          <canvas id="stage-wheel" role="img" aria-label="Колесо риска выбывания. Названия и риски перечислены в колонках."></canvas>
+          <canvas id="stage-wheel-fx" aria-hidden="true"></canvas>
+          <div id="wheel-hub" class="wheel-hub" aria-hidden="true"><svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="49" fill="var(--logo-back, #95586e)"/><path d="M17 91 43 5h18l28 86H73L50 22 30 91Z" fill="#34314e"/><path d="M12 91 40 5h18l28 86H70L48 22 26 91Z" fill="#e8c253"/><path d="M8 91 36 5h22l29 86H68l-6-19H31l-6 19Zm28-31h22L47 23Z" fill="currentColor"/></svg><div id="auto-countdown" class="auto-countdown" hidden><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/><circle cx="50" cy="50" r="46" pathLength="1"/></svg><span id="countdown-value"></span></div></div>
+          <svg id="wheel-pointer" class="wheel-pointer" viewBox="0 0 64 48" aria-hidden="true"><defs><linearGradient id="pointer-metal" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff9e9"/><stop offset=".5" stop-color="#edd7a4"/><stop offset="1" stop-color="#9d794c"/></linearGradient></defs><g id="pointer-blade"><path d="M4 24 49 12Q57 13 57 24T49 36Z" fill="url(#pointer-metal)"/><path class="pointer-highlight" d="M8 24 48 15"/></g><circle class="pointer-mount" cx="51" cy="24" r="7"/><circle class="pointer-pin" cx="51" cy="24" r="2.5"/></svg>
+          <div id="elimination-banner" class="elimination-banner glass" role="status" hidden></div>
+          <div id="winner-panel" class="winner-panel glass" role="status" hidden><p class="eyebrow">ВЫБОР ЭТОГО ВЕЧЕРА</p><h1 id="winner-name"></h1><p class="winner-signoff">Один вариант. Общая история.</p></div>
+        </div>
+        <div class="arena-caption"><span id="arena-cue">ВСЁ РЕШАЕТ СЛЕДУЮЩИЙ ОБОРОТ</span><p class="wheel-hint">Стрелка указывает на выбывающий сектор</p></div>
+      </div>
+      <aside class="wheel-column history-column"><div class="column-heading"><h2>Хроника выбывания</h2><span id="history-count" class="column-count">00</span></div><div id="eliminated-lots" class="wheel-list"></div><p class="column-footnote">Риск зафиксирован в момент вылета</p></aside>
     </section>
 
     <footer class="bottom-panel">
@@ -42,6 +58,7 @@
   </main>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/stage-qr.js"></script>
+  <script src="/js/wheel-effects.js"></script>
   <script type="module" src="/js/stage.js"></script>
 </body>
 </html>

@@ -110,6 +110,7 @@ describe('smoke checks', () => {
   test('validates stage and launcher markup contracts and emoji-free stage UI', async () => {
     for (const [htmlFile, scriptFile] of [
       ['public/stage.html', 'public/js/stage.js'],
+      ['public/stage.html', 'public/js/stage-wheel.js'],
       ['desktop/ui/index.html', 'desktop/ui/renderer.js']
     ]) {
       const [html, script] = await Promise.all([

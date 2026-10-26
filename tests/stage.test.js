@@ -124,7 +124,7 @@ test('stage sound persists mute, gates hidden screens and bounds repeated reacti
 
 test('all stage cues schedule finite audio without requiring localStorage access', async () => {
   const { StageSound } = await audio;
-  for (const kind of ['lot', 'up', 'down', 'ready', 'all-ready', 'page']) {
+  for (const kind of ['lot', 'up', 'down', 'ready', 'all-ready', 'page', 'elimination', 'countdown']) {
     const { context, scheduled } = audioContextMock();
     const sound = new StageSound({ storage: { getItem() { throw new Error('Disabled'); }, setItem() { throw new Error('Disabled'); } }, contextFactory: () => context });
     await sound.unlock();
@@ -132,5 +132,83 @@ test('all stage cues schedule finite audio without requiring localStorage access
     assert.ok(scheduled.length > 0 && scheduled.every(Number.isFinite), kind);
     sound.setMuted(true);
     assert.equal(sound.play(kind), false);
+  }
+});
+
+test('reveal grid fits every lot and wheel view excludes merged-out zero and eliminated lots', async () => {
+  const { revealLayout, stageWheelItems, riskLabel } = await model;
+  for (const count of [0, 1, 6, 7, 18, 48]) {
+    const layout = revealLayout(count, 1600, 760);
+    assert.ok(layout.columns * layout.rows >= count);
+  }
+  const items = [
+    { id: 'a', roundElimShare: 40 }, { id: 'b', eliminated: true },
+    { id: 'c', droppedZero: true }, { id: 'd', roundElimShare: 60 }
+  ];
+  const slices = stageWheelItems({ items });
+  assert.deepEqual(slices.map(item => item.id), ['a', 'd']);
+  assert.equal(slices.reduce((sum, item) => sum + item.share, 0), 1);
+  const after = stageWheelItems({ items: items.map(item => ({ ...item, eliminated: item.id === 'a' || item.eliminated })) });
+  assert.equal(after[0].color, slices[1].color, 'A lot retains its color between rounds');
+  assert.equal(riskLabel(12.3456789), '12,3%');
+  assert.equal(riskLabel(undefined), 'нет данных');
+});
+
+test('stage wheel lands on server target and reconstructs an in-progress rotation', async () => {
+  const { spinRotation, pointerSector, TAU } = await import('../public/js/wheel-canvas.js');
+  const spin = { targetFraction: .63, extraSpins: 7, durationSec: 12 };
+  const slices = [{ share: .3 }, { share: .5 }, { share: .2 }];
+  let previous = 1.7;
+  for (let time = 0; time <= 12000; time += 100) {
+    const rotation = spinRotation(spin, 1.7, time);
+    assert.ok(rotation >= previous);
+    previous = rotation;
+  }
+  const end = spinRotation(spin, 1.7, 12000);
+  assert.equal(pointerSector(slices, end), 1);
+  assert.ok(Math.abs((end % TAU) / TAU - .37) < 1e-10);
+  assert.equal(spinRotation(spin, 1.7, 15000), end);
+  assert.ok(spinRotation(spin, 1.7, 6500) > 1.7);
+});
+
+test('wheel ticks support pitch, duel and mute without replay bursts', async () => {
+  const { StageSound } = await audio;
+  const { context, scheduled } = audioContextMock();
+  const sound = new StageSound({ contextFactory: () => context });
+  await sound.unlock();
+  assert.equal(sound.tick(.9, true), true);
+  assert.equal(sound.tick(.9, true), false);
+  context.currentTime += .04;
+  assert.equal(sound.tick(.1, false), true);
+  assert.equal(scheduled.length, 2);
+  sound.setMuted(true);
+  assert.equal(sound.tick(.1, false), false);
+});
+
+test('pointer catches narrow boundaries and full revolutions between frames', async () => {
+  const { crossedBoundaries, TAU } = await import('../public/js/wheel-canvas.js');
+  const slices = [{ share: .001 }, { share: .002 }, { share: .997 }];
+  assert.equal(crossedBoundaries(slices, 0, TAU), 3);
+  assert.equal(crossedBoundaries(slices, TAU - .03, TAU + .001), 3);
+  assert.equal(crossedBoundaries(slices, 0, 3 * TAU), 9);
+  assert.equal(crossedBoundaries(slices, 1, 1), 0);
+});
+
+test('pointer spring is frame-rate independent and settles after repeated impacts', async () => {
+  const { stepPointerSpring } = await import('../public/js/wheel-canvas.js');
+  const simulate = fps => {
+    let value = { angle: 0, velocity: -240 };
+    for (let frame = 0; frame < fps; frame++) value = stepPointerSpring(value, 1 / fps);
+    return value;
+  };
+  const slow = simulate(30), fast = simulate(120);
+  assert.ok(Math.abs(slow.angle - fast.angle) < 1e-9);
+  assert.ok(Math.abs(slow.velocity - fast.velocity) < 1e-9);
+  assert.ok(Math.abs(slow.angle) + Math.abs(slow.velocity) < .001);
+  let spring = { angle: 0, velocity: 0 };
+  for (let frame = 0; frame < 120; frame++) {
+    if (frame % 4 === 0) spring.velocity = Math.max(-400, spring.velocity - 220);
+    spring = stepPointerSpring(spring, 1 / 60);
+    assert.ok(Number.isFinite(spring.angle) && Math.abs(spring.angle) < 20);
   }
 });

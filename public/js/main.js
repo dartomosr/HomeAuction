@@ -1,9 +1,10 @@
+import { reportWheelPresentation } from './wheel-presentation.js';
 import { store, writeSetting } from './store.js';
 import { dom } from './dom.js';
 import { socket, initSocketClient } from './socket-client.js';
 import { initAudio, playUiClickSound, playUiSliderSound, playUiReadySound } from './audio.js';
 import { updatePointsSplitPreview, updateJoinPresetVisibility, renderEffectsControls, setAllEffects, applyTheme, updateSoundButton, openAllItemsModal, closeAllItemsModal, openHelpModal, closeHelpModal, renderHelpModal, switchHistoryTab, copyResultSummary, showToast, renderMainArea, initializeMobileBottomSheets } from './ui-render.js';
-import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-canvas.js';
+import { drawWheel, renderWheelLegend, resizeWheelCanvas } from './wheel-player.js';
 import { getInitialItems } from './saves.js';
 import { triggerHaptic } from './haptics.js';
 import { createRandomModeFlow, createSpinPlan, createPresetDraft, filterEnabledPresets, getPresetGroupState, loadPresetIds, RANDOM_PRESET_STORAGE_KEY } from './random-mode.js';
@@ -631,6 +632,7 @@ dom.btnAutoSpin.addEventListener('click', () => {
   triggerHaptic('medium');
   initAudio();
   store.autoSpinActive = !store.autoSpinActive;
+  reportWheelPresentation();
   dom.btnAutoSpin.textContent = store.autoSpinActive ? 'Остановить авто-крутку' : 'Авто-крутка до победителя';
   if (store.autoSpinActive && store.appState && !store.appState.wheel.isSpinning && !store.isAnimatingWheel && !store.activeElimination) {
     socket.emit('spin_wheel');

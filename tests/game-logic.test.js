@@ -840,6 +840,49 @@ describe('socket handler scenarios', () => {
     assert.deepEqual(getAliveWheelItems().map(item => item.id), ['lot-a']);
   });
 
+  test('stage reveal payload hides tokens, excludes zeros and preserves frozen elimination risk', t => {
+    const { connect } = createSocketHarness();
+    const host = connect('host-screen');
+    join(host, 'secret-host-token', 'Хост');
+    const screen = connect('stage-screen', { role: 'stage' });
+    const player = connect('player-screen');
+    join(player, 'secret-player-token', 'Игрок');
+    state.phase = 'REVEAL';
+    state.settings.spinDuration = .1;
+    state.items = [
+      { id: 'a', title: 'A', basePoints: 0, allocations: { 'secret-host-token': 10 }, eliminated: false },
+      { id: 'b', title: 'B', basePoints: 0, allocations: { 'secret-player-token': 30 }, eliminated: false },
+      { id: 'zero', title: 'Zero', basePoints: 0, allocations: {}, eliminated: false }
+    ];
+    state.settings.keepZeroItems = false;
+    const revealed = buildStageState();
+    assert.equal(revealed.items[0].roundElimShare, 75);
+    assert.equal(revealed.items[1].roundElimShare, 25);
+    assert.equal(revealed.items[2].droppedZero, true);
+    assert.deepEqual(revealed.items[0].contributors, [{ name: 'Хост', points: 10 }]);
+    assert.doesNotMatch(JSON.stringify(revealed), /secret-|predeterminedWinner/);
+    assert.equal(screen.hasHandler('wheel_presentation'), false);
+    player.receive('wheel_presentation', { active: true, waitMs: 2000 });
+    assert.equal(screen.received.filter(message => message.event === 'wheel_presentation').at(-1).args[0].active, false);
+    host.receive('wheel_presentation', { active: true, waitMs: 2400 });
+    const telemetry = screen.received.filter(message => message.event === 'wheel_presentation').at(-1).args[0];
+    assert.equal(telemetry.active, true);
+    assert.equal(telemetry.nextSpinAt - telemetry.serverNow, 2400);
+    assert.equal(state.wheel.isSpinning, false, 'Presentation telemetry cannot start a spin');
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    host.receive('spin_wheel');
+    const spinning = buildStageState();
+    assert.ok(spinning.wheel.spin.startedAt);
+    assert.equal(spinning.wheel.spin.slices.length, 2);
+    const reconnect = connect('reconnected-stage', { role: 'stage' });
+    assert.ok(reconnect.received.find(message => message.event === 'state_update').args[0].wheel.spin);
+    const eliminatedId = spinning.wheel.spin.eliminatedId;
+    const risk = revealed.items.find(item => item.id === eliminatedId).roundElimShare;
+    t.mock.timers.tick(500);
+    assert.equal(buildStageState().wheel.history[0].roundElimShare, risk);
+    assert.equal(buildStageState().wheel.spin, null);
+  });
+
   test('finishes the wheel round and supports both host reset modes', t => {
     const { connect } = createSocketHarness();
     const host = connect('socket-host');

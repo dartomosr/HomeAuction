@@ -1,8 +1,9 @@
+import { reportWheelPresentation } from './wheel-presentation.js';
 import { store, writeSetting, removeSetting } from './store.js';
 import { dom } from './dom.js';
 import { renderAllItemsModal, closeAllItemsModal, closeHelpModal, renderHelpModal, showToast, renderSidebar, renderMainArea, updateJoinPresetVisibility } from './ui-render.js';
 import { playWinnerFanfare, playUiClickSound } from './audio.js';
-import { resetClientVisualState, renderWheelLegend, resizeWheelCanvas, drawWheel, handleWheelSpin } from './wheel-canvas.js';
+import { resetClientVisualState, renderWheelLegend, resizeWheelCanvas, drawWheel, handleWheelSpin } from './wheel-player.js';
 
 export const socket = window.io();
 store.socket = socket;
@@ -122,6 +123,7 @@ socket.on('state_update', (state) => {
     const aliveCount = state.items.filter((i) => !i.eliminated).length;
     if (aliveCount > 1) {
       clearTimeout(store.autoSpinTimer);
+      reportWheelPresentation(2400);
       store.autoSpinTimer = setTimeout(() => {
         store.autoSpinTimer = null;
         if (store.autoSpinActive && store.appState && store.appState.phase === 'REVEAL' && !store.appState.wheel.isSpinning && !store.isAnimatingWheel && !store.activeElimination) {
