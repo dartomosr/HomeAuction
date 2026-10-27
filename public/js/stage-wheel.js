@@ -25,6 +25,7 @@ export class StageWheel {
     this.motions = new Map();
     this.flights = new Set();
     this.labels = new Map();
+    this.meshLights = [...document.querySelectorAll('.mesh i')];
     this.presentation = { active: false, nextSpinAt: 0 };
     this.resize = new ResizeObserver(() => this.draw());
     this.resize.observe(byId('wheel-arena'));
@@ -41,8 +42,29 @@ export class StageWheel {
     return animation;
   }
 
+  reactBackdrop(angularVelocity = 0) {
+    const energy = this.reduced() || !this.active() ? 0 : Math.min(1, Math.abs(angularVelocity) / 12);
+    const now = performance.now();
+    // Background speed needs only 10 updates/sec; keep inherited styles local.
+    if (energy && now - (this.backdropUpdatedAt || 0) < 100) return;
+    const level = Math.round(energy * 20) / 20;
+    if (level === this.backdropEnergy) return;
+    this.backdropUpdatedAt = now;
+    this.backdropEnergy = level;
+    byId('wheel-arena').style.setProperty('--spin-energy', level);
+    if (!this.backdropAnimations?.length || this.backdropAnimations.some(animation => animation.playState === 'idle')) {
+      this.backdropAnimations = this.meshLights.flatMap(light => light.getAnimations())
+        .filter(animation => ['silk-drift', 'stage-drift'].includes(animation.animationName));
+    }
+    for (const animation of this.backdropAnimations) animation.updatePlaybackRate(1 + level * 7);
+  }
+
   impact(color = '#ceb2e9', winner = false) {
     byId('wheel-arena').style.setProperty('--arena-color', color);
+    if (!winner) {
+      byId('stage-flash').style.setProperty('--flash-color', color);
+      this.motion(byId('stage-flash'), [{ opacity: 0 }, { opacity: .48, offset: .22 }, { opacity: 0 }], { duration: 260, easing: 'ease-out' });
+    }
     this.motion(byId('arena-impact'), [
       { opacity: 0, transform: 'scale(.9)' },
       { opacity: winner ? .8 : .65, transform: 'scale(1)', offset: .18 },
@@ -51,6 +73,7 @@ export class StageWheel {
   }
 
   clearMotion() {
+    this.reactBackdrop();
     for (const animation of this.motions.values()) animation.cancel();
     this.motions.clear();
     for (const ghost of this.flights) { ghost.getAnimations().forEach(animation => animation.cancel()); ghost.remove(); }
@@ -143,7 +166,7 @@ export class StageWheel {
         card.prepend(node('span', 'history-order', `ВЫЛЕТ / ${String(i + 1).padStart(2, '0')}`));
         return card;
       }));
-      if (!history.length) historyNode.append(node('p', 'empty-history', 'Пока все в игре'));
+      if (!history.length) historyNode.append(node('p', 'empty-history', `РАУНД ${String(Math.max(1, round)).padStart(2, '0')}`));
       for (const card of historyNode.children) {
         const source = old.get(card.dataset.id);
         if (!source || this.silentUpdate || this.reduced() || !this.active()) continue;
@@ -194,7 +217,7 @@ export class StageWheel {
     stats.append(points, risk);
     card.append(node('h3', '', item.title), stats);
     const investors = node('div', 'investor-chips');
-    const contributors = item.contributors || [];
+    const contributors = [...(item.contributors || [])].sort((a, b) => b.points - a.points);
     contributors.slice(0, 3).forEach(person => {
       const chip = node('span', '', `${Array.from(person.name)[0] || '?'}:`);
       chip.append(node('b', '', String(person.points)));
@@ -240,6 +263,7 @@ export class StageWheel {
       const rotation = spinRotation(data, this.spinStart, elapsed);
       const index = pointerSector(this.slices, rotation);
       const speed = Math.abs(rotation - this.rotation) / dt;
+      this.reactBackdrop(speed);
       const crossings = crossedBoundaries(this.slices, this.rotation, rotation);
       this.rotation = rotation;
       if (crossings > 0 && this.active() && !this.silentSpin) {
@@ -263,6 +287,7 @@ export class StageWheel {
       if (elapsed < data.durationSec * 1000) this.frame = requestAnimationFrame(frame);
       else {
         this.spin = null;
+        this.reactBackdrop();
         document.body.classList.remove('wheel-spinning', 'wheel-settling');
         this.settlePointer();
         const item = this.state.items.find(item => item.id === data.eliminatedId);
@@ -374,6 +399,26 @@ export class StageWheel {
     list.scrollTo({ top: list.scrollTop >= bottom - 8 ? 0 : Math.min(bottom, list.scrollTop + list.clientHeight * .72), behavior: this.reduced() ? 'instant' : 'smooth' });
   }
 
+  paintLabel(ctx, slice, angle, side) {
+    const sweep = slice.share * TAU;
+    if (sweep <= .10) return;
+    const middle = angle + sweep / 2;
+    const reverse = Math.cos(middle) < 0;
+    ctx.save(); ctx.translate(side / 2, side / 2); ctx.rotate(middle + (reverse ? Math.PI : 0));
+    ctx.textAlign = reverse ? 'left' : 'right'; ctx.textBaseline = 'middle';
+    const fontSize = Math.max(9, side * (this.slices.length <= 4 ? .034 : .027));
+    ctx.font = `700 ${fontSize}px "Segoe UI", sans-serif`;
+    ctx.fillStyle = '#fff'; ctx.shadowColor = '#241158aa'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
+    const key = `${side}:${slice.id}:${slice.title}:${fontSize}`;
+    if (!this.labels.has(key)) {
+      let label = slice.title;
+      while (ctx.measureText(label).width > side * .30 && label.length > 1) label = label.slice(0, -1);
+      this.labels.set(key, label === slice.title ? label : `${label.slice(0, -1)}…`);
+    }
+    ctx.fillText(this.labels.get(key), side * .425 * (reverse ? -1 : 1), 0);
+    ctx.restore();
+  }
+
   draw() {
     // Layout dimensions are stable while the arena itself scales on entry.
     const side = byId('wheel-arena').clientWidth;
@@ -388,7 +433,7 @@ export class StageWheel {
     ctx.clearRect(0, 0, side, side);
     this.geometry = { width: side, height: side, cx: side / 2, cy: side / 2, radius: side * .47, scale: side / 540 };
     const missingId = this.elimination?.id || this.retiringId;
-    const textureKey = JSON.stringify([side, ratio, this.slices.map(slice => [slice.id, slice.share, slice.color]), missingId]);
+    const textureKey = JSON.stringify([side, ratio, this.slices.map(slice => [slice.id, slice.share, slice.color, slice.title]), missingId]);
     if (textureKey !== this.textureKey) {
       this.textureKey = textureKey;
       this.texture ||= document.createElement('canvas');
@@ -398,50 +443,34 @@ export class StageWheel {
       texture.clearRect(0, 0, side, side);
       let angle = 0;
       for (const slice of this.slices) {
-        if (slice.id !== missingId) paintBroadcastSector(texture, this.geometry, angle, slice.share * TAU, slice.color);
+        if (slice.id !== missingId) {
+          paintBroadcastSector(texture, this.geometry, angle, slice.share * TAU, slice.color);
+          this.paintLabel(texture, slice, angle, side);
+        }
         angle += slice.share * TAU;
       }
     }
     ctx.save(); ctx.translate(side / 2, side / 2); ctx.rotate(this.rotation);
     ctx.drawImage(this.texture, -side / 2, -side / 2, side, side); ctx.restore();
     let angle = this.rotation;
-    this.slices.forEach(slice => {
+    for (const slice of this.slices) {
       const sweep = slice.share * TAU;
-      if (slice.id !== missingId) {
-        if (slice.id === this.focusId) paintBroadcastSector(ctx, this.geometry, angle, sweep, slice.color, true);
-        if (sweep > .10) {
-          const middle = angle + sweep / 2;
-          const reverse = Math.cos(middle) < 0;
-          ctx.save(); ctx.translate(side / 2, side / 2); ctx.rotate(middle + (reverse ? Math.PI : 0));
-          ctx.textAlign = reverse ? 'left' : 'right'; ctx.textBaseline = 'middle';
-          const fontSize = Math.max(9, side * (this.slices.length <= 4 ? .028 : .022));
-          ctx.font = `560 ${fontSize}px "Segoe UI", sans-serif`;
-          ctx.fillStyle = '#fff7f2'; ctx.shadowColor = '#05081bb3'; ctx.shadowBlur = 3;
-          const key = `${side}:${slice.id}:${slice.title}:${fontSize}`;
-          if (!this.labels.has(key)) {
-            let label = slice.title;
-            while (ctx.measureText(label).width > side * .30 && label.length > 1) label = label.slice(0, -1);
-            this.labels.set(key, label === slice.title ? label : `${label.slice(0, -1)}…`);
-          }
-          ctx.fillText(this.labels.get(key), side * .425 * (reverse ? -1 : 1), 0);
-          ctx.restore();
-        }
+      if (slice.id === this.focusId && slice.id !== missingId) {
+        ctx.beginPath(); ctx.moveTo(side / 2, side / 2);
+        ctx.arc(side / 2, side / 2, side * .47, angle, angle + sweep); ctx.closePath();
+        ctx.fillStyle = '#ffffff12'; ctx.fill();
+        ctx.strokeStyle = '#ffffffbb'; ctx.lineWidth = 2; ctx.stroke();
       }
       angle += sweep;
-    });
+    }
     const color = this.slices[Math.max(0, pointerSector(this.slices, this.rotation))]?.color || '#a998ef';
-    byId('wheel-hub').style.setProperty('--hub-color', color);
+    if (color !== this.hubColor) {
+      this.hubColor = color;
+      byId('wheel-hub').style.setProperty('--hub-color', color);
+    }
     ctx.beginPath(); ctx.arc(side / 2, side / 2, side * .47, 0, TAU);
     ctx.strokeStyle = '#d5cfed35'; ctx.lineWidth = side * .002; ctx.stroke();
-    // Stationary instrument-like graduations sit above the rotating disc.
-    for (let i = 0; i < 120; i++) {
-      const a = i / 120 * TAU;
-      const inner = side * (i % 5 === 0 ? .476 : .479);
-      const outer = side * .483;
-      ctx.beginPath(); ctx.moveTo(side / 2 + Math.cos(a) * inner, side / 2 + Math.sin(a) * inner);
-      ctx.lineTo(side / 2 + Math.cos(a) * outer, side / 2 + Math.sin(a) * outer);
-      ctx.strokeStyle = i % 5 === 0 ? '#ece1ff77' : '#d9ceef24'; ctx.lineWidth = 1; ctx.stroke();
-    }
+
   }
 
   reset() {

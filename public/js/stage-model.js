@@ -1,6 +1,6 @@
 export const PAGE_DURATION = 10000;
 
-export const STAGE_COLORS = ['#a998ef', '#6ccfe0', '#ed9bb5', '#e9bd7b', '#88cba8', '#adacf5', '#ed947d', '#80b9ef'];
+export const STAGE_COLORS = ['#7450ff', '#00b8dc', '#ff557d', '#f5aa26', '#00bf91', '#405bff', '#ff7847', '#c748ed'];
 export const REVEAL_TIMING = { compact: 300, flip: 450, hold: 1350, collapse: 500 };
 export function revealLayout(count, width, height) {
   const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count) * width / Math.max(1, height) / 1.8)));

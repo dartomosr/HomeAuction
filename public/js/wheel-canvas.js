@@ -19,11 +19,14 @@ export function spinRotation(spin, start, elapsed) {
   if (delta <= 0) delta += TAU;
   const duration = spin.durationSec * 1000;
   const t = Math.max(0, Math.min(1, elapsed / duration));
-  const slowdown = Math.min(.35, 8000 / duration);
-  const linearTime = 1 - slowdown;
-  const linearDistance = 3 * linearTime / (3 * linearTime + slowdown);
-  const eased = t < linearTime ? t / linearTime * linearDistance
-    : linearDistance + (1 - linearDistance) * (1 - (1 - (t - linearTime) / slowdown) ** 3);
+  // Integrate a cosine velocity envelope: brief acceleration, long coast to rest.
+  // Both joins have zero acceleration; elapsed time alone reconstructs reconnects.
+  const acceleration = Math.min(.08, 650 / duration);
+  const coast = 1 - acceleration;
+  const u = (t - acceleration) / coast;
+  const eased = t < acceleration
+    ? t - acceleration / Math.PI * Math.sin(Math.PI * t / acceleration)
+    : acceleration + coast * (u + Math.sin(Math.PI * u) / Math.PI);
   return start + (spin.extraSpins * TAU + delta) * eased;
 }
 
@@ -70,12 +73,12 @@ export function paintBroadcastSector(ctx, geometry, start, angle, color, focus =
   ctx.arc(cx, cy, radius, start, start + angle); ctx.closePath();
   ctx.fillStyle = color; ctx.fill();
   const depth = ctx.createRadialGradient(cx, cy, radius * .12, cx, cy, radius);
-  depth.addColorStop(0, '#0b1024c9');
-  depth.addColorStop(.55, '#10152c77');
-  depth.addColorStop(.89, '#10132938');
-  depth.addColorStop(1, '#080c1d88');
+  depth.addColorStop(0, '#ffffff20');
+  depth.addColorStop(.55, '#ffffff00');
+  depth.addColorStop(.89, '#ffffff08');
+  depth.addColorStop(1, '#ffffff30');
   ctx.fillStyle = depth; ctx.fill();
-  ctx.lineWidth = 1.2 * scale; ctx.strokeStyle = '#090d2390'; ctx.stroke();
+  ctx.lineWidth = 1.2 * scale; ctx.strokeStyle = '#ffffff66'; ctx.stroke();
   // Fine edge lighting leaves the sector geometry legible at speed.
   const inset = Math.min(.003, angle / 4);
   ctx.beginPath(); ctx.arc(cx, cy, radius - 2 * scale, start + inset, start + angle - inset);

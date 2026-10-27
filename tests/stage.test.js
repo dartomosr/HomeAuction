@@ -212,3 +212,20 @@ test('pointer spring is frame-rate independent and settles after repeated impact
     assert.ok(Number.isFinite(spring.angle) && Math.abs(spring.angle) < 20);
   }
 });
+
+
+test('stage spin accelerates briefly and coasts continuously to rest', async () => {
+  const { spinRotation } = await import('../public/js/wheel-canvas.js');
+  for (const durationSec of [3, 12, 60]) {
+    const spin = { targetFraction: .37, extraSpins: 7, durationSec };
+    const duration = durationSec * 1000;
+    const speed = t => (spinRotation(spin, 0, t + 1) - spinRotation(spin, 0, t)) * 1000;
+    const peakTime = Math.min(duration * .08, 650);
+    assert.ok(speed(1) < speed(peakTime / 2));
+    assert.ok(speed(peakTime / 2) < speed(peakTime));
+    assert.ok(speed(peakTime) > speed(duration * .5));
+    assert.ok(speed(duration * .5) > speed(duration * .8));
+    assert.ok(speed(duration * .8) > speed(duration - 2));
+    assert.ok(speed(duration - 2) < .0001);
+  }
+});

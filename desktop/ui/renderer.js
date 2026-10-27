@@ -16,7 +16,19 @@ let renderedQrAddress = '';
 let qrCopyTimer;
 let selectedTab = 'management';
 let fullscreen = false;
+let immersiveDelayTimer = null;
+let windowedImmersive = false;
 const stageFrame = document.getElementById('stage-frame');
+const topbar = document.querySelector('.topbar');
+const immersiveExit = document.getElementById('immersive-exit');
+const WINDOWED_IMMERSIVE_DELAY_MS = 2500;
+
+const clearImmersiveDelay = () => {
+  if (immersiveDelayTimer !== null) {
+    clearTimeout(immersiveDelayTimer);
+    immersiveDelayTimer = null;
+  }
+};
 
 function postToStage(message) {
   if (!stageFrame.getAttribute('src')) return;
@@ -29,13 +41,33 @@ function publishStageVisibility() {
 
 function renderWindowMode(mode = {}) {
   fullscreen = Boolean(mode.fullscreen);
-  const immersive = fullscreen && selectedTab === 'game';
+  if (fullscreen) clearImmersiveDelay();
+  const immersive = selectedTab === 'game' && (fullscreen || windowedImmersive);
+  const focusedTopbar = immersive && topbar.contains(document.activeElement);
+  if (focusedTopbar) document.activeElement.blur();
   document.body.classList.toggle('immersive', immersive);
+  document.body.classList.toggle('windowed-immersive', immersive && !fullscreen);
+  topbar.inert = immersive;
   document.getElementById('immersive-controls').hidden = !immersive;
+  const exitLabel = fullscreen ? 'Выйти из полного экрана' : 'Обычный вид';
+  immersiveExit.setAttribute('aria-label', exitLabel);
+  document.getElementById('immersive-exit-label').textContent = exitLabel;
   const button = document.getElementById('fullscreen-button');
   button.setAttribute('aria-label', fullscreen ? 'Выйти из полного экрана' : 'Полный экран');
   button.title = fullscreen ? 'Выйти из полного экрана · F11 / Esc' : 'Полный экран · F11';
   button.setAttribute('aria-pressed', String(fullscreen));
+}
+
+function scheduleWindowedImmersion() {
+  clearImmersiveDelay();
+  windowedImmersive = false;
+  if (fullscreen || selectedTab !== 'game') return;
+  immersiveDelayTimer = setTimeout(() => {
+    immersiveDelayTimer = null;
+    if (fullscreen || selectedTab !== 'game') return;
+    windowedImmersive = true;
+    renderWindowMode({ fullscreen });
+  }, WINDOWED_IMMERSIVE_DELAY_MS);
 }
 
 function publishStageAddress() {
@@ -62,6 +94,11 @@ function renderStage(state) {
 
 function selectTab(tab) {
   selectedTab = tab;
+  if (tab === 'game') scheduleWindowedImmersion();
+  else {
+    clearImmersiveDelay();
+    windowedImmersive = false;
+  }
   for (const name of ['management', 'game']) {
     const selected = name === tab;
     const button = document.getElementById(`tab-${name}`);
@@ -90,7 +127,15 @@ for (const name of ['management', 'game']) {
 stageFrame.addEventListener('load', () => { publishStageAddress(); publishStageVisibility(); });
 document.addEventListener('visibilitychange', publishStageVisibility);
 document.getElementById('fullscreen-button').addEventListener('click', () => runAction(() => window.homeAuction.toggleFullscreen()));
-document.getElementById('immersive-exit').addEventListener('click', () => runAction(() => window.homeAuction.exitFullscreen()));
+immersiveExit.addEventListener('click', () => {
+  if (fullscreen) {
+    runAction(() => window.homeAuction.exitFullscreen());
+    return;
+  }
+  windowedImmersive = false;
+  renderWindowMode({ fullscreen });
+  document.getElementById('tab-game').focus();
+});
 document.getElementById('immersive-management').addEventListener('click', () => {
   selectTab('management');
   document.getElementById('tab-management').focus();

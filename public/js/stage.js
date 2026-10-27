@@ -1,4 +1,4 @@
-import { PAGE_DURATION, REVEAL_TIMING, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
+import { PAGE_DURATION, REVEAL_TIMING, STAGE_COLORS, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
 import { StageSound } from './stage-audio.js';
 import { StageWheel } from './stage-wheel.js';
 
@@ -73,6 +73,7 @@ function createLot(id) {
   const top = element('div', 'lot-top');
   top.append(element('span', 'lot-kicker', 'ВАРИАНТ'), element('span', 'leader-badge', 'Фаворит'));
   const meta = element('div', 'lot-meta');
+  const revealDetails = byId('reveal-card-details').content.cloneNode(true);
   const reactions = element('div', 'reactions');
   for (const [name, symbol] of [['upvotes', '▲'], ['downvotes', '▼']]) {
     const chip = element('span', `reaction ${name}`);
@@ -80,7 +81,7 @@ function createLot(id) {
     reactions.append(chip);
   }
   meta.append(reactions, element('span', 'secret-chip', 'Ставки скрыты'));
-  surface.append(element('span', 'lot-number'), top, element('h3', ''), meta);
+  surface.append(element('span', 'lot-number'), top, element('h3', ''), revealDetails, meta);
   card.append(surface);
   return card;
 }
@@ -93,6 +94,18 @@ function renderLots({ pageChange = false, reactions = [], reveal = false } = {})
   itemPage %= pages;
   lotGrid.style.setProperty('--columns', layout.columns);
   lotGrid.style.setProperty('--rows', layout.rows);
+  if (reveal) {
+    const gap = Number.parseFloat(getComputedStyle(lotGrid).columnGap) || 0;
+    const cardWidth = Math.min(420, innerWidth * .4, (lotGrid.clientWidth - gap * (layout.columns - 1)) / layout.columns);
+    const cardHeight = Math.min(520, innerHeight * .6 / layout.rows, (lotGrid.clientHeight - gap * (layout.rows - 1)) / layout.rows);
+    lotGrid.style.setProperty('--reveal-card-width', `${Math.max(1, Math.floor(cardWidth))}px`);
+    lotGrid.style.setProperty('--reveal-card-height', `${Math.max(1, Math.floor(cardHeight))}px`);
+    lotGrid.style.setProperty('--reveal-title-size', `${Math.max(18, Math.min(56, innerWidth * .04, cardHeight * .12))}px`);
+  } else {
+    lotGrid.style.removeProperty('--reveal-card-width');
+    lotGrid.style.removeProperty('--reveal-card-height');
+    lotGrid.style.removeProperty('--reveal-title-size');
+  }
   const first = new Map([...lotGrid.children].map(node => [node, node.getBoundingClientRect()]));
   for (const node of lotGrid.children) motions.get(node)?.cancel();
   const desired = [];
@@ -100,6 +113,10 @@ function renderLots({ pageChange = false, reactions = [], reveal = false } = {})
   visible.forEach((item, index) => {
     let card = lotNodes.get(item.id);
     if (!card) { card = createLot(item.id); lotNodes.set(item.id, card); }
+    if (reveal) {
+      const sectorIndex = revealState.items.findIndex(candidate => candidate.id === item.id);
+      card.style.setProperty('--lot-color', STAGE_COLORS[Math.max(0, sectorIndex) % STAGE_COLORS.length]);
+    } else card.style.removeProperty('--lot-color');
     const rank = itemPage * capacity.items + index;
     card.style.setProperty('--slot', index);
     card.classList.toggle('leader', rank === 0 && item.upvotes > item.downvotes);
@@ -324,7 +341,19 @@ async function revealPool(state) {
   if (!await run(surfaces, [{ transform: 'perspective(1000px) rotateY(0)' }, { transform: 'perspective(1000px) rotateY(90deg)' }], REVEAL_TIMING.flip / 2)) return;
   cards.forEach(card => {
     const item = state.items.find(item => item.id === card.dataset.id);
-    card.querySelector('.secret-chip').textContent = `${item.totalPoints} очк. · риск ${riskLabel(item.roundElimShare)}`;
+    card.querySelector('.reveal-points').textContent = `${number.format(item.totalPoints)} очк.`;
+    card.querySelector('.reveal-risk b').textContent = riskLabel(item.roundElimShare);
+    const investors = card.querySelector('.investor-chips');
+    const contributors = item.contributors || [];
+    investors.replaceChildren();
+    contributors.slice(0, 3).forEach(person => {
+      const chip = element('span', '', person.name);
+      chip.append(element('b', '', number.format(person.points)));
+      chip.title = `${person.name}: ${number.format(person.points)} очк.`;
+      investors.append(chip);
+    });
+    if (contributors.length > 3) investors.append(element('span', '', `+${contributors.length - 3}`));
+    if (!contributors.length) investors.append(element('span', '', 'Нет ставок'));
   });
   if (!await run(surfaces, [{ transform: 'perspective(1000px) rotateY(-90deg)' }, { transform: 'perspective(1000px) rotateY(0)' }], REVEAL_TIMING.flip / 2)) return;
   if (!await run([lotGrid], [{ opacity: 1 }, { opacity: 1 }], REVEAL_TIMING.hold, 'linear')) return;
