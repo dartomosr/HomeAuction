@@ -420,7 +420,13 @@ dom.btnToggleEffects.addEventListener('click', () => {
 });
 
 document.addEventListener('click', (event) => {
-  if (!dom.effectsSettings.contains(event.target)) dom.effectsSettings.open = false;
+  if (event.target === dom.effectsSettings || !dom.effectsSettings.contains(event.target)) {
+    dom.effectsSettings.open = false;
+  }
+});
+dom.effectsSettings.querySelector('[data-effects-settings-close]').addEventListener('click', () => {
+  dom.effectsSettings.open = false;
+  dom.effectsSettings.querySelector('summary')?.focus();
 });
 renderEffectsControls();
 

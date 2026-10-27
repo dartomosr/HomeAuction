@@ -481,6 +481,35 @@ html[data-theme="terminal"] .wheel-legend-swatch { border-color: var(--accent-pr
   .effects-popover { left: auto; right: 0; }
 }
 
+@media (max-width: 640px) {
+  #effects-settings[open] { z-index: 1000; }
+  #effects-settings[open]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: rgba(0, 0, 0, .62);
+  }
+  #effects-settings .effects-popover {
+    position: fixed;
+    top: 50%;
+    right: auto;
+    left: 50%;
+    z-index: 1;
+    width: min(92vw, 380px);
+    max-height: 85vh;
+    transform: translate(-50%, -50%);
+  }
+  .effects-popover-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .effects-popover-header strong { margin: 0; }
+}
+
 .wheel-duration-panel {
   display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
   justify-content: center; width: 100%; margin: 4px 0 4px;

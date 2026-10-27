@@ -1427,7 +1427,7 @@
   .pool-item-controls .pts-slider::-webkit-slider-runnable-track {
     height: 9px;
     border-radius: 999px;
-    background: var(--bg-main);
+    background: linear-gradient(to right, var(--accent-primary) 0%, var(--accent-primary) var(--val-percent, 0%), var(--bg-main) var(--val-percent, 0%), var(--bg-main) 100%);
   }
 
   .pool-item-controls .pts-slider::-webkit-slider-thumb {
@@ -1444,7 +1444,7 @@
   .pool-item-controls .pts-slider::-moz-range-track {
     height: 9px;
     border-radius: 999px;
-    background: var(--bg-main);
+    background: linear-gradient(to right, var(--accent-primary) 0%, var(--accent-primary) var(--val-percent, 0%), var(--bg-main) var(--val-percent, 0%), var(--bg-main) 100%);
   }
 
   .pool-item-controls .pts-slider::-moz-range-thumb {

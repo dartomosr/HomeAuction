@@ -229,3 +229,28 @@ test('stage spin accelerates briefly and coasts continuously to rest', async () 
     assert.ok(speed(duration - 2) < .0001);
   }
 });
+
+
+test('background parallax damps speed independently of frame rate and preserves distance between rounds', async () => {
+  const { stepBackgroundParallax, backgroundPhase, BACKGROUND_PERIOD } = await import('../public/js/stage-parallax.js');
+  const run = fps => {
+    let state = { offset: 0, velocity: 0 };
+    for (let i = 0; i < fps; i++) state = stepBackgroundParallax(state, 10, 1 / fps);
+    assert.ok(state.velocity > 0 && state.velocity < .22);
+    for (let i = 0; i < fps * 4; i++) state = stepBackgroundParallax(state, 0, 1 / fps);
+    assert.equal(state.velocity, 0);
+    const stopped = state.offset;
+    for (let i = 0; i < fps; i++) state = stepBackgroundParallax(state, 0, 1 / fps);
+    assert.equal(state.offset, stopped);
+    state = stepBackgroundParallax(state, 10, 1 / fps);
+    assert.ok(state.offset > stopped, 'Next round continues forward from the saved height');
+    return stopped;
+  };
+  assert.ok(Math.abs(run(30) - run(120)) < .00004);
+  for (const depth of [.72, .82, .92, 1.02, 1.12]) {
+    const offset = 75.123;
+    assert.ok(Math.abs(backgroundPhase(offset, depth) - backgroundPhase(offset + BACKGROUND_PERIOD / depth, depth)) < 1e-12);
+    assert.ok(backgroundPhase(offset, depth) >= 0 && backgroundPhase(offset, depth) < BACKGROUND_PERIOD);
+  }
+  assert.deepEqual(stepBackgroundParallax({ offset: 7, velocity: 0 }, 0, 60), { offset: 7, velocity: 0 });
+});

@@ -1,5 +1,6 @@
 import { paintBroadcastSector, spinRotation, pointerSector, crossedBoundaries, stepPointerSpring, TAU } from './wheel-canvas.js';
 import { stageWheelItems, riskLabel } from './stage-model.js';
+import { stepBackgroundParallax, backgroundPhase } from './stage-parallax.js';
 
 const byId = id => document.getElementById(id);
 const node = (tag, className, text) => {
@@ -25,6 +26,9 @@ export class StageWheel {
     this.motions = new Map();
     this.flights = new Set();
     this.labels = new Map();
+    this.backgroundOffsetY = 0;
+    this.backgroundVelocityY = 0;
+    this.backgroundAngularVelocity = 0;
     this.meshLights = [...document.querySelectorAll('.mesh i')];
     this.presentation = { active: false, nextSpinAt: 0 };
     this.resize = new ResizeObserver(() => this.draw());
@@ -43,20 +47,31 @@ export class StageWheel {
   }
 
   reactBackdrop(angularVelocity = 0) {
-    const energy = this.reduced() || !this.active() ? 0 : Math.min(1, Math.abs(angularVelocity) / 12);
-    const now = performance.now();
-    // Background speed needs only 10 updates/sec; keep inherited styles local.
-    if (energy && now - (this.backdropUpdatedAt || 0) < 100) return;
-    const level = Math.round(energy * 20) / 20;
-    if (level === this.backdropEnergy) return;
-    this.backdropUpdatedAt = now;
-    this.backdropEnergy = level;
-    byId('wheel-arena').style.setProperty('--spin-energy', level);
-    if (!this.backdropAnimations?.length || this.backdropAnimations.some(animation => animation.playState === 'idle')) {
-      this.backdropAnimations = this.meshLights.flatMap(light => light.getAnimations())
-        .filter(animation => ['silk-drift', 'stage-drift'].includes(animation.animationName));
+    this.backgroundAngularVelocity = this.reduced() || !this.active() ? 0 : angularVelocity;
+  }
+
+  tickBackdrop(now) {
+    const dt = this.backgroundFrameTime === undefined ? 0 : (now - this.backgroundFrameTime) / 1000;
+    this.backgroundFrameTime = now;
+    if (!this.active() || this.reduced() || this.state?.phase === 'POOL') {
+      this.backgroundVelocityY = 0;
+      this.backgroundAngularVelocity = 0;
+      return;
     }
-    for (const animation of this.backdropAnimations) animation.updatePlaybackRate(1 + level * 7);
+    if (!this.backgroundAngularVelocity && !this.backgroundVelocityY) return;
+    const next = stepBackgroundParallax({ offset: this.backgroundOffsetY, velocity: this.backgroundVelocityY }, this.backgroundAngularVelocity, dt);
+    this.backgroundOffsetY = next.offset;
+    this.backgroundVelocityY = next.velocity;
+    this.meshLights.forEach((light, index) => {
+      const phase = backgroundPhase(this.backgroundOffsetY, .72 + index * .1);
+      light.style.transform = `translate3d(0, ${phase * 100}vh, 0)`;
+    });
+    // Keep the ambient glow local; only its quantized intensity needs updating.
+    const level = Math.round(Math.min(1, next.velocity / .264) * 20) / 20;
+    if (level !== this.backdropEnergy) {
+      this.backdropEnergy = level;
+      byId('wheel-arena').style.setProperty('--spin-energy', level);
+    }
   }
 
   impact(color = '#ceb2e9', winner = false) {
@@ -74,6 +89,9 @@ export class StageWheel {
 
   clearMotion() {
     this.reactBackdrop();
+    this.backgroundVelocityY = 0;
+    byId('wheel-arena').style.setProperty('--spin-energy', 0);
+    this.backdropEnergy = 0;
     for (const animation of this.motions.values()) animation.cancel();
     this.motions.clear();
     for (const ghost of this.flights) { ghost.getAnimations().forEach(animation => animation.cancel()); ghost.remove(); }

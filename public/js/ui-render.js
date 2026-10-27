@@ -657,6 +657,7 @@ function renderPoolView(state) {
         }
         numInput.value = points;
         slider.value = points;
+        updateSliderFill();
         renderMobileDock(state, { itemId: item.id, points });
         store.socket.emit('set_points', {
           itemId: item.id,
@@ -680,12 +681,21 @@ function renderPoolView(state) {
         : state.settings.maxPoints;
     slider.value = item.myPoints;
     slider.disabled = isLocked;
+    const updateSliderFill = () => {
+      const min = Number(slider.min) || 0;
+      const max = Number(slider.max) || 0;
+      const value = Number(slider.value) || 0;
+      const percent = max > min ? ((value - min) / (max - min)) * 100 : 0;
+      slider.style.setProperty('--val-percent', `${Math.max(0, Math.min(100, percent))}%`);
+    };
+    updateSliderFill();
     slider.addEventListener('input', () => {
       initAudio();
       playUiSliderSound();
       let clamped = Math.min(Number(slider.value), maxPossibleForThisItem);
       if (clamped > 0 && clamped < minimumBid) clamped = minimumBid <= maxPossibleForThisItem ? minimumBid : 0;
       slider.value = clamped;
+      updateSliderFill();
       numInput.value = clamped;
       renderMobileDock(state, { itemId: item.id, points: clamped });
     });
@@ -712,6 +722,7 @@ function renderPoolView(state) {
       if (points > 0 && points < minimumBid) points = minimumBid <= maxPossibleForThisItem ? minimumBid : 0;
       numInput.value = points;
       slider.value = points;
+      updateSliderFill();
       renderMobileDock(state, { itemId: item.id, points });
       store.socket.emit('set_points', { itemId: item.id, points });
     });

@@ -483,6 +483,7 @@ window.addEventListener('resize', () => {
 });
 motionPreference.addEventListener('change', () => { cancelPageTurn(); cancelReveal(); wheel.clearMotion(); render(); wheel.draw(); });
 function clock(now) {
+  wheel.tickBackdrop(now);
   const running = active() && connected && snapshot?.phase === 'POOL' && !changingPage;
   const step = advanceCarousel(elapsed, now - previousTime, running);
   previousTime = now;

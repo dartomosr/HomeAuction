@@ -16,11 +16,11 @@ button { font: inherit; }
 .mesh { position: fixed; inset: 0; overflow: hidden; background: linear-gradient(135deg, #3c327c, #264d72 55%, #754d73); pointer-events: none; }
 .mesh::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 45% 45%, transparent 20%, #1c24541f); }
 .mesh i { position: absolute; width: 70vw; height: 85vh; border-radius: 45% 55% 60% 40%; filter: blur(clamp(45px, 6vw, 140px)); opacity: .65; will-change: transform; animation: silk-drift 23s ease-in-out infinite alternate; }
-.mesh i:nth-child(1) { background: #6555e8; top: -30%; left: -20%; }
-.mesh i:nth-child(2) { background: #2aacf0; top: -20%; right: -30%; animation-delay: -12s; animation-duration: 31s; }
-.mesh i:nth-child(3) { background: #ec7792; bottom: -45%; left: -20%; animation-delay: -18s; animation-duration: 27s; }
-.mesh i:nth-child(4) { background: #e9b976; bottom: -55%; right: -25%; animation-delay: -8s; animation-duration: 34s; }
-.mesh i:nth-child(5) { background: #a244c2; width: 45vw; height: 50vh; top: 15%; left: 30%; opacity: .38; animation-delay: -17s; }
+.mesh i:nth-child(1) { color: #7547ff; background: #6555e8; top: -30%; left: -20%; }
+.mesh i:nth-child(2) { color: #00bfe8; background: #2aacf0; top: -20%; right: -30%; animation-delay: -12s; animation-duration: 31s; }
+.mesh i:nth-child(3) { color: #ff527d; background: #ec7792; bottom: -45%; left: -20%; animation-delay: -18s; animation-duration: 27s; }
+.mesh i:nth-child(4) { color: #9a48ff; background: #e9b976; bottom: -55%; right: -25%; animation-delay: -8s; animation-duration: 34s; }
+.mesh i:nth-child(5) { color: #7255ff; background: #a244c2; width: 45vw; height: 50vh; top: 15%; left: 30%; opacity: .38; animation-delay: -17s; }
 @keyframes silk-drift { 0% { transform: translate3d(-5%, -6%, 0) rotate(-10deg) scale(.95); } 100% { transform: translate3d(18%, 15%, 0) rotate(16deg) scale(1.18); } }
 .sky-lines { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
 .sky-lines i { position: absolute; width: 85vw; height: 85vw; left: -50%; top: -45%; border: 1px solid #ffffff0c; border-radius: 44%; animation: sky-orbit 80s linear infinite; }
@@ -326,10 +326,19 @@ body[data-paused="true"] *, body[data-paused="true"] *::before, body[data-paused
 .empty-history { background: #ffffff08; border: 1px solid #ffffff20; color: #e6dfff; letter-spacing: .13em; font-size: clamp(10px, .8vw, 18px); }
 .empty-history::before { border-color: #d5c7ff88; border-top-color: #fff; box-shadow: 0 0 22px #a97cff55, inset 0 0 12px #ffffff14; animation: sky-orbit 12s linear infinite; }
 
-/* Animate the original gradient field, without extra overlays or filter surfaces. */
-.wheel-mode .mesh i { animation-name: stage-drift; }
-@keyframes stage-drift {
-  0% { transform: translate3d(-12%, -12%, 0) rotate(-18deg) scale(.85); }
-  50% { transform: translate3d(12%, 8%, 0) rotate(8deg) scale(1.12); }
-  100% { transform: translate3d(28%, 22%, 0) rotate(28deg) scale(1.25); }
+/* A soft tile repeats every 160vh; wrapping its transform is visually identical. */
+.wheel-mode .mesh i {
+  top: -160vh; bottom: auto; height: 260vh; border-radius: 0;
+  background: radial-gradient(ellipse 50% 46% at 50% 50%, currentColor 0%, transparent 100%);
+  background-size: 100% 160vh; background-repeat: repeat-y;
+  animation: mesh-breath 12s ease-in-out infinite alternate;
+  will-change: transform;
 }
+.wheel-mode .mesh i:nth-child(1) { background-position-y: -20vh; }
+.wheel-mode .mesh i:nth-child(2) { background-position-y: -95vh; animation-delay: -6s; }
+.wheel-mode .mesh i:nth-child(3) { background-position-y: -65vh; animation-delay: -3s; }
+.wheel-mode .mesh i:nth-child(4) { background-position-y: -125vh; animation-delay: -9s; }
+.wheel-mode .mesh i:nth-child(5) { height: 260vh; background-position-y: -45vh; }
+@keyframes mesh-breath { from { opacity: .48; } to { opacity: .62; } }
+.wheel-mode.final-duel .mesh i { animation: none; }
+@media (prefers-reduced-motion: reduce) { .wheel-mode .mesh i { animation: none; } }
