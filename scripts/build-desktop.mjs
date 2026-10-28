@@ -198,7 +198,7 @@ try {
   });
   await writeFile(path.join(appDirectory, 'package.json'), JSON.stringify({
     name: 'homeauction-desktop',
-    version: '1.0.0',
+    version: '1.0.0-rc.1',
     main: 'main.js'
   }, null, 2));
 

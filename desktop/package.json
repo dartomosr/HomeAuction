@@ -1,6 +1,6 @@
 {
   "name": "homeauction-desktop",
-  "version": "1.0.0",
+  "version": "1.0.0-rc.1",
   "private": true,
   "description": "Windows desktop launcher for HomeAuction",
   "author": "HomeAuction",

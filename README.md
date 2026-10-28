@@ -8,7 +8,7 @@
 
 Готовый портативный клиент опубликован в GitHub Releases:
 
-[**Скачать HomeAuction v1.0.0-beta.2**](https://github.com/dartomosr/HomeAuction/releases/tag/v1.0.0-beta.2)
+[**Скачать HomeAuction v1.0.0-rc.1**](https://github.com/dartomosr/HomeAuction/releases/tag/v1.0.0-rc.1)
 
 1. Скачайте самораспаковывающийся архив `HomeAuction-Portable.exe` (или архив с папкой `HomeAuction`).
 2. Распакуйте его в любую удобную папку на компьютере.
@@ -71,11 +71,11 @@
 
 ## Настольный клиент для Windows и сборка
 
-Готовый клиент избавляет от необходимости устанавливать Node.js или настраивать консоль. Рекомендуемая сборка — [HomeAuction v1.0.0-beta.2 в GitHub Releases](https://github.com/dartomosr/HomeAuction/releases/tag/v1.0.0-beta.2); клиент также можно собрать локально из исходников.
+Готовый клиент избавляет от необходимости устанавливать Node.js или настраивать консоль. Рекомендуемая сборка — [HomeAuction v1.0.0-rc.1 в GitHub Releases](https://github.com/dartomosr/HomeAuction/releases/tag/v1.0.0-rc.1); клиент также можно собрать локально из исходников.
 
 ### Инструкция для пользователя (запуск готовой версии)
 
-1. Скачайте рекомендуемый релиз [HomeAuction v1.0.0-beta.2](https://github.com/dartomosr/HomeAuction/releases/tag/v1.0.0-beta.2) (`HomeAuction-Portable.exe` или архив `HomeAuction`).
+1. Скачайте рекомендуемый релиз [HomeAuction v1.0.0-rc.1](https://github.com/dartomosr/HomeAuction/releases/tag/v1.0.0-rc.1) (`HomeAuction-Portable.exe` или архив `HomeAuction`).
    - Если вы скачали **`HomeAuction-Portable.exe`**, запустите его, выберите папку в окне 7-Zip и нажмите «Extract». Это самораспаковывающийся архив (не установщик): распаковывать его нужно только один раз, все файлы останутся в выбранной папке.
    - Не переносите `HomeAuction.exe` отдельно от папок `resources/` и `server/`.
 2. Откройте распакованную папку и запустите **`HomeAuction.exe`**.
