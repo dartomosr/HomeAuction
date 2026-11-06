@@ -6,7 +6,12 @@ const ANSI = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 const CLOUDFLARE_START_TIMEOUT_MS = 30000;
 const CLOUDFLARE_ADDRESS_TIMEOUT_MS = 10000;
 const CLOUDFLARE_RECOVERY_TIMEOUT_MS = 30000;
-const PUBLIC_HEALTHCHECK_TIMEOUT_MS = 7000;
+const PUBLIC_HEALTHCHECK_TIMEOUT_MS = 30000;
+const PUBLIC_HEALTHCHECK_REQUEST_TIMEOUT_MS = 7000;
+const PUBLIC_HEALTHCHECK_RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 8000];
+const RETRYABLE_HEALTHCHECK_ERRORS = new Set([
+  'ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH'
+]);
 
 function getLocalIPv4(networkInterfaces = require('node:os').networkInterfaces()) {
   const virtualName = /virtual|vmware|virtualbox|hyper-v|vethernet|wsl|docker|loopback|\btap\b|\btun\b|vpn/i;
@@ -28,40 +33,130 @@ function getLocalIPv4(networkInterfaces = require('node:os').networkInterfaces()
 function startPublicHealthcheck(address, {
   get = https.get,
   timeoutMs = PUBLIC_HEALTHCHECK_TIMEOUT_MS,
+  requestTimeoutMs = PUBLIC_HEALTHCHECK_REQUEST_TIMEOUT_MS,
+  retryDelays = PUBLIC_HEALTHCHECK_RETRY_DELAYS_MS,
+  maxRedirects = 5,
   onResult = () => {},
   setTimeout: schedule = setTimeout,
   clearTimeout: cancelTimer = clearTimeout
 } = {}) {
   let finished = false;
   let request;
-  const timer = schedule(() => {
-    request?.destroy();
-    finish(false);
-  }, timeoutMs);
-  const finish = available => {
+  let retryTimer;
+  let retries = 0;
+  let lastFailure;
+  let timer;
+  const finish = (available, details = {}) => {
     if (finished) return;
     finished = true;
     cancelTimer(timer);
-    onResult(Boolean(available));
+    if (retryTimer !== undefined) cancelTimer(retryTimer);
+    onResult(Boolean(available), details);
   };
-  try {
-    const url = new URL(address);
-    if (url.protocol !== 'https:') {
-      finish(false);
-      return () => {};
+  timer = schedule(() => {
+    finish(false, { kind: 'timeout', timeoutMs, retries, lastFailure });
+    request?.destroy();
+  }, timeoutMs);
+  const retryOrFinish = details => {
+    lastFailure = details;
+    if (details.kind === 'network' && RETRYABLE_HEALTHCHECK_ERRORS.has(details.code) && retries < retryDelays.length) {
+      const delay = retryDelays[retries++];
+      retryTimer = schedule(() => {
+        retryTimer = undefined;
+        checkUrl(startUrl);
+      }, delay);
+      return;
     }
-    request = get(url.toString(), { timeout: timeoutMs }, response => {
-      response.resume?.();
-      finish(response.statusCode === 200);
-    });
-    request.once('error', () => finish(false));
-  } catch {
-    finish(false);
+    finish(false, { ...details, retries });
+  };
+  const checkUrl = (target, redirectCount = 0) => {
+    if (finished) return;
+    let url;
+    try {
+      url = new URL(target);
+      if (url.protocol !== 'https:') {
+        finish(false, { kind: 'protocol', protocol: url.protocol });
+        return;
+      }
+    } catch (error) {
+      finish(false, { kind: 'url', message: error.message });
+      return;
+    }
+
+    let settled = false;
+    const fail = details => {
+      if (settled || finished) return;
+      settled = true;
+      retryOrFinish(details);
+    };
+    try {
+      request = get(url.toString(), {
+        timeout: Math.min(requestTimeoutMs, timeoutMs),
+        headers: { 'cache-control': 'no-cache' }
+      }, response => {
+        if (settled || finished) {
+          response.resume?.();
+          return;
+        }
+        settled = true;
+        const statusCode = Number(response.statusCode) || 0;
+        const location = response.headers?.location;
+        response.resume?.();
+
+        if (statusCode >= 300 && statusCode < 400 && location) {
+          if (redirectCount >= maxRedirects) {
+            finish(false, { kind: 'redirect-limit', statusCode, url: url.toString(), maxRedirects });
+            return;
+          }
+          try {
+            const redirectUrl = new URL(location, url);
+            if (redirectUrl.protocol !== 'https:') {
+              finish(false, { kind: 'protocol', protocol: redirectUrl.protocol, statusCode });
+              return;
+            }
+            checkUrl(redirectUrl.toString(), redirectCount + 1);
+          } catch (error) {
+            finish(false, { kind: 'redirect-url', statusCode, message: error.message });
+          }
+          return;
+        }
+
+        if (statusCode >= 200 && statusCode < 300) {
+          finish(true, { kind: 'http', statusCode, url: url.toString(), retries });
+        } else {
+          finish(false, { kind: 'http', statusCode, url: url.toString(), retries });
+        }
+      });
+      request.once('error', error => fail({
+        kind: 'network', code: error.code, message: error.message, url: url.toString()
+      }));
+      request.once('timeout', () => {
+        if (settled || finished) return;
+        settled = true;
+        request?.destroy();
+        retryOrFinish({ kind: 'network', code: 'ETIMEDOUT', message: 'Request timed out', url: url.toString() });
+      });
+    } catch (error) {
+      fail({ kind: 'network', code: error.code, message: error.message, url: url.toString() });
+    }
+  };
+
+  let startUrl;
+  try {
+    const healthUrl = new URL(address);
+    healthUrl.pathname = '/healthz';
+    healthUrl.search = '';
+    healthUrl.hash = '';
+    startUrl = healthUrl.toString();
+    checkUrl(startUrl);
+  } catch (error) {
+    finish(false, { kind: 'url', message: error.message });
   }
   return () => {
     if (finished) return;
     finished = true;
     cancelTimer(timer);
+    if (retryTimer !== undefined) cancelTimer(retryTimer);
     request?.destroy();
   };
 }
@@ -391,6 +486,8 @@ module.exports = {
   CLOUDFLARE_ADDRESS_TIMEOUT_MS,
   CLOUDFLARE_RECOVERY_TIMEOUT_MS,
   PUBLIC_HEALTHCHECK_TIMEOUT_MS,
+  PUBLIC_HEALTHCHECK_REQUEST_TIMEOUT_MS,
+  PUBLIC_HEALTHCHECK_RETRY_DELAYS_MS,
   getLocalIPv4,
   startPublicHealthcheck,
   normalizeProtocol,

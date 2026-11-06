@@ -8,6 +8,7 @@ const {
   CLOUDFLARE_ADDRESS_TIMEOUT_MS,
   CLOUDFLARE_RECOVERY_TIMEOUT_MS,
   PUBLIC_HEALTHCHECK_TIMEOUT_MS,
+  PUBLIC_HEALTHCHECK_REQUEST_TIMEOUT_MS,
   classifyTunnelLine,
   createLineBuffer,
   normalizeProtocol,
@@ -40,42 +41,125 @@ describe('desktop Cloudflare tunnel flow', () => {
     const results = [];
     let tunnelStatus = 'Подключён';
     let requestedUrl = '';
+    let resultDetails;
     const cancel = startPublicHealthcheck('https://game.trycloudflare.com', {
       timeoutMs: PUBLIC_HEALTHCHECK_TIMEOUT_MS,
       get(url, options, callback) {
         requestedUrl = url;
-        assert.equal(options.timeout, PUBLIC_HEALTHCHECK_TIMEOUT_MS);
+        assert.equal(options.timeout, PUBLIC_HEALTHCHECK_REQUEST_TIMEOUT_MS);
+        assert.equal(options.headers['cache-control'], 'no-cache');
         request.respond = statusCode => callback({ statusCode, resume() {} });
         return request;
       },
       setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms }); return id; },
       clearTimeout(id) { timers.delete(id); },
-      onResult(available) { results.push(available); if (!available) tunnelStatus = 'Подключён'; }
+      onResult(available, details) {
+        results.push(available);
+        resultDetails = details;
+        if (!available) tunnelStatus = 'Подключён';
+      }
     });
 
-    assert.equal(requestedUrl, 'https://game.trycloudflare.com/');
+    assert.equal(requestedUrl, 'https://game.trycloudflare.com/healthz');
     assert.equal(tunnelStatus, 'Подключён');
     assert.deepEqual(results, [], 'the call returns while the network request is still pending');
-    assert.equal([...timers.values()][0].ms, 7000);
+    assert.equal([...timers.values()][0].ms, PUBLIC_HEALTHCHECK_TIMEOUT_MS);
     request.respond(503);
     assert.deepEqual(results, [false]);
+    assert.deepEqual(resultDetails, {
+      kind: 'http', statusCode: 503, url: 'https://game.trycloudflare.com/healthz', retries: 0
+    });
     assert.equal(tunnelStatus, 'Подключён');
     assert.equal(timers.size, 0);
     cancel();
   });
 
-  test('marks a public healthcheck available only for HTTP 200', () => {
+  test('accepts successful 2xx responses from the public health endpoint', () => {
     const request = new EventEmitter();
     request.destroy = () => {};
     let result;
+    let respond;
+    let resultDetails;
     startPublicHealthcheck('https://game.trycloudflare.com', {
       get(_url, _options, callback) {
-        callback({ statusCode: 200, resume() {} });
+        respond = callback;
+        return request;
+      },
+      onResult(available, details) { result = available; resultDetails = details; }
+    });
+    respond({ statusCode: 204, resume() {} });
+    assert.equal(result, true);
+    assert.equal(resultDetails.statusCode, 204);
+  });
+
+  test('follows bounded HTTPS redirects to the public health endpoint', () => {
+    const requests = [];
+    let result;
+    startPublicHealthcheck('https://game.trycloudflare.com', {
+      get(url, _options, callback) {
+        const request = new EventEmitter();
+        request.destroy = () => {};
+        requests.push({ url, callback, request });
         return request;
       },
       onResult(available) { result = available; }
     });
+
+    assert.equal(requests[0].url, 'https://game.trycloudflare.com/healthz');
+    requests[0].callback({ statusCode: 302, headers: { location: '/ready' }, resume() {} });
+    assert.equal(requests[1].url, 'https://game.trycloudflare.com/ready');
+    requests[1].callback({ statusCode: 204, resume() {} });
     assert.equal(result, true);
+  });
+
+  test('reports network failures separately from HTTP status failures', () => {
+    const request = new EventEmitter();
+    request.destroy = () => {};
+    let result;
+    let resultDetails;
+    startPublicHealthcheck('https://game.trycloudflare.com', {
+      get() { return request; },
+      onResult(available, details) { result = available; resultDetails = details; }
+    });
+    const error = Object.assign(new Error('certificate expired'), { code: 'CERT_HAS_EXPIRED' });
+    request.emit('error', error);
+    assert.equal(result, false);
+    assert.equal(resultDetails.kind, 'network');
+    assert.equal(resultDetails.code, 'CERT_HAS_EXPIRED');
+  });
+
+  test('retries temporary DNS failures before reporting public availability', () => {
+    const requests = [];
+    const timers = new Map();
+    let timerId = 0;
+    let result;
+    let resultDetails;
+    const cancel = startPublicHealthcheck('https://game.trycloudflare.com', {
+      timeoutMs: 10000,
+      retryDelays: [250],
+      get(url, _options, callback) {
+        const request = new EventEmitter();
+        request.destroy = () => {};
+        requests.push({ url, callback, request });
+        return request;
+      },
+      setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms }); return id; },
+      clearTimeout(id) { timers.delete(id); },
+      onResult(available, details) { result = available; resultDetails = details; }
+    });
+
+    requests[0].request.emit('error', Object.assign(new Error('name not resolved'), { code: 'ENOTFOUND' }));
+    assert.equal(result, undefined);
+    const retry = [...timers.entries()].find(([, timer]) => timer.ms === 250);
+    assert.ok(retry, 'a bounded retry should be scheduled after a DNS failure');
+    timers.delete(retry[0]);
+    retry[1].fn();
+    assert.equal(requests.length, 2);
+    requests[1].callback({ statusCode: 204, resume() {} });
+    assert.equal(result, true);
+    assert.equal(resultDetails.retries, 1);
+    assert.equal(timers.size, 0);
+    cancel();
   });
 
   test('creates a scalable QR SVG for a local Wi-Fi address', () => {

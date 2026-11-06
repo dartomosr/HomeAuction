@@ -345,12 +345,24 @@ function ensureTunnelFlow(binaryPath, generation) {
         publishState();
         const address = connectedAddress;
         healthcheckCancel = startPublicHealthcheck(address, {
-          onResult(available) {
+          onResult(available, details) {
             if (generation !== tunnelGeneration || state.publicAddress !== address || state.tunnelState !== 'connected') return;
             state.externalHealth = available ? 'available' : 'warning';
             publishState();
             if (!available) {
-              addLog('Предупреждение: фоновый healthcheck не вернул 200 OK. Ссылка может быть рабочей для внешних устройств.', 'Туннель');
+              const retrySummary = details?.retries ? ` после ${details.retries} повторов` : '';
+              const reason = details?.kind === 'http'
+                ? `HTTP ${details.statusCode}${retrySummary}`
+                : details?.kind === 'timeout'
+                  ? `таймаут${details.timeoutMs ? ` (${details.timeoutMs} мс)` : ''}${details.lastFailure?.code ? `, последняя ошибка ${details.lastFailure.code}` : ''}`
+                  : details?.kind === 'network'
+                    ? `сетевая ошибка${details.code ? ` ${details.code}` : ''}${details.message ? `: ${details.message}` : ''}${retrySummary}`
+                    : details?.kind === 'redirect-limit'
+                      ? `превышен лимит перенаправлений (${details.statusCode})`
+                      : details?.kind === 'protocol'
+                        ? `неподдерживаемый протокол ${details.protocol}`
+                        : details?.message || 'не удалось разобрать ответ';
+              addLog(`Проверка /healthz через публичный адрес не пройдена: ${reason}. Это не подтверждает недоступность ссылки с устройств игроков.`, 'Туннель');
             }
           }
         });

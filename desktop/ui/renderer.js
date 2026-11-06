@@ -194,14 +194,14 @@ function renderConnectionQr(state, animate = false) {
   qrHealth.textContent = '';
   if (isCloud) {
     qrHealth.textContent = state.externalHealth === 'available'
-      ? '✓ Доступен извне'
+      ? '✓ Публичный адрес отвечает'
       : state.externalHealth === 'warning'
-        ? 'Внешняя проверка не ответила'
-        : 'Проверка внешней доступности…';
+        ? 'Проверка не подтвердила ответ'
+        : 'Проверка публичного адреса…';
     qrHealth.classList.toggle('health-available', state.externalHealth === 'available');
     qrHealth.classList.toggle('health-warning', state.externalHealth === 'warning');
     if (state.externalHealth === 'warning') {
-      qrHealth.title = 'Запрос изнутри сети не подтвердил доступность (это нормально для некоторых провайдеров/NAT). Попробуйте открыть ссылку с мобильного интернета.';
+      qrHealth.title = 'Лаунчер проверяет /healthz через публичный адрес с этого компьютера. Сбой не обязательно означает, что ссылка недоступна с устройств игроков; подробность есть в журнале.';
     }
   }
 }
@@ -250,11 +250,11 @@ function render(state) {
   healthBadge.className = `health-badge ${state.externalHealth === 'available' ? 'health-available' : 'health-warning'}`;
   healthBadge.classList.toggle('hidden', !['available', 'warning'].includes(state.externalHealth));
   healthBadge.textContent = state.externalHealth === 'available'
-    ? '✓ Доступен извне'
-    : 'Внешняя проверка не ответила';
+    ? '✓ Публичный адрес отвечает'
+    : 'Проверка не подтвердила ответ';
   healthBadge.title = state.externalHealth === 'warning'
-    ? 'Запрос изнутри сети не подтвердил доступность (это нормально для некоторых провайдеров/NAT). Попробуйте открыть ссылку с мобильного интернета.'
-    : 'Публичная ссылка ответила на проверочный запрос с HTTP 200.';
+    ? 'Лаунчер проверяет /healthz через публичный адрес с этого компьютера. Сбой не обязательно означает, что ссылка недоступна с устройств игроков; подробность есть в журнале.'
+    : 'Публичный адрес вернул успешный ответ на /healthz с этого компьютера.';
   document.getElementById('start-tunnel').disabled =
     !state.serverAddress || state.server !== 'Запущен' ||
     state.tunnel === 'Подключён' || state.tunnel === 'Запускается' || state.tunnelState === 'reconnecting';
