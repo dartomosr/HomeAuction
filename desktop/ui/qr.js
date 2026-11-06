@@ -1,8 +1,24 @@
 'use strict';
 
-const QUARTILE_ECC_CODEWORDS = [0, 13, 22, 18, 26, 18];
-const DATA_BLOCK_LENGTHS = [[], [13], [22], [17, 17], [24, 24], [15, 15, 16, 16]];
-const DATA_CODEWORDS = [0, 13, 22, 34, 48, 62];
+const QUARTILE_ECC_CODEWORDS = [0, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24];
+const DATA_BLOCK_LENGTHS = [
+  [],
+  [13],
+  [22],
+  [17, 17],
+  [24, 24],
+  [15, 15, 16, 16],
+  [19, 19, 19, 19],
+  [14, 14, 15, 15, 15, 15],
+  [18, 18, 18, 18, 19, 19],
+  [16, 16, 16, 16, 17, 17, 17, 17],
+  [19, 19, 19, 19, 19, 19, 20, 20]
+];
+const DATA_CODEWORDS = [0, 13, 22, 34, 48, 62, 76, 88, 110, 132, 154];
+const ALIGNMENT_CENTERS = [
+  [], [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34],
+  [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]
+];
 
 function multiply(a, b) {
   let result = 0;
@@ -39,12 +55,15 @@ function appendBits(target, value, length) {
 
 function qrMatrix(text) {
   const bytes = [...new TextEncoder().encode(String(text))];
-  const version = [1, 2, 3, 4, 5].find(value => bytes.length <= DATA_CODEWORDS[value] - 2);
+  const version = Array.from({ length: 10 }, (_, index) => index + 1).find(value => {
+    const countBits = value < 10 ? 8 : 16;
+    return 4 + countBits + bytes.length * 8 <= DATA_CODEWORDS[value] * 8;
+  });
   if (!version) throw new Error('Текст слишком длинный для встроенного QR-кода.');
 
   const dataBits = [];
   appendBits(dataBits, 0b0100, 4);
-  appendBits(dataBits, bytes.length, 8);
+  appendBits(dataBits, bytes.length, version < 10 ? 8 : 16);
   bytes.forEach(byte => appendBits(dataBits, byte, 8));
   const capacity = DATA_CODEWORDS[version] * 8;
   appendBits(dataBits, 0, Math.min(4, capacity - dataBits.length));
@@ -89,7 +108,7 @@ function qrMatrix(text) {
     set(i, 6, i % 2 === 0);
     set(6, i, i % 2 === 0);
   }
-  const alignment = version === 1 ? [] : [6, 10 + version * 4];
+  const alignment = ALIGNMENT_CENTERS[version];
   for (const x of alignment) for (const y of alignment) {
     if ((x === 6 && y === 6) || (x === 6 && y === size - 7) || (x === size - 7 && y === 6)) continue;
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -112,6 +131,19 @@ function qrMatrix(text) {
     set(8, size - 8, true);
   };
   writeFormat(0);
+
+  if (version >= 7) {
+    let remainder = version << 12;
+    for (let i = 17; i >= 12; i--) if ((remainder >>> i) & 1) remainder ^= 0x1f25 << (i - 12);
+    const versionBits = (version << 12) | remainder;
+    for (let i = 0; i < 18; i++) {
+      const bit = (versionBits >>> i) & 1;
+      const a = size - 11 + (i % 3);
+      const b = Math.floor(i / 3);
+      set(a, b, bit);
+      set(b, a, bit);
+    }
+  }
 
   const bits = codewords.flatMap(byte => Array.from({ length: 8 }, (_, i) => (byte >>> (7 - i)) & 1));
   let bitIndex = 0;

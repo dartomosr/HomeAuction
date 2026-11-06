@@ -95,6 +95,47 @@ describe('desktop Cloudflare tunnel flow', () => {
     assert.match(stageSvg, /fill="#171a28"/);
   });
 
+  test('selects the correct QR version at every supported byte-mode capacity boundary', () => {
+    const capacities = [11, 20, 32, 46, 60, 74, 86, 108, 130, 151];
+    capacities.forEach((capacity, index) => {
+      const version = index + 1;
+      assert.equal(qrMatrix('x'.repeat(capacity)).length, 17 + 4 * version,
+        `version ${version} should fit ${capacity} bytes`);
+      if (version < 10) {
+        assert.equal(qrMatrix('x'.repeat(capacity + 1)).length, 17 + 4 * (version + 1),
+          `version ${version + 1} should be selected above ${capacity} bytes`);
+      }
+    });
+    assert.throws(() => qrMatrix('x'.repeat(152)), /QR/);
+    assert.equal(qrMatrix('я'.repeat(38)).length, 45, 'capacity is measured in UTF-8 bytes');
+  });
+
+  test('writes alignment and version information patterns for larger QR codes', () => {
+    const versionSeven = qrMatrix('x'.repeat(86));
+    assert.equal(versionSeven.length, 45);
+    for (const [x, y, expected] of [
+      [20, 20, true], [23, 22, false], [24, 22, true], [22, 22, true]
+    ]) {
+      assert.equal(versionSeven[y][x], expected, `version 7 alignment module (${x}, ${y})`);
+    }
+
+    const expectedVersionBits = new Map([
+      [7, 0x07c94], [8, 0x085bc], [9, 0x09a99], [10, 0x0a4d3]
+    ]);
+    const capacities = [11, 20, 32, 46, 60, 74, 86, 108, 130, 151];
+    for (const [version, versionBits] of expectedVersionBits) {
+      const matrix = qrMatrix('x'.repeat(capacities[version - 1]));
+      assert.equal(matrix.length, 17 + 4 * version);
+      for (let bitIndex = 0; bitIndex < 18; bitIndex++) {
+        const bit = Boolean((versionBits >>> bitIndex) & 1);
+        const x = matrix.length - 11 + (bitIndex % 3);
+        const y = Math.floor(bitIndex / 3);
+        assert.equal(matrix[y][x], bit, `version ${version} information bit ${bitIndex}`);
+        assert.equal(matrix[x][y], bit, `mirrored version ${version} information bit ${bitIndex}`);
+      }
+    }
+  });
+
   test('accepts supported protocols and builds exact auto and HTTP/2 arguments', () => {
     assert.deepEqual(normalizeProtocol('HTTP2'), { protocol: 'http2', invalidValue: null });
     assert.deepEqual(normalizeProtocol('unknown'), { protocol: 'auto', invalidValue: 'unknown' });

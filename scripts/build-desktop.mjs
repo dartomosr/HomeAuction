@@ -215,18 +215,22 @@ try {
   );
   console.log(`Готово: ${path.relative(projectDirectory, packagedExecutable)}`);
 
-  const sevenZipDirectory = await find7ZipSfxDirectory();
-  if (sevenZipDirectory) {
-    console.log('Найден 7-Zip; собирается HomeAuction-Portable.exe с максимальным сжатием...');
-    await run(process.execPath, [path.join(projectDirectory, 'scripts', 'build-sfx.mjs')], {
-      cwd: projectDirectory,
-      env: { ...process.env, SEVENZIP_DIR: sevenZipDirectory }
-    });
+  if (process.argv.includes('--no-sfx')) {
+    console.log(`SFX-архив пропущен по флагу --no-sfx. Готовая папка: ${path.relative(projectDirectory, outputDirectory)}`);
   } else {
-    console.warn(
-      `WARN: 7-Zip с модулем 7z.sfx не найден. Папка ${path.relative(projectDirectory, outputDirectory)} готова, SFX пропущен. ` +
-      'Добавьте 7-Zip в PATH или задайте SEVENZIP_PATH/SEVENZIP_DIR.'
-    );
+    const sevenZipDirectory = await find7ZipSfxDirectory();
+    if (sevenZipDirectory) {
+      console.log('Найден 7-Zip; собирается HomeAuction-Portable.exe с максимальным сжатием...');
+      await run(process.execPath, [path.join(projectDirectory, 'scripts', 'build-sfx.mjs')], {
+        cwd: projectDirectory,
+        env: { ...process.env, SEVENZIP_DIR: sevenZipDirectory }
+      });
+    } else {
+      console.warn(
+        `WARN: 7-Zip с модулем 7z.sfx не найден. Папка ${path.relative(projectDirectory, outputDirectory)} готова, SFX пропущен. ` +
+        'Добавьте 7-Zip в PATH или задайте SEVENZIP_PATH/SEVENZIP_DIR.'
+      );
+    }
   }
 } finally {
   await rm(temporaryDirectory, { recursive: true, force: true });
