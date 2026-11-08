@@ -11,10 +11,11 @@ const node = (tag, className, text) => {
 };
 
 export class StageWheel {
-  constructor({ sound, active, reduced }) {
+  constructor({ sound, active, reduced, onSettled }) {
     this.sound = sound;
     this.active = active;
     this.reduced = reduced;
+    this.onSettled = onSettled;
     this.canvas = byId('stage-wheel');
     this.ctx = this.canvas.getContext('2d');
     this.fx = new window.WheelSectorEffects(byId('stage-wheel-fx'));
@@ -74,17 +75,15 @@ export class StageWheel {
     }
   }
 
-  impact(color = '#ceb2e9', winner = false) {
+  impact(color = '#ceb2e9') {
     byId('wheel-arena').style.setProperty('--arena-color', color);
-    if (!winner) {
-      byId('stage-flash').style.setProperty('--flash-color', color);
-      this.motion(byId('stage-flash'), [{ opacity: 0 }, { opacity: .48, offset: .22 }, { opacity: 0 }], { duration: 260, easing: 'ease-out' });
-    }
+    byId('stage-flash').style.setProperty('--flash-color', color);
+    this.motion(byId('stage-flash'), [{ opacity: 0 }, { opacity: .48, offset: .22 }, { opacity: 0 }], { duration: 260, easing: 'ease-out' });
     this.motion(byId('arena-impact'), [
       { opacity: 0, transform: 'scale(.9)' },
-      { opacity: winner ? .8 : .65, transform: 'scale(1)', offset: .18 },
+      { opacity: .65, transform: 'scale(1)', offset: .18 },
       { opacity: 0, transform: 'scale(1.2)' }
-    ], { duration: winner ? 1500 : 1050 });
+    ], { duration: 1050 });
   }
 
   clearMotion() {
@@ -157,7 +156,7 @@ export class StageWheel {
     const winner = this.state.wheel?.winner;
     const history = this.state.wheel?.history || [];
     const title = this.elimination ? 'ИТОГ РАУНДА'
-      : winner ? 'ПОБЕДИТЕЛЬ ОПРЕДЕЛЁН' : alive.length === 2 ? 'ФИНАЛЬНАЯ ДУЭЛЬ' : `В ИГРЕ: ${alive.length} ИЗ ${total}`;
+      : winner ? 'ЦЕРЕМОНИЯ НАГРАЖДЕНИЯ' : alive.length === 2 ? 'ФИНАЛЬНАЯ ДУЭЛЬ' : `В ИГРЕ: ${alive.length} ИЗ ${total}`;
     if (!document.body.classList.contains('reveal-mode') && byId('round-title').textContent !== title) {
       byId('round-title').textContent = title;
       this.motion(byId('round-title'), [{ opacity: .2, transform: 'translateY(9px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 580 });
@@ -206,19 +205,7 @@ export class StageWheel {
         this.motion(card, [{ opacity: 0, transform: 'translateX(-12px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 650, delay: 260, fill: 'backwards' });
       }
     }
-    const showWinner = Boolean(winner) && !this.elimination && !this.spin;
-    const freshWinner = showWinner && byId('winner-panel').hidden;
-    byId('winner-panel').hidden = !showWinner;
-    byId('winner-name').textContent = winner?.title || '';
-    document.body.classList.toggle('winner-celebration', showWinner);
-    if (freshWinner && !this.silentUpdate) {
-      this.impact('#e8c48a', true);
-      this.motion(byId('winner-panel'), [
-        { opacity: 0, transform: 'translateY(calc(-50% + 24px)) scale(.88)', filter: 'blur(8px)' },
-        { opacity: 1, transform: 'translateY(-50%) scale(1)', filter: 'blur(0)' }
-      ], { duration: 1000, easing: 'cubic-bezier(.22,1,.36,1)' });
-    }
-    if (!this.spin) byId('arena-cue').textContent = showWinner ? 'ЭТОТ ВЕЧЕР ПОЛУЧИЛ СВОЙ ВЫБОР' : this.elimination ? 'ОДНИМ ПРЕТЕНДЕНТОМ МЕНЬШЕ' : 'ВСЁ РЕШАЕТ СЛЕДУЮЩИЙ ОБОРОТ';
+    if (!this.spin) byId('arena-cue').textContent = this.elimination ? 'ОДНИМ ПРЕТЕНДЕНТОМ МЕНЬШЕ' : 'ВСЁ РЕШАЕТ СЛЕДУЮЩИЙ ОБОРОТ';
   }
 
   card(item, eliminated = false) {
@@ -271,7 +258,6 @@ export class StageWheel {
       { transform: 'translate(-50%,-50%) scale(.94)' },
       { transform: 'translate(-50%,-50%) scale(1)' }
     ], { duration: 700, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-    byId('winner-panel').hidden = true;
     this.tickCountdown();
     const frame = now => {
       if (!this.spin) return;
@@ -313,6 +299,7 @@ export class StageWheel {
         if (item && !this.silentSpin && this.active()) this.eliminate({ ...item, roundElimShare: slice.share * 100 }, this.slices);
         else { this.slices = stageWheelItems(this.state); this.draw(); }
         this.renderLists();
+        if (!this.elimination) this.onSettled();
       }
     };
     this.frame = requestAnimationFrame(frame);
@@ -368,7 +355,10 @@ export class StageWheel {
         { opacity: 0, transform: 'translateY(calc(-50% - 12px)) scale(1.025)', filter: 'blur(5px)' }
       ], { duration: 300, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
     }, 1500);
-    this.bannerTimer = setTimeout(() => this.finishElimination(), 1800);
+    this.bannerTimer = setTimeout(() => {
+      this.finishElimination();
+      this.onSettled();
+    }, 1800);
   }
 
   finishElimination() {
@@ -506,7 +496,7 @@ export class StageWheel {
     this.seen.clear();
     this.rotation = 0;
     this.finishElimination();
-    document.body.classList.remove('wheel-spinning', 'wheel-settling', 'final-duel', 'winner-celebration');
+    document.body.classList.remove('wheel-spinning', 'wheel-settling', 'final-duel');
     this.setPresentation({ active: false, nextSpinAt: 0 });
   }
 

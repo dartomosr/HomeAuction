@@ -203,6 +203,9 @@ function buildStageState() {
   const activeTokens = new Set(players.map(player => player.token));
   const items = state.items.filter(item => !item.mergedInto);
   const revealed = state.phase !== 'POOL';
+  const finished = state.phase === 'FINISHED';
+  const winner = state.wheel.winner;
+  const winningItem = finished && items.find(item => item.id === winner?.id);
   const alive = getAliveWheelItems();
   const inverseTotal = alive.reduce((sum, item) => sum + 1 / getEffectivePoints(item), 0);
   const contributors = item => Object.entries(item.allocations || {})
@@ -215,12 +218,19 @@ function buildStageState() {
     ...(revealed ? { wheel: {
       isSpinning: state.wheel.isSpinning,
       history: state.wheel.history.map(entry => ({ ...entry })),
-      winner: state.wheel.winner ? { ...state.wheel.winner } : null,
+      winner: winner ? { ...winner, ...(winningItem ? { author: winningItem.createdByName || null } : {}) } : null,
+      ...(finished ? { awards: state.wheel.awards || {} } : {}),
       spin: state.wheel.presentationSpin || null
     } } : {}),
     totalBank: items.reduce((bank, item) => bank + Object.entries(item.allocations || {})
       .reduce((sum, [token, points]) => sum + (activeTokens.has(token) ? points : 0), 0), 0),
-    players: players.map(({ id, name, ready, online }) => ({ id, name, ready, online })),
+    players: players.map(({ id, name, ready, online, token }) => ({
+      id, name, ready, online,
+      ...(finished ? {
+        investedPoints: items.reduce((sum, item) => sum + (item.allocations?.[token] || 0), 0),
+        winnerPoints: winningItem?.allocations?.[token] || 0
+      } : {})
+    })),
     items: items.map(item => ({
       id: item.id,
       title: item.title,

@@ -850,8 +850,8 @@ describe('socket handler scenarios', () => {
     state.phase = 'REVEAL';
     state.settings.spinDuration = .1;
     state.items = [
-      { id: 'a', title: 'A', basePoints: 0, allocations: { 'secret-host-token': 10 }, eliminated: false },
-      { id: 'b', title: 'B', basePoints: 0, allocations: { 'secret-player-token': 30 }, eliminated: false },
+      { id: 'a', title: 'A', createdByName: 'Хост', createdByToken: 'secret-host-token', basePoints: 0, allocations: { 'secret-host-token': 10 }, eliminated: false },
+      { id: 'b', title: 'B', createdByName: 'Игрок', createdByToken: 'secret-player-token', basePoints: 0, allocations: { 'secret-player-token': 30 }, eliminated: false },
       { id: 'zero', title: 'Zero', basePoints: 0, allocations: {}, eliminated: false }
     ];
     state.settings.keepZeroItems = false;
@@ -860,6 +860,8 @@ describe('socket handler scenarios', () => {
     assert.equal(revealed.items[1].roundElimShare, 25);
     assert.equal(revealed.items[2].droppedZero, true);
     assert.deepEqual(revealed.items[0].contributors, [{ name: 'Хост', points: 10 }]);
+    assert.equal(revealed.wheel.awards, undefined);
+    assert.ok(revealed.players.every(player => player.investedPoints === undefined));
     assert.doesNotMatch(JSON.stringify(revealed), /secret-|predeterminedWinner/);
     assert.equal(screen.hasHandler('wheel_presentation'), false);
     player.receive('wheel_presentation', { active: true, waitMs: 2000 });
@@ -879,8 +881,15 @@ describe('socket handler scenarios', () => {
     const eliminatedId = spinning.wheel.spin.eliminatedId;
     const risk = revealed.items.find(item => item.id === eliminatedId).roundElimShare;
     t.mock.timers.tick(500);
-    assert.equal(buildStageState().wheel.history[0].roundElimShare, risk);
-    assert.equal(buildStageState().wheel.spin, null);
+    const finished = buildStageState();
+    assert.equal(finished.phase, 'FINISHED');
+    assert.equal(finished.wheel.history[0].roundElimShare, risk);
+    assert.equal(finished.wheel.spin, null);
+    const author = finished.players.find(player => player.name === finished.wheel.winner.author);
+    assert.equal(finished.wheel.awards[author.id].title, 'ТРИУМФАТОР');
+    assert.equal(author.winnerPoints, finished.wheel.winner.totalPoints);
+    assert.ok(finished.players.every(player => player.investedPoints > 0));
+    assert.doesNotMatch(JSON.stringify(finished), /secret-|predeterminedWinner/);
   });
 
   test('finishes the wheel round and supports both host reset modes', t => {

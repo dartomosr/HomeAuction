@@ -1,6 +1,7 @@
 import { PAGE_DURATION, REVEAL_TIMING, STAGE_COLORS, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
 import { StageSound } from './stage-audio.js';
 import { StageWheel } from './stage-wheel.js';
+import { StageFinale } from './stage-finale.js';
 
 const socket = window.io({ auth: { role: 'stage' } });
 const byId = id => document.getElementById(id);
@@ -31,7 +32,14 @@ let activityTimer;
 let previousTime = performance.now();
 const active = () => embeddedActive && !document.hidden;
 const animate = () => active() && !motionPreference.matches;
-const wheel = new StageWheel({ sound, active, reduced: () => motionPreference.matches });
+const wheelScene = byId('wheel-scene');
+const finale = new StageFinale();
+const wheel = new StageWheel({
+  sound, active, reduced: () => motionPreference.matches,
+  onSettled: () => { if (snapshot?.phase === 'FINISHED') render(); }
+});
+let wheelFade = null;
+let finaleFade = null;
 let revealGeneration = 0;
 let revealing = false;
 let revealState = null;
@@ -255,6 +263,69 @@ function updateBank(target) {
   bankFrame = requestAnimationFrame(tick);
 }
 
+function renderScenes(state, pool) {
+  const showFinale = state.phase === 'FINISHED' && Boolean(state.wheel?.winner)
+    && (!animate() || (!wheel.spin && !wheel.elimination));
+  const wasFinale = !finale.scene.hidden && !finale.scene.inert;
+  const enterFromWheel = showFinale && !wasFinale && animate() && baseline && !wheelScene.hidden;
+  if (!showFinale || !animate()) {
+    wheelFade?.cancel();
+    wheelFade = null;
+  }
+  if (showFinale || !animate()) {
+    finaleFade?.cancel();
+    finaleFade = null;
+  }
+
+  byId('pool-scene').hidden = !pool && !revealing;
+  wheelScene.hidden = pool || revealing || (showFinale && !enterFromWheel && !wheelFade);
+  wheelScene.inert = showFinale;
+  finale.scene.inert = !showFinale;
+  document.body.classList.toggle('wheel-mode', !pool);
+  if (showFinale) {
+    finale.scene.hidden = false;
+    if (!wasFinale) finale.reset();
+    finale.render(state);
+    if (enterFromWheel) {
+      const arena = byId('wheel-arena').getBoundingClientRect();
+      const hero = finale.hero.getBoundingClientRect();
+      const offset = arena.top + arena.height / 2 - hero.top - hero.height / 2;
+      move(finale.hero, [
+        { opacity: 0, transform: `translateY(${offset}px) scale(.72)` },
+        { opacity: 1, transform: 'none' }
+      ], { duration: 960, easing: 'cubic-bezier(.19,1,.28,1)' });
+      move(finale.scene.querySelector('.finale-light'), [{ opacity: 0 }, { opacity: 1 }], { duration: 1050 });
+      wheelFade = move(wheelScene, [
+        { opacity: 1, transform: 'none' },
+        { opacity: 0, transform: 'scale(.94)' }
+      ], { duration: 780, easing: 'cubic-bezier(.5,0,.25,1)', fill: 'forwards' });
+      wheelFade.finished.then(() => {
+        wheelScene.hidden = true;
+        wheelFade.cancel();
+        wheelFade = null;
+      }, () => {});
+      move(finale.scene.querySelector('.finale-hall-heading'), [{ opacity: 0 }, { opacity: 1 }],
+        { duration: 500, delay: 320, fill: 'backwards' });
+      [...finale.list.children].forEach((card, index, cards) => {
+        move(card, [
+          { opacity: 0, transform: 'translateY(26px) scale(.98)' },
+          { opacity: 1, transform: 'none' }
+        ], { duration: 660, delay: 390 + index * 420 / Math.max(1, cards.length - 1), fill: 'backwards' });
+      });
+    }
+  } else if (wasFinale && animate()) {
+    finaleFade = move(finale.scene, [
+      { opacity: 1, transform: 'none' },
+      { opacity: 0, transform: 'translateY(-16px) scale(.985)' }
+    ], { duration: 420, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+    finaleFade.finished.then(() => {
+      finale.scene.hidden = true;
+      finaleFade.cancel();
+      finaleFade = null;
+    }, () => {});
+  } else if (!finaleFade) finale.scene.hidden = true;
+}
+
 function render(changes) {
   const state = snapshot || { phase: 'POOL', players: [], items: [], totalBank: 0 };
   const ready = state.players.filter(player => player.ready).length;
@@ -266,11 +337,9 @@ function render(changes) {
   byId('ready-progress').firstElementChild.style.width = `${progress}%`;
   document.body.classList.toggle('all-ready', progress === 100);
   const pool = state.phase === 'POOL';
-  byId('pool-scene').hidden = !pool && !revealing;
-  byId('wheel-scene').hidden = pool || revealing;
-  document.body.classList.toggle('wheel-mode', !pool);
   byId('bank-card').hidden = !pool;
   byId('round-status').hidden = pool;
+  renderScenes(state, pool);
   if (pool && !changingPage) renderLots({ reactions: changes?.reactions });
   renderPlayers(changes);
 }
@@ -489,7 +558,7 @@ function clock(now) {
   previousTime = now;
   elapsed = step.elapsed;
   byId('pagination').style.setProperty('--page-progress', elapsed / PAGE_DURATION);
-  if (snapshot?.phase !== 'POOL' && !revealing) wheel.browseLists(now);
+  if (snapshot?.phase !== 'POOL' && !revealing && !wheelScene.hidden && !wheelScene.inert) wheel.browseLists(now);
   if (step.advance) void turnPage();
   requestAnimationFrame(clock);
 }
