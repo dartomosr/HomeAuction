@@ -90,6 +90,7 @@ socket.on('state_update', (state) => {
   }
 
   const isWheelPhase = state.phase === 'REVEAL' || state.phase === 'FINISHED';
+  if (state.phase === 'POOL' && (prevPhase === 'REVEAL' || prevPhase === 'FINISHED')) resetClientVisualState();
   document.body.classList.toggle('is-wheel-phase', isWheelPhase);
 
   if (state.phase === 'POOL') {

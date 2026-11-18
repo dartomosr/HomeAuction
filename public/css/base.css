@@ -176,6 +176,11 @@ body {
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
+.card > .card-header-strip:first-child {
+  --header-radius: max(0px, var(--radius) - var(--border-width));
+  border-radius: var(--header-radius) var(--header-radius) 0 0;
+}
+
 .card-header-strip > span:first-child {
   line-height: 1.35;
 }

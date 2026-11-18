@@ -213,6 +213,22 @@ test('pointer spring is frame-rate independent and settles after repeated impact
   }
 });
 
+test('sector settling closes a middle gap without shifting colors or changing the total share', async () => {
+  const { interpolateSectorShares } = await import('../public/js/wheel-canvas.js');
+  const slices = [
+    { id: 'a', share: .25, color: 'red' },
+    { id: 'b', share: .5, color: 'green' },
+    { id: 'c', share: .25, color: 'blue' }
+  ];
+  const targetShares = new Map([['a', .5], ['c', .5]]);
+  assert.deepEqual(interpolateSectorShares(slices, targetShares, 0), slices);
+  const halfway = interpolateSectorShares(slices, targetShares, .5);
+  assert.deepEqual(halfway.map(slice => slice.share), [.484375, .03125, .484375]);
+  assert.deepEqual(halfway.map(slice => slice.color), slices.map(slice => slice.color));
+  assert.equal(halfway.reduce((total, slice) => total + slice.share, 0), 1);
+  assert.deepEqual(interpolateSectorShares(slices, targetShares, 1).map(slice => slice.share), [.5, 0, .5]);
+});
+
 
 test('stage spin accelerates briefly and coasts continuously to rest', async () => {
   const { spinRotation } = await import('../public/js/wheel-canvas.js');

@@ -1,4 +1,7 @@
-import { paintWheelSector } from './wheel-canvas.js';
+import {
+  paintWheelSector, spinRotation, crossedBoundaries, pointerImpact, stepPointerSpring,
+  interpolateSectorShares, SECTOR_SETTLE_MS, TAU
+} from './wheel-canvas.js';
 import { reportWheelPresentation } from './wheel-presentation.js';
 import { store } from './store.js';
 import { dom } from './dom.js';
@@ -6,9 +9,64 @@ import { THEME_WHEEL_PALETTES, SPIN_COMMENTS } from './constants.js';
 import { initAudio, playTickSound, playEliminatedSound, playFxTone } from './audio.js';
 import { renderMainArea } from './ui-render.js';
 
-function showEliminationEffect(title, eliminatedId, slices, fxSeed) {
+let pointerFrame = null;
+let sectorSettleFrame = null;
+
+function resetPointer() {
+  cancelAnimationFrame(pointerFrame);
+  pointerFrame = null;
+  dom.wheelPointer.style.removeProperty('transform');
+}
+
+function cancelElimination() {
+  cancelAnimationFrame(sectorSettleFrame);
+  sectorSettleFrame = null;
   store.wheelFx.cancel();
   store.activeElimination = null;
+  dom.wheelStage.classList.remove('is-eliminating');
+}
+
+function finishElimination() {
+  cancelElimination();
+  drawWheel();
+  renderWheelLegend();
+  if (store.autoSpinActive && store.appState?.me?.isHost && store.appState.phase === 'REVEAL' &&
+      !store.appState.wheel.isSpinning && store.appState.items.filter(i => !i.eliminated).length > 1) {
+    clearTimeout(store.autoSpinTimer);
+    reportWheelPresentation(650);
+    store.autoSpinTimer = setTimeout(() => {
+      store.autoSpinTimer = null;
+      reportWheelPresentation();
+      if (store.autoSpinActive && !store.isAnimatingWheel && !store.activeElimination &&
+          store.appState?.phase === 'REVEAL' && !store.appState.wheel.isSpinning) store.socket.emit('spin_wheel');
+    }, 650);
+  }
+  if (store.appState) renderMainArea(store.appState);
+}
+
+function settleSectors(from, departedId) {
+  const target = getAliveWheelSlices();
+  if (dom.motionReduced.matches || !target.length || target.some(slice => slice.id === departedId)) {
+    finishElimination();
+    return;
+  }
+  const targetShares = new Map(target.map(slice => [slice.id, slice.share]));
+  const began = performance.now();
+  function frame(now) {
+    const progress = Math.min(1, (now - began) / SECTOR_SETTLE_MS);
+    if (progress >= 1 || dom.motionReduced.matches) {
+      finishElimination();
+      return;
+    }
+    store.activeElimination.slices = interpolateSectorShares(from, targetShares, progress);
+    drawWheel();
+    sectorSettleFrame = requestAnimationFrame(frame);
+  }
+  sectorSettleFrame = requestAnimationFrame(frame);
+}
+
+function showEliminationEffect(title, eliminatedId, slices, fxSeed) {
+  cancelElimination();
   if (dom.motionReduced.matches) return 'fold';
   const index = slices.findIndex(s => s.id === eliminatedId) >= 0
     ? slices.findIndex(s => s.id === eliminatedId)
@@ -28,32 +86,13 @@ function showEliminationEffect(title, eliminatedId, slices, fxSeed) {
     store.wheelFx.start({
       wheelCanvas: dom.wheelCanvas, geometry, index, slices: spinSlices, rotation: store.wheelRotation,
       kind: id, seed: fxSeed, duration: id === 'shot' ? 3100 : id === 'glass' ? 2900 : 2450,
-      onComplete: () => {
-        store.activeElimination = null;
-        dom.wheelStage.classList.remove('is-eliminating');
-        drawWheel();
-        renderWheelLegend();
-        if (store.autoSpinActive && store.appState?.me?.isHost && store.appState.phase === 'REVEAL' &&
-            !store.appState.wheel.isSpinning && store.appState.items.filter(i => !i.eliminated).length > 1) {
-          clearTimeout(store.autoSpinTimer);
-          reportWheelPresentation(650);
-          store.autoSpinTimer = setTimeout(() => {
-            store.autoSpinTimer = null;
-            reportWheelPresentation();
-            if (store.autoSpinActive && !store.isAnimatingWheel && !store.activeElimination &&
-                store.appState?.phase === 'REVEAL' && !store.appState.wheel.isSpinning) store.socket.emit('spin_wheel');
-          }, 650);
-        }
-        if (store.appState) renderMainArea(store.appState);
-      }
+      onComplete: () => settleSectors(spinSlices, spinSlices[index].id)
     });
     drawWheel();
     playFxTone(id);
   } catch (err) {
     console.error('Ошибка эффекта сектора', err);
-    store.wheelFx.cancel();
-    store.activeElimination = null;
-    dom.wheelStage.classList.remove('is-eliminating');
+    cancelElimination();
     drawWheel();
     return 'fold';
   }
@@ -67,8 +106,8 @@ function resetClientVisualState() {
   reportWheelPresentation();
   if (store.activeSpinFrame !== null) cancelAnimationFrame(store.activeSpinFrame);
   store.activeSpinFrame = null;
-  store.wheelFx.cancel();
-  store.activeElimination = null;
+  resetPointer();
+  cancelElimination();
   store.wheelRotation = 0;
   store.isAnimatingWheel = false;
   store.activeSpinSlices = null;
@@ -83,6 +122,10 @@ function getCurrentWheelSlices() {
   if (store.isAnimatingWheel && store.activeSpinSlices) {
     return store.activeSpinSlices;
   }
+  return getAliveWheelSlices();
+}
+
+function getAliveWheelSlices() {
   if (!store.appState) return [];
   const alive = store.appState.items.filter((i) => !i.eliminated);
   if (alive.length === 0) return [];
@@ -103,11 +146,6 @@ function resizeWheelCanvas() {
   const rect = dom.wheelStage.getBoundingClientRect();
   const side = Math.round(Math.min(rect.width, rect.height || rect.width));
   if (side <= 0) return;
-  if (store.activeElimination && store.wheelFx.active && Math.abs(store.wheelFx.active.width - side) > 1) {
-    store.wheelFx.cancel();
-    store.activeElimination = null;
-    dom.wheelStage.classList.remove('is-eliminating');
-  }
   const ratio = window.devicePixelRatio || 1;
   const pixels = Math.round(side * ratio);
   if (dom.wheelCanvas.width !== pixels || dom.wheelCanvas.height !== pixels || store.wheelPixelRatio !== ratio) {
@@ -314,7 +352,7 @@ dom.wheelCanvas.addEventListener('pointerleave', () => dom.wheelTooltip.classLis
 window.addEventListener('resize', () => dom.wheelTooltip.classList.add('hidden'));
 
 if (typeof ResizeObserver !== 'undefined') {
-  new ResizeObserver(() => { resizeWheelCanvas(); if (!store.isAnimatingWheel && !store.activeElimination) drawWheel(); }).observe(dom.wheelStage);
+  new ResizeObserver(drawWheel).observe(dom.wheelStage);
 } else {
   window.addEventListener('resize', drawWheel);
 }
@@ -351,6 +389,8 @@ function drawSpinParticles(now, progress) {
 
 export function handleWheelSpin({ slices, eliminatedId, eliminatedTitle, targetFraction, extraSpins, durationSec }) {
   initAudio();
+  resetPointer();
+  cancelElimination();
   store.isAnimatingWheel = true;
   store.activeSpinSlices = slices;
   dom.wheelTooltip.classList.add('hidden');
@@ -358,81 +398,66 @@ export function handleWheelSpin({ slices, eliminatedId, eliminatedTitle, targetF
   dom.wheelStage.classList.add('is-spinning');
   renderWheelLegend(slices);
   dom.wheelStatusBox.textContent = SPIN_COMMENTS[Math.floor(Math.random() * SPIN_COMMENTS.length)];
-  if (store.activeElimination) { store.wheelFx.cancel(); store.activeElimination = null; dom.wheelStage.classList.remove('is-eliminating'); }
   if (store.activeSpinFrame !== null) cancelAnimationFrame(store.activeSpinFrame);
   clearTimeout(store.autoSpinTimer);
   store.autoSpinTimer = null;
   reportWheelPresentation();
 
-  const twoPi = Math.PI * 2;
-  const startRotation = store.wheelRotation % twoPi;
-
-  const desiredEndMod = ((1 - targetFraction) * twoPi + twoPi) % twoPi;
-  let delta = desiredEndMod - startRotation;
-  if (delta <= 0) delta += twoPi;
-
-  const totalDelta = extraSpins * twoPi + delta;
+  const spin = { targetFraction, extraSpins, durationSec };
+  const startRotation = store.wheelRotation % TAU;
   const durationMs = durationSec * 1000;
   const startTime = performance.now();
-
-  const boundaries = [];
-  let acc = 0;
-  slices.forEach((s) => {
-    boundaries.push(acc);
-    acc += s.share;
-  });
-
-  function getSliceIndexAtPointer(rot) {
-    const norm = ((twoPi - (rot % twoPi)) % twoPi) / twoPi;
-    for (let i = boundaries.length - 1; i >= 0; i--) {
-      if (norm >= boundaries[i]) return i;
-    }
-    return 0;
-  }
-
-  let lastSliceIdx = getSliceIndexAtPointer(startRotation);
-
-  function easeSpin(t) {
-    const slowdown = Math.min(0.35, 8000 / durationMs);
-    const linearTime = 1 - slowdown;
-    const linearDistance = 3 * linearTime / (3 * linearTime + slowdown);
-    if (t < linearTime) return (t / linearTime) * linearDistance;
-    const stopT = (t - linearTime) / slowdown;
-    return linearDistance + (1 - linearDistance) * (1 - Math.pow(1 - stopT, 3));
-  }
+  let lastFrameTime = startTime;
+  let lastRotation = startRotation;
   let lastCanvasFrame = -Infinity;
+  let pointer = { angle: 0, velocity: 0 };
+
+  function updatePointer(now, crossings = 0, speed = 0) {
+    const dt = Math.max(0, (now - lastFrameTime) / 1000);
+    lastFrameTime = Math.max(now, lastFrameTime);
+    if (dom.motionReduced.matches) {
+      pointer = { angle: 0, velocity: 0 };
+      dom.wheelPointer.style.removeProperty('transform');
+      return;
+    }
+    if (crossings) pointer.velocity = pointerImpact(pointer.velocity, speed, crossings);
+    pointer = stepPointerSpring(pointer, dt);
+    dom.wheelPointer.style.transform = `translateY(-50%) rotate(${pointer.angle.toFixed(3)}deg)`;
+  }
+
+  function settlePointer(now) {
+    updatePointer(now);
+    if (Math.abs(pointer.angle) + Math.abs(pointer.velocity) > .03) {
+      pointerFrame = requestAnimationFrame(settlePointer);
+    } else {
+      resetPointer();
+    }
+  }
 
   function animateFrame(now) {
-    const elapsed = now - startTime;
+    const elapsed = Math.max(0, now - startTime);
     const progress = Math.min(1, elapsed / durationMs);
     if (durationMs > 30000 && now - lastCanvasFrame < 32 && progress < 1) {
       store.activeSpinFrame = requestAnimationFrame(animateFrame);
       return;
     }
     lastCanvasFrame = now;
-    const eased = easeSpin(progress);
+    const rotation = spinRotation(spin, startRotation, elapsed);
+    const crossings = crossedBoundaries(slices, lastRotation, rotation);
+    const dt = Math.max(.001, (now - lastFrameTime) / 1000);
+    updatePointer(now, crossings, (rotation - lastRotation) / dt);
+    if (crossings > 0) playTickSound();
+    lastRotation = rotation;
 
-    store.wheelRotation = startRotation + totalDelta * eased;
+    store.wheelRotation = rotation;
     drawWheel();
     drawSpinParticles(now, progress);
-
-    const currentSliceIdx = getSliceIndexAtPointer(store.wheelRotation);
-    if (currentSliceIdx !== lastSliceIdx) {
-      playTickSound();
-      if (!dom.motionReduced.matches && dom.wheelPointer.animate) {
-        dom.wheelPointer.animate([
-          { transform: 'translateY(-50%) rotate(-9deg)' },
-          { transform: 'translateY(-50%) rotate(3deg)', offset: 0.45 },
-          { transform: 'translateY(-50%) rotate(0deg)' }
-        ], { duration: 160, easing: 'ease-out' });
-      }
-      lastSliceIdx = currentSliceIdx;
-    }
 
     if (progress < 1) {
       store.activeSpinFrame = requestAnimationFrame(animateFrame);
     } else {
       store.activeSpinFrame = null;
+      pointerFrame = requestAnimationFrame(settlePointer);
       dom.particleCtx.clearRect(0, 0, dom.wheelParticles.width, dom.wheelParticles.height);
       store.isAnimatingWheel = false;
       store.activeSpinSlices = null;
@@ -441,7 +466,7 @@ export function handleWheelSpin({ slices, eliminatedId, eliminatedTitle, targetF
       renderWheelLegend(slices);
       const seed = (Math.floor(targetFraction * 0x7fffffff) ^ (eliminatedId?.length || 13) * 2654435761) >>> 0;
       if (showEliminationEffect(eliminatedTitle, eliminatedId, slices, seed) === 'fold') playEliminatedSound();
-      dom.wheelStatusBox.textContent = `❌ Выбывает вариант: «${eliminatedTitle}»!`;
+      dom.wheelStatusBox.textContent = `Выбывает вариант: «${eliminatedTitle}»!`;
     }
   }
 

@@ -321,7 +321,7 @@ html[data-theme="win98"] {
   --accent-success: #008000;
   --border-color: #808080;
   --border-width: 1px;
-  --radius: 0;
+  --radius: 0px;
   --shadow: 2px 2px 0 #404040;
   --shadow-btn: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset, 2px 2px 0 #404040;
   --font-display: Tahoma, Arial, sans-serif;
@@ -564,7 +564,7 @@ html[data-theme="retro-pixel"] {
   --accent-success: #8fca75;
   --border-color: #8aa66b;
   --border-width: 2px;
-  --radius: 0;
+  --radius: 0px;
   --shadow: 4px 4px 0 #0b100b;
   --shadow-btn: 2px 2px 0 #0b100b;
   --font-display: 'Press Start 2P', 'Courier New', monospace;

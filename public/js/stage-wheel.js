@@ -1,4 +1,4 @@
-import { paintBroadcastSector, spinRotation, pointerSector, crossedBoundaries, stepPointerSpring, TAU } from './wheel-canvas.js';
+import { paintBroadcastSector, spinRotation, pointerSector, crossedBoundaries, pointerImpact, stepPointerSpring, interpolateSectorShares, SECTOR_SETTLE_MS, TAU } from './wheel-canvas.js';
 import { stageWheelItems, riskLabel } from './stage-model.js';
 import { stepBackgroundParallax, backgroundPhase } from './stage-parallax.js';
 
@@ -273,8 +273,7 @@ export class StageWheel {
       if (crossings > 0 && this.active() && !this.silentSpin) {
         this.sound.tick(Math.min(1, speed / 12), this.slices.length === 2);
         if (!this.reduced()) {
-          this.pointer.velocity -= (45 + Math.min(180, speed * 18)) * Math.min(2, crossings);
-          this.pointer.velocity = Math.max(-400, this.pointer.velocity);
+          this.pointer.velocity = pointerImpact(this.pointer.velocity, speed, crossings);
         }
       }
       this.updatePointer(dt);
@@ -381,14 +380,13 @@ export class StageWheel {
 
   settleSectors(target, departed) {
     cancelAnimationFrame(this.settleFrame);
-    const from = this.slices.map(slice => ({ ...slice }));
+    const from = this.slices;
     const targets = new Map(target.map(slice => [slice.id, slice.share]));
     this.retiringId = departed;
     const began = performance.now();
     const frame = now => {
-      const t = Math.min(1, (now - began) / 650);
-      const ease = 1 - (1 - t) ** 4;
-      this.slices = from.map(slice => ({ ...slice, share: slice.share + ((targets.get(slice.id) || 0) - slice.share) * ease }));
+      const t = Math.min(1, (now - began) / SECTOR_SETTLE_MS);
+      this.slices = interpolateSectorShares(from, targets, t);
       this.draw();
       if (t < 1) this.settleFrame = requestAnimationFrame(frame);
       else { this.retiringId = null; this.slices = target; this.draw(); }

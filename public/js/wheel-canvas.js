@@ -1,5 +1,14 @@
 // Shared Canvas primitives. This module never imports player controls or sockets.
 export const TAU = Math.PI * 2;
+export const SECTOR_SETTLE_MS = 650;
+
+export function interpolateSectorShares(slices, targetShares, progress) {
+  const ease = 1 - (1 - progress) ** 4;
+  return slices.map(slice => ({
+    ...slice,
+    share: slice.share + ((targetShares.get(slice.id) ?? 0) - slice.share) * ease
+  }));
+}
 export function paintWheelSector(ctx, geometry, start, angle, color) {
   const { cx, cy, radius, scale } = geometry;
   ctx.beginPath();
@@ -46,6 +55,10 @@ export function crossedBoundaries(slices, from, to) {
     boundary += slice.share * TAU;
   }
   return count;
+}
+
+export function pointerImpact(velocity, speed, crossings) {
+  return Math.max(-400, velocity - (45 + Math.min(180, speed * 18)) * Math.min(2, crossings));
 }
 
 // Analytic damped spring: consistent resistance at 30, 60 and 120 fps.
