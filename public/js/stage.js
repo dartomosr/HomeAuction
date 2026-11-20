@@ -108,11 +108,9 @@ function renderLots({ pageChange = false, reactions = [], reveal = false } = {})
     const cardHeight = Math.min(520, innerHeight * .6 / layout.rows, (lotGrid.clientHeight - gap * (layout.rows - 1)) / layout.rows);
     lotGrid.style.setProperty('--reveal-card-width', `${Math.max(1, Math.floor(cardWidth))}px`);
     lotGrid.style.setProperty('--reveal-card-height', `${Math.max(1, Math.floor(cardHeight))}px`);
-    lotGrid.style.setProperty('--reveal-title-size', `${Math.max(18, Math.min(56, innerWidth * .04, cardHeight * .12))}px`);
   } else {
     lotGrid.style.removeProperty('--reveal-card-width');
     lotGrid.style.removeProperty('--reveal-card-height');
-    lotGrid.style.removeProperty('--reveal-title-size');
   }
   const first = new Map([...lotGrid.children].map(node => [node, node.getBoundingClientRect()]));
   for (const node of lotGrid.children) motions.get(node)?.cancel();
@@ -416,8 +414,8 @@ async function revealPool(state) {
     const contributors = item.contributors || [];
     investors.replaceChildren();
     contributors.slice(0, 3).forEach(person => {
-      const chip = element('span', '', person.name);
-      chip.append(element('b', '', number.format(person.points)));
+      const chip = element('span', '');
+      chip.append(element('span', 'investor-name', person.name), element('b', '', number.format(person.points)));
       chip.title = `${person.name}: ${number.format(person.points)} очк.`;
       investors.append(chip);
     });
