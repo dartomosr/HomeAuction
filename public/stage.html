@@ -28,7 +28,18 @@
     </header>
 
     <section id="pool-scene" class="showcase" aria-labelledby="pool-title">
-      <div class="section-heading showcase-heading"><div><p class="eyebrow"><span class="eyebrow-line"></span> ВЕЧЕР НАЧИНАЕТСЯ С ИДЕИ</p><h1 id="pool-title">Что выберем <em>сегодня?</em></h1></div><div class="showcase-status"><span id="activity" class="activity-pill" role="status">Ваши телефоны решают</span><span id="item-count" class="count">Вариантов: 0</span></div></div>
+      <div class="section-heading showcase-heading">
+        <div class="showcase-title">
+          <p class="eyebrow"><span class="eyebrow-line"></span> ВЕЧЕР НАЧИНАЕТСЯ С ИДЕИ</p>
+          <h1 id="pool-title"><span id="pool-title-default">Что выберем <em>сегодня?</em></span><span id="pool-title-custom" dir="auto" hidden></span></h1>
+          <div id="pool-title-editor" hidden>
+            <input id="pool-title-input" type="text" aria-label="Заголовок сцены" placeholder="Что выберем сегодня?" maxlength="120" dir="auto">
+            <button id="pool-title-apply" class="pool-title-button" type="button">Применить</button>
+            <button id="pool-title-cancel" class="pool-title-button" type="button">Отмена</button>
+          </div>
+        </div>
+        <div class="showcase-status"><span id="activity" class="activity-pill" role="status">Ваши телефоны решают</span><span id="item-count" class="count">Вариантов: 0</span></div>
+      </div>
       <div id="lot-grid" class="lot-grid"></div>
       <div class="carousel-footer"><span class="pool-hint">Идеи на экране. Интрига в телефоне.</span><div id="pagination" class="pagination" aria-label="Страницы вариантов"></div><span id="page-label" class="page-label"></span></div>
     </section>

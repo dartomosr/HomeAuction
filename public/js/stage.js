@@ -469,10 +469,68 @@ function updateActivity() {
   if (!active() && revealing) { cancelReveal(); render(); wheel.draw(); }
 }
 
+const defaultPoolTitle = byId('pool-title-default');
+const customPoolTitle = byId('pool-title-custom');
+const poolTitle = byId('pool-title');
+const editPoolTitle = element('button', 'pool-title-edit');
+editPoolTitle.type = 'button';
+editPoolTitle.title = 'Изменить заголовок';
+const poolTitleEditor = byId('pool-title-editor');
+const poolTitleInput = byId('pool-title-input');
+
+function renderPoolTitle(title) {
+  customPoolTitle.textContent = title;
+  customPoolTitle.title = title;
+  customPoolTitle.hidden = !title;
+  defaultPoolTitle.hidden = Boolean(title);
+}
+
+function finishPoolTitleEdit() {
+  poolTitleEditor.hidden = true;
+  poolTitle.hidden = false;
+  editPoolTitle.focus();
+}
+
+editPoolTitle.addEventListener('click', () => {
+  poolTitleInput.value = customPoolTitle.textContent || defaultPoolTitle.textContent;
+  poolTitle.hidden = true;
+  poolTitleEditor.hidden = false;
+  poolTitleInput.focus();
+  poolTitleInput.select();
+});
+
+// The stage iframe's sandbox disables form submission.
+function applyPoolTitle() {
+  const title = poolTitleInput.value.trim();
+  renderPoolTitle(title);
+  finishPoolTitleEdit();
+  // The file:// launcher has an opaque origin. It checks the iframe and origin on receipt.
+  window.parent.postMessage({ type: 'homeauction:stage-title', title }, '*');
+}
+
+byId('pool-title-apply').addEventListener('click', applyPoolTitle);
+poolTitleInput.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' || event.isComposing) return;
+  event.preventDefault();
+  applyPoolTitle();
+});
+byId('pool-title-cancel').addEventListener('click', finishPoolTitleEdit);
+
 window.addEventListener('message', event => {
   if (window.parent === window || event.source !== window.parent || event.origin !== 'null') return;
   if (event.data?.type === 'homeauction:stage-connection') renderJoinAddress(event.data.address);
   if (event.data?.type === 'homeauction:stage-visibility') { embeddedActive = Boolean(event.data.active); updateActivity(); }
+  if (event.data?.type === 'homeauction:stage-window-controls' && Number.isFinite(event.data.bottom)) {
+    const clearance = event.data.bottom > 0 ? event.data.bottom + 8 : 0;
+    document.body.style.setProperty('--window-controls-clearance', `${clearance}px`);
+  }
+  if (event.data?.type === 'homeauction:stage-title' && typeof event.data.title === 'string') {
+    if (!editPoolTitle.isConnected) {
+      editPoolTitle.append(defaultPoolTitle, customPoolTitle);
+      poolTitle.append(editPoolTitle);
+    }
+    renderPoolTitle(event.data.title);
+  }
 });
 document.addEventListener('visibilitychange', updateActivity);
 if (!['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname)) renderJoinAddress(location.origin);

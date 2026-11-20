@@ -18,6 +18,7 @@ let selectedTab = 'management';
 let fullscreen = false;
 let immersiveDelayTimer = null;
 let windowedImmersive = false;
+let stageTitle = '';
 const stageFrame = document.getElementById('stage-frame');
 const topbar = document.querySelector('.topbar');
 const immersiveExit = document.getElementById('immersive-exit');
@@ -39,6 +40,13 @@ function publishStageVisibility() {
   postToStage({ type: 'homeauction:stage-visibility', active: selectedTab === 'game' && !document.hidden });
 }
 
+function publishStageWindowControls() {
+  const overlay = navigator.windowControlsOverlay;
+  const bottom = document.body.classList.contains('windowed-immersive') && overlay?.visible
+    ? overlay.getTitlebarAreaRect().bottom : 0;
+  postToStage({ type: 'homeauction:stage-window-controls', bottom });
+}
+
 function renderWindowMode(mode = {}) {
   fullscreen = Boolean(mode.fullscreen);
   if (fullscreen) clearImmersiveDelay();
@@ -56,6 +64,7 @@ function renderWindowMode(mode = {}) {
   button.setAttribute('aria-label', fullscreen ? 'Выйти из полного экрана' : 'Полный экран');
   button.title = fullscreen ? 'Выйти из полного экрана · F11 / Esc' : 'Полный экран · F11';
   button.setAttribute('aria-pressed', String(fullscreen));
+  publishStageWindowControls();
 }
 
 function scheduleWindowedImmersion() {
@@ -124,7 +133,18 @@ for (const name of ['management', 'game']) {
     document.getElementById(`tab-${next}`).focus();
   });
 }
-stageFrame.addEventListener('load', () => { publishStageAddress(); publishStageVisibility(); });
+stageFrame.addEventListener('load', () => {
+  publishStageAddress();
+  publishStageVisibility();
+  publishStageWindowControls();
+  postToStage({ type: 'homeauction:stage-title', title: stageTitle });
+});
+navigator.windowControlsOverlay?.addEventListener('geometrychange', publishStageWindowControls);
+window.addEventListener('message', event => {
+  if (event.source !== stageFrame.contentWindow || !stageFrame.getAttribute('src')) return;
+  if (event.origin !== new URL(stageFrame.src).origin || event.data?.type !== 'homeauction:stage-title') return;
+  if (typeof event.data.title === 'string') stageTitle = event.data.title.trim().slice(0, 120);
+});
 document.addEventListener('visibilitychange', publishStageVisibility);
 document.getElementById('fullscreen-button').addEventListener('click', () => runAction(() => window.homeAuction.toggleFullscreen()));
 immersiveExit.addEventListener('click', () => {

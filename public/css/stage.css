@@ -58,6 +58,8 @@ button { font: inherit; }
 .all-ready .readiness { border-color: #bdffe3; box-shadow: 0 0 35px #8de5c442, inset 0 0 24px #b1ead51c; }
 .sound-toggle { align-self: start; width: clamp(40px, 3.2vw, 90px); height: clamp(40px, 3.2vw, 90px); min-height: 0; aspect-ratio: 1; padding: .35vw; display: flex; align-items: center; flex-direction: column; justify-content: center; gap: 3px; cursor: pointer; color: #fff6ff; transition: background .2s; }
 .sound-toggle, .sound-toggle:hover, .sound-toggle:active, .sound-toggle:focus, .sound-toggle:focus-visible { border-radius: 50%; }
+/* The stage already has at least 2vh of top padding across layouts. */
+.sound-toggle { margin-block-start: max(0px, calc(var(--window-controls-clearance, 0px) - 2vh)); }
 .sound-toggle:hover { background: #ffffff30; }
 .sound-toggle:focus-visible { outline: 2px solid #ffe6af; outline-offset: 4px; }
 .sound-toggle svg { width: clamp(18px, 1.4vw, 24px); height: clamp(18px, 1.4vw, 24px); flex-shrink: 0; max-width: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -76,6 +78,26 @@ button { font: inherit; }
 .eyebrow-line { display: inline-block; width: 1.7em; height: 1px; vertical-align: middle; background: #f5cfb1; margin-right: .5em; }
 h1 { font-size: clamp(24px, 3.65vw, 118px); line-height: 1.04; letter-spacing: -.055em; font-weight: 650; }
 h1 em { font-style: normal; color: #f6d9d3; }
+.showcase-title { min-width: 0; }
+.pool-title-edit { display: block; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: start; cursor: pointer; }
+.pool-title-edit:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .14em; }
+#pool-title-custom {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: .85em;
+  /* Keep the last glyph inside the clipping edge at tight letter spacing. */
+  padding-inline-end: .12em;
+}
+#pool-title-editor { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+#pool-title-input, .pool-title-button { border: 1px solid #ffffff40; border-radius: 12px; background: #30295780; color: inherit; }
+#pool-title-input { flex: 1 1 12rem; min-width: 0; max-width: 100%; padding: .45em .65em; font: inherit; font-size: clamp(16px, 2vw, 40px); }
+#pool-title-input::placeholder { color: var(--muted); }
+.pool-title-button { display: inline-grid; place-items: center; flex-shrink: 0; min-width: 32px; min-height: 32px; padding: .35em .65em; cursor: pointer; }
+.pool-title-button:hover { background: #ffffff30; }
+#pool-title-input:focus-visible, .pool-title-button:focus-visible, .pool-title-edit:focus-visible { outline: 2px solid #ffe6af; outline-offset: 2px; }
 h2 { font-size: clamp(13px, 1.2vw, 36px); font-weight: 650; letter-spacing: -.025em; }
 .count { color: var(--muted); font-size: clamp(10px, .85vw, 26px); white-space: nowrap; }
 .showcase-status { display: flex; align-items: flex-end; flex-direction: column; gap: .7vh; min-width: 0; max-width: 32%; }

@@ -562,6 +562,10 @@ function createMainWindow() {
     show: false,
     autoHideMenuBar: true,
     title: 'HomeAuction',
+    ...(process.platform === 'win32' && {
+      titleBarStyle: 'hidden',
+      titleBarOverlay: { color: '#00000000', symbolColor: '#faf2ff' }
+    }),
     backgroundColor: '#171b26',
     icon: windowIconPath,
     webPreferences: {
