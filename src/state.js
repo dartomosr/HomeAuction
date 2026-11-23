@@ -4,6 +4,7 @@ const { generateId } = require('./config');
 const state = {
   phase: 'POOL', // 'POOL' (добавление и тайные ставки) | 'REVEAL' (колесо) | 'FINISHED' (финал)
   settings: { ...DEFAULT_SETTINGS },
+  poolTimer: null,
   hostToken: null,
   players: new Map(), // token -> { id, token, socketId, name, isHost, ready, online }
   items: [],          // { id, title, createdByToken, createdByName, isFreeSlot, allocations: { [token]: pts }, originalAllocations: null, eliminated: false, mergedInto: null }
@@ -198,10 +199,22 @@ function calculateRoundAwards(players, items, winnerId, firstEliminatedId, avail
 }
 
 // Формируем персональное состояние для каждого игрока (без чужих очков в фазе POOL)
+function buildPoolTimerState() {
+  const timer = state.poolTimer;
+  if (state.phase !== 'POOL' || !timer) return null;
+  const running = timer.endsAt !== null;
+  return {
+    duration: timer.duration,
+    status: running ? 'running' : timer.remainingMs > 0 ? 'paused' : 'expired',
+    remainingMs: running ? Math.max(0, timer.endsAt - Date.now()) : timer.remainingMs
+  };
+}
+
 function buildStageState() {
   const players = Array.from(state.players.values()).filter(player => !player.isSpectator);
   const activeTokens = new Set(players.map(player => player.token));
   const items = state.items.filter(item => !item.mergedInto);
+  const colorIndexes = new Map(state.items.map((item, index) => [item.id, index]));
   const revealed = state.phase !== 'POOL';
   const finished = state.phase === 'FINISHED';
   const winner = state.wheel.winner;
@@ -215,6 +228,7 @@ function buildStageState() {
   return {
     phase: state.phase,
     roomName: 'HomeAuction',
+    poolTimer: buildPoolTimerState(),
     ...(revealed ? { wheel: {
       isSpinning: state.wheel.isSpinning,
       history: state.wheel.history.map(entry => ({ ...entry })),
@@ -233,6 +247,7 @@ function buildStageState() {
     })),
     items: items.map(item => ({
       id: item.id,
+      colorIndex: colorIndexes.get(item.id),
       title: item.title,
       upvotes: getReactionSummary(item, null).upvotes,
       downvotes: getReactionSummary(item, null).downvotes,
@@ -420,6 +435,7 @@ function buildClientState(forToken) {
   return {
     phase: state.phase,
     settings: state.settings,
+    poolTimer: me ? buildPoolTimerState() : null,
     ...reserveAllocation,
     effectiveFreeSpent: myFreeSpent,
     presetGroups: PRESET_GROUPS,

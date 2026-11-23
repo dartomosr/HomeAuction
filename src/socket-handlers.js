@@ -19,6 +19,7 @@ const {
 const { pickPredeterminedWinner, pickEliminatedItem } = require('./wheel-math');
 
 function registerSocketHandlers(io) {
+  let pendingPoolTimer = null;
   let pendingSpinTimer = null;
   let spinGeneration = 0;
   const stageScreens = new Set();
@@ -86,6 +87,42 @@ function registerSocketHandlers(io) {
   }
 
   // Автоматический переход к REVEAL только когда 100% игроков нажали «Готов»
+  function stopPoolCountdown() {
+    clearTimeout(pendingPoolTimer);
+    pendingPoolTimer = null;
+  }
+
+  function revealPool() {
+    if (getActiveRevealItems().length === 0) return false;
+    stopPoolCountdown();
+    state.phase = 'REVEAL';
+    return true;
+  }
+
+  function expirePoolTimer() {
+    const timer = state.poolTimer;
+    if (state.phase !== 'POOL' || timer?.endsAt == null || Date.now() < timer.endsAt) return;
+    stopPoolCountdown();
+    state.poolTimer = { ...timer, endsAt: null, remainingMs: 0 };
+    if (!revealPool()) {
+      io.emit('toast_error', 'Время ставок вышло, но в пуле нет активных вариантов. Добавьте вариант и распределите очки.');
+    }
+    broadcastState();
+  }
+
+  function startPoolTimer(duration, remainingMs = duration * 1000) {
+    stopPoolCountdown();
+    const timer = { duration, remainingMs, endsAt: Date.now() + remainingMs };
+    state.poolTimer = timer;
+    const onDeadline = () => {
+      if (state.phase !== 'POOL' || state.poolTimer !== timer) return;
+      const remaining = timer.endsAt - Date.now();
+      if (remaining > 0) pendingPoolTimer = setTimeout(onDeadline, remaining);
+      else expirePoolTimer();
+    };
+    pendingPoolTimer = setTimeout(onDeadline, remainingMs);
+  }
+
   function checkAllReady() {
     if (state.phase !== 'POOL') return;
     const allPlayers = Array.from(state.players.values()).filter(p => !p.isSpectator);
@@ -94,15 +131,10 @@ function registerSocketHandlers(io) {
     const everyoneReady = allPlayers.every(p => p.ready);
     if (!everyoneReady) return;
 
-    const validItems = getActiveRevealItems();
-    if (validItems.length === 0) {
+    if (!revealPool()) {
       for (const p of allPlayers) p.ready = false;
       io.emit('toast_error', 'В пуле нет ни одного активного варианта! Добавьте вариант и распределите очки.');
-      broadcastState();
-      return;
     }
-
-    state.phase = 'REVEAL';
     broadcastState();
   }
 
@@ -116,6 +148,40 @@ function registerSocketHandlers(io) {
       return;
     }
     let currentToken = null;
+    // Закрываем пул по дедлайну даже если новый пакет пришёл до вызова таймера Node.js.
+    socket.onAny(expirePoolTimer);
+
+    socket.on('pool_timer', payload => {
+      const player = state.players.get(currentToken);
+      if (!player?.isHost || player.socketId !== socket.id || state.phase !== 'POOL') return;
+
+      const { action, duration } = payload || {};
+      const timer = state.poolTimer;
+      if (action === 'start') {
+        if (!Number.isSafeInteger(duration) || duration < 1 || duration > 3600) {
+          socket.emit('toast_error', 'Длительность таймера должна быть целым числом от 1 до 3600 секунд.');
+          return;
+        }
+        startPoolTimer(duration);
+      } else if (action === 'pause' && timer?.endsAt != null) {
+        const remainingMs = timer.endsAt - Date.now();
+        if (remainingMs <= 0) {
+          expirePoolTimer();
+          return;
+        }
+        stopPoolCountdown();
+        state.poolTimer = { ...timer, endsAt: null, remainingMs };
+      } else if (action === 'resume' && timer?.endsAt === null && timer.remainingMs > 0) {
+        startPoolTimer(timer.duration, timer.remainingMs);
+      } else if (action === 'disable' && timer) {
+        stopPoolCountdown();
+        state.poolTimer = null;
+      } else {
+        return;
+      }
+      broadcastState();
+    });
+
     socket.on('wheel_presentation', (data = {}) => {
       const player = state.players.get(currentToken);
       if (!player?.isHost || player.socketId !== socket.id) return;
@@ -185,6 +251,10 @@ function registerSocketHandlers(io) {
         state.hostToken = playerToken;
       }
       for (const p of state.players.values()) p.isHost = state.hostToken === p.token;
+      if (!state.hostToken && state.poolTimer) {
+        stopPoolCountdown();
+        state.poolTimer = null;
+      }
 
       if (shouldApplyPreset && state.hostToken === playerToken &&
           Object.prototype.hasOwnProperty.call(ROOM_PRESETS, preset)) {
@@ -712,6 +782,8 @@ function registerSocketHandlers(io) {
       spinGeneration++;
       if (pendingSpinTimer) clearTimeout(pendingSpinTimer);
       pendingSpinTimer = null;
+      stopPoolCountdown();
+      state.poolTimer = null;
       state.phase = 'POOL';
       state.settings = { ...DEFAULT_SETTINGS };
       state.hostToken = null;
@@ -757,6 +829,7 @@ function registerSocketHandlers(io) {
         }));
       }
 
+      if (state.poolTimer) startPoolTimer(state.poolTimer.duration);
       broadcastState();
     });
 

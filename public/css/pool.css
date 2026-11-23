@@ -618,6 +618,37 @@
   min-width: 0;
 }
 
+.pool-timer:not([hidden]) {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-block-end: 10px;
+}
+
+.pool-timer strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.pool-timer-settings {
+  min-inline-size: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.pool-timer-settings label {
+  display: block;
+  margin-block: 8px 4px;
+}
+
+.pool-timer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 8px;
+}
+
 .balance-boxes {
   display: grid;
   grid-template-columns: repeat(4, minmax(140px, 1fr));

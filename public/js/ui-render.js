@@ -211,7 +211,13 @@ function renderSidebar(state) {
 
   // Если мы Хост — показываем форму настроек
   if (state.me.isHost) {
-    dom.hostSettingsForm.classList.remove('hidden');
+    dom.hostSettingsPanel.classList.remove('hidden');
+    const timer = state.poolTimer;
+    dom.poolTimerSettings.hidden = state.phase !== 'POOL';
+    dom.btnPoolTimerStart.textContent = timer ? 'Перезапустить' : 'Включить';
+    dom.btnPoolTimerToggle.hidden = !timer || timer.status === 'expired';
+    dom.btnPoolTimerToggle.textContent = timer?.status === 'paused' ? 'Продолжить' : 'Пауза';
+    dom.btnPoolTimerDisable.hidden = !timer;
     if (document.activeElement !== dom.setMaxPoints &&
         document.activeElement !== dom.setMaxItems &&
         document.activeElement !== dom.setDistributionMode &&
@@ -234,7 +240,7 @@ function renderSidebar(state) {
       dom.zeroWeightGroup.classList.toggle('hidden', !state.settings.keepZeroItems);
     }
   } else {
-    dom.hostSettingsForm.classList.add('hidden');
+    dom.hostSettingsPanel.classList.add('hidden');
   }
 }
 

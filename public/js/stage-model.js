@@ -6,9 +6,13 @@ export function revealLayout(count, width, height) {
   const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count) * width / Math.max(1, height) / 1.8)));
   return { columns, rows: Math.max(1, Math.ceil(count / columns)) };
 }
+export function stageLotColor(item, index) {
+  return STAGE_COLORS[(item.colorIndex ?? index) % STAGE_COLORS.length];
+}
+
 export function stageWheelItems(state) {
   const items = state?.items || [];
-  return items.map((item, index) => ({ ...item, color: STAGE_COLORS[index % STAGE_COLORS.length], share: (item.roundElimShare || 0) / 100 }))
+  return items.map((item, index) => ({ ...item, color: stageLotColor(item, index), share: (item.roundElimShare || 0) / 100 }))
     .filter(item => !item.eliminated && !item.droppedZero);
 }
 export function riskLabel(value) {

@@ -55,6 +55,8 @@ button { font: inherit; }
 .readiness { padding: 1.7vh 1.6vw; display: flex; flex-direction: column; justify-content: center; gap: 1.3vh; font-size: clamp(12px, 1.35vw, 42px); border-radius: 999px; }
 .progress { height: clamp(4px, .6vh, 10px); background: #ffffff20; border-radius: 20px; overflow: hidden; }
 .progress i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #cfb5ff, #b4eaf8, #f7cfb4); transition: width .7s var(--spring); box-shadow: 0 0 14px #cbb5ff; }
+.stage-pool-timer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .2em .75em; color: var(--muted); font-size: .72em; }
+.stage-pool-timer strong { color: #fff8ff; font-variant-numeric: tabular-nums; }
 .all-ready .readiness { border-color: #bdffe3; box-shadow: 0 0 35px #8de5c442, inset 0 0 24px #b1ead51c; }
 .sound-toggle { align-self: start; width: clamp(40px, 3.2vw, 90px); height: clamp(40px, 3.2vw, 90px); min-height: 0; aspect-ratio: 1; padding: .35vw; display: flex; align-items: center; flex-direction: column; justify-content: center; gap: 3px; cursor: pointer; color: #fff6ff; transition: background .2s; }
 .sound-toggle, .sound-toggle:hover, .sound-toggle:active, .sound-toggle:focus, .sound-toggle:focus-visible { border-radius: 50%; }
@@ -106,11 +108,9 @@ h2 { font-size: clamp(13px, 1.2vw, 36px); font-weight: 650; letter-spacing: -.02
 @keyframes activity-pop { from { transform: scale(.88); border-radius: 18px; background: #e9b9e055; } to { transform: scale(1); } }
 .lot-grid { display: grid; grid-template-columns: repeat(var(--columns, 3), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 2), minmax(0, 1fr)); flex: 1; min-height: 0; gap: clamp(10px, 1.5vw, 38px); }
 .lot { position: relative; min-width: 0; min-height: 0; }
-.lot-surface { position: relative; height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 1.55vh 1.5vw; overflow: hidden; border-radius: var(--radius); background: linear-gradient(145deg, #ffffff2c 0%, #ffffff0b 40%, #392b6d24), #27254f4d; animation: levitate 7s ease-in-out infinite; animation-delay: calc(var(--slot, 0) * -1.2s); }
+.lot-surface { position: relative; height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 1.55vh 1.5vw; overflow: hidden; border-radius: var(--radius); background: linear-gradient(145deg, #ffffff2c 0%, #ffffff0b 40%, #392b6d24), color-mix(in srgb, var(--lot-color, #27254f4d) 12%, #27254f4d); animation: levitate 7s ease-in-out infinite; animation-delay: calc(var(--slot, 0) * -1.2s); }
 .lot-surface::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; border: 1px solid transparent; background: linear-gradient(135deg, #ffffffb0, #ffffff00 35%, #e9c8ff08 60%, #ffffff50) border-box; mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0); mask-composite: exclude; }
 .lot-surface::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px #b4edff, inset 0 0 60px #a3dbfa85; }
-.lot:nth-child(3n + 2) .lot-surface { background-color: #164c623d; }
-.lot:nth-child(3n) .lot-surface { background-color: #653e623d; }
 @keyframes levitate { 50% { transform: translateY(-3px); } }
 .lot-number { position: absolute; right: 1vw; top: -1.1vh; color: #fff4ff0d; font-weight: 800; font-size: clamp(70px, 9.5vw, 300px); letter-spacing: -.08em; line-height: 1; pointer-events: none; }
 .lot-top { position: relative; display: flex; justify-content: space-between; align-items: center; min-height: 1.3em; gap: 8px; margin-bottom: 1vh; }

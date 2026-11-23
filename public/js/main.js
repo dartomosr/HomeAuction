@@ -512,6 +512,18 @@ dom.hostSettingsForm.addEventListener('submit', (e) => {
   });
 });
 
+dom.poolTimerSettings.addEventListener('submit', event => {
+  event.preventDefault();
+  if (socket.connected) socket.emit('pool_timer', { action: 'start', duration: dom.setPoolTimerDuration.valueAsNumber });
+});
+dom.btnPoolTimerToggle.addEventListener('click', () => {
+  const action = store.appState?.poolTimer?.status === 'paused' ? 'resume' : 'pause';
+  if (socket.connected) socket.emit('pool_timer', { action });
+});
+dom.btnPoolTimerDisable.addEventListener('click', () => {
+  if (socket.connected) socket.emit('pool_timer', { action: 'disable' });
+});
+
 dom.btnResetKeep.addEventListener('click', () => {
   store.autoSpinActive = false;
   socket.emit('reset_auction', { clearItems: false });

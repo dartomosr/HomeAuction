@@ -4,11 +4,13 @@ import { dom } from './dom.js';
 import { renderAllItemsModal, closeAllItemsModal, closeHelpModal, renderHelpModal, showToast, renderSidebar, renderMainArea, updateJoinPresetVisibility } from './ui-render.js';
 import { playWinnerFanfare, playUiClickSound } from './audio.js';
 import { resetClientVisualState, renderWheelLegend, resizeWheelCanvas, drawWheel, handleWheelSpin } from './wheel-player.js';
+import { createPoolTimerDisplay } from './pool-timer.js';
 
 export const socket = window.io();
 store.socket = socket;
 
 export function initSocketClient() {
+const updatePoolTimer = createPoolTimerDisplay(dom.poolTimer);
 socket.on('connect', () => {
   if (store.myToken && store.myName) {
     socket.emit('join', { token: store.myToken, name: store.myName, isSpectator: store.isSpectator });
@@ -33,6 +35,7 @@ socket.on('item_added', () => {
 });
 
 socket.on('kicked', ({ reason }) => {
+  updatePoolTimer(null);
   resetClientVisualState();
   closeAllItemsModal();
   store.appState = null;
@@ -49,6 +52,8 @@ socket.on('kicked', ({ reason }) => {
 });
 
 socket.on('auction_hard_reset', () => {
+  updatePoolTimer(null);
+  dom.setPoolTimerDuration.value = dom.setPoolTimerDuration.defaultValue;
   resetClientVisualState();
   closeAllItemsModal();
   store.appState = null;
@@ -67,6 +72,11 @@ socket.on('auction_hard_reset', () => {
 // 7. ПОЛУЧЕНИЕ ОБНОВЛЕНИЯ СОСТОЯНИЯ ОТ СЕРВЕРА
 socket.on('state_update', (state) => {
   const prevPhase = store.appState ? store.appState.phase : null;
+  const timer = state.poolTimer;
+  if (timer && timer.duration !== store.appState?.poolTimer?.duration) {
+    dom.setPoolTimerDuration.value = timer.duration;
+  }
+  updatePoolTimer(timer);
   store.appState = state;
   document.dispatchEvent(new Event('auction:state-update'));
   if (Array.isArray(state.presetCatalog) && Array.isArray(state.presetGroups)) {

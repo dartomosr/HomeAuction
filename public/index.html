@@ -256,7 +256,7 @@
         </div>
 
         <!-- Редактируемая форма только для Хоста -->
-        <form id="host-settings-form" class="host-settings hidden">
+        <div id="host-settings-panel" class="host-settings hidden">
           <button
             type="button"
             id="btn-toggle-settings"
@@ -270,8 +270,8 @@
             <span class="settings-collapse-icon" aria-hidden="true">⌄</span>
           </button>
           <div id="settings-content" class="settings-collapse">
-            <div class="settings-collapse-inner">
-              <div class="host-settings-fields">
+            <div class="settings-collapse-inner host-settings-fields">
+              <form id="host-settings-form" class="host-settings-fields">
                 <div class="form-group">
                   <label for="set-max-points">Очков каждому игроку:</label>
                   <input type="number" id="set-max-points" class="input-text" min="1" max="100000" value="50" />
@@ -334,23 +334,36 @@
                 </div>
 
                 <button type="submit" class="btn btn-secondary btn-block">Применить настройки</button>
+              </form>
 
-                <hr class="divider" />
-                <div class="host-reset-group">
-                  <button type="button" id="btn-reset-keep" class="btn btn-outline btn-sm">
-                    Сбросить в пул (оставить лоты)
-                  </button>
-                  <button type="button" id="btn-reset-clear" class="btn btn-danger btn-sm">
-                    Очистить лоты и ставки
-                  </button>
-                  <button type="button" id="btn-reset-hard" class="btn btn-danger btn-sm">
-                    Полный сброс комнаты (включая игроков и настройки)
-                  </button>
+              <form id="pool-timer-settings" class="pool-timer-settings" aria-labelledby="pool-timer-title" hidden>
+                <strong id="pool-timer-title">Таймер ставок</strong>
+                <p class="settings-note">По истечении времени ставки раскроются, даже если не все готовы.</p>
+                <label for="set-pool-timer-duration">Длительность в секундах</label>
+                <input type="number" id="set-pool-timer-duration" class="input-text"
+                  min="1" max="3600" step="1" value="120" required />
+                <div class="pool-timer-actions">
+                  <button type="submit" id="btn-pool-timer-start" class="btn btn-outline btn-sm">Включить</button>
+                  <button type="button" id="btn-pool-timer-toggle" class="btn btn-outline btn-sm" hidden>Пауза</button>
+                  <button type="button" id="btn-pool-timer-disable" class="btn btn-outline btn-sm" hidden>Отключить</button>
                 </div>
+              </form>
+
+              <hr class="divider" />
+              <div class="host-reset-group">
+                <button type="button" id="btn-reset-keep" class="btn btn-outline btn-sm">
+                  Сбросить в пул (оставить лоты)
+                </button>
+                <button type="button" id="btn-reset-clear" class="btn btn-danger btn-sm">
+                  Очистить лоты и ставки
+                </button>
+                <button type="button" id="btn-reset-hard" class="btn btn-danger btn-sm">
+                  Полный сброс комнаты (включая игроков и настройки)
+                </button>
               </div>
             </div>
           </div>
-        </form>
+        </div>
       </section>
     </aside>
 
@@ -358,6 +371,10 @@
     <main class="main-area">
       <!-- ФАЗА 1: ТАЙНЫЙ ПУЛ И РАСПРЕДЕЛЕНИЕ ОЧКОВ -->
       <section id="view-pool" class="phase-section">
+        <div id="pool-timer" class="card pool-timer" role="timer" hidden>
+          <span data-timer-label>До конца ставок</span>
+          <strong data-timer-clock></strong>
+        </div>
         <!-- Панель личного баланса и кнопки ГОТОВ -->
         <div class="card pool-dashboard">
           <div class="balance-boxes">

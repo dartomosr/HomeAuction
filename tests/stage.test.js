@@ -136,7 +136,7 @@ test('all stage cues schedule finite audio without requiring localStorage access
 });
 
 test('reveal grid fits every lot and wheel view excludes merged-out zero and eliminated lots', async () => {
-  const { revealLayout, stageWheelItems, riskLabel } = await model;
+  const { revealLayout, stageLotColor, stageWheelItems, riskLabel } = await model;
   for (const count of [0, 1, 6, 7, 18, 48]) {
     const layout = revealLayout(count, 1600, 760);
     assert.ok(layout.columns * layout.rows >= count);
@@ -150,6 +150,10 @@ test('reveal grid fits every lot and wheel view excludes merged-out zero and eli
   assert.equal(slices.reduce((sum, item) => sum + item.share, 0), 1);
   const after = stageWheelItems({ items: items.map(item => ({ ...item, eliminated: item.id === 'a' || item.eliminated })) });
   assert.equal(after[0].color, slices[1].color, 'A lot retains its color between rounds');
+  const poolColor = stageLotColor({ id: 'd', colorIndex: 3 }, 0);
+  assert.equal(poolColor, slices[1].color, 'Pool ranking does not influence the color');
+  assert.equal(stageWheelItems({ items: [{ id: 'd', colorIndex: 3 }] })[0].color, poolColor,
+    'Removing preceding lots from a reveal snapshot does not change the color');
   assert.equal(riskLabel(12.3456789), '12,3%');
   assert.equal(riskLabel(undefined), 'нет данных');
 });

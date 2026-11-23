@@ -1,11 +1,13 @@
-import { PAGE_DURATION, REVEAL_TIMING, STAGE_COLORS, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
+import { PAGE_DURATION, REVEAL_TIMING, stageLotColor, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
 import { StageSound } from './stage-audio.js';
 import { StageWheel } from './stage-wheel.js';
 import { StageFinale } from './stage-finale.js';
+import { createPoolTimerDisplay } from './pool-timer.js';
 
 const socket = window.io({ auth: { role: 'stage' } });
 const byId = id => document.getElementById(id);
 const lotGrid = byId('lot-grid');
+const updatePoolTimer = createPoolTimerDisplay(byId('stage-pool-timer'));
 const playersNode = byId('players');
 const number = new Intl.NumberFormat('ru-RU');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
@@ -95,7 +97,9 @@ function createLot(id) {
 }
 
 function renderLots({ pageChange = false, reactions = [], reveal = false } = {}) {
-  const items = rankStageItems((reveal ? revealState : snapshot)?.items || []);
+  const sourceItems = (reveal ? revealState : snapshot)?.items || [];
+  const colors = new Map(sourceItems.map((item, index) => [item.id, stageLotColor(item, index)]));
+  const items = rankStageItems(sourceItems);
   const layout = reveal ? revealLayout(items.length, lotGrid.clientWidth, lotGrid.clientHeight) : capacity;
   const pageSize = reveal ? items.length : capacity.items;
   const pages = reveal ? 1 : Math.max(1, Math.ceil(items.length / pageSize));
@@ -119,10 +123,7 @@ function renderLots({ pageChange = false, reactions = [], reveal = false } = {})
   visible.forEach((item, index) => {
     let card = lotNodes.get(item.id);
     if (!card) { card = createLot(item.id); lotNodes.set(item.id, card); }
-    if (reveal) {
-      const sectorIndex = revealState.items.findIndex(candidate => candidate.id === item.id);
-      card.style.setProperty('--lot-color', STAGE_COLORS[Math.max(0, sectorIndex) % STAGE_COLORS.length]);
-    } else card.style.removeProperty('--lot-color');
+    card.style.setProperty('--lot-color', colors.get(item.id));
     const rank = itemPage * capacity.items + index;
     card.style.setProperty('--slot', index);
     card.classList.toggle('leader', rank === 0 && item.upvotes > item.downvotes);
@@ -554,6 +555,7 @@ sound.onChange();
 void sound.unlock();
 
 socket.on('state_update', state => {
+  updatePoolTimer(state.poolTimer);
   const previous = snapshot;
   const changes = stageChanges(baseline, state);
   if (snapshot?.phase !== state.phase) { cancelPageTurn(); elapsed = 0; }
