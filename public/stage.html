@@ -10,6 +10,11 @@
   <link rel="stylesheet" href="/css/cardboard.css">
 </head>
 <body>
+  <script>
+    if (window.parent !== window && new URLSearchParams(window.location.search).get('cardboard') === '1') {
+      document.body.classList.add('cardboard');
+    }
+  </script>
   <div class="mesh" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   <div class="sky-lines" aria-hidden="true"><i></i><i></i><i></i></div>
   <div id="stage-flash" class="stage-flash" aria-hidden="true"></div>

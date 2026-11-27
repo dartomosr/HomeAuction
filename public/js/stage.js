@@ -535,9 +535,12 @@ byId('pool-title-cancel').addEventListener('click', finishPoolTitleEdit);
 window.addEventListener('message', event => {
   if (window.parent === window || event.source !== window.parent || event.origin !== 'null') return;
   if (event.data?.type === 'homeauction:cardboard-show') {
-    document.body.classList.toggle('cardboard', event.data.enabled === true);
-    render();
-    wheel.draw();
+    const enabled = event.data.enabled === true;
+    if (document.body.classList.contains('cardboard') !== enabled) {
+      document.body.classList.toggle('cardboard', enabled);
+      render();
+      wheel.draw();
+    }
   }
   if (event.data?.type === 'homeauction:stage-connection') renderJoinAddress(event.data.address);
   if (event.data?.type === 'homeauction:stage-visibility') { embeddedActive = Boolean(event.data.active); updateActivity(); }

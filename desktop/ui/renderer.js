@@ -94,11 +94,16 @@ function renderStage(state) {
     stageFrame.removeAttribute('src');
     return;
   }
-  if (selectedTab === 'game' || stageFrame.getAttribute('src')) {
-    const url = new URL('/?mode=stage', state.serverAddress).href;
-    if (stageFrame.getAttribute('src') !== url) stageFrame.src = url;
-    else publishStageAddress();
+  const currentSource = stageFrame.getAttribute('src');
+  if (selectedTab !== 'game' && !currentSource) return;
+  const url = new URL('/?mode=stage', state.serverAddress);
+  // Keep the loaded frame when the graphics setting changes through postMessage.
+  if (currentSource && new URL(currentSource).origin === url.origin) {
+    publishStageAddress();
+    return;
   }
+  if (showOption.checked) url.searchParams.set('cardboard', '1');
+  stageFrame.src = url.href;
 }
 
 function selectTab(tab) {
