@@ -140,3 +140,5 @@ body.windowed-immersive #immersive-exit-keycap { display: none; }
 @media (max-height: 650px) { .control-intro h2 { font-size: 25px; } .control-intro br { display: none; } .control-intro em { display: block; } .intro-orbit { display: none; } .qr-card { gap: 10px; } .qr-frame { max-width: 230px; } }
 @media (max-height: 760px) { .card { padding: 12px; } .section-heading { margin-bottom: 8px; } .control-intro { padding-block: 0; } .intro-orbit { display: none; } .tunnel-actions { gap: 6px; margin-top: 8px; } .diagnostic { margin-top: 8px; padding: 6px 8px; } .qr-card { gap: 8px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+.show-option { margin-right:auto; display:inline-flex; align-items:center; gap:.6em; white-space:nowrap; cursor:pointer; }
+.show-option input { flex:none; margin:0; width:1.2em; height:1.2em; accent-color:#bd90bd; }

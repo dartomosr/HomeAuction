@@ -133,7 +133,18 @@ for (const name of ['management', 'game']) {
     document.getElementById(`tab-${next}`).focus();
   });
 }
+const showOption = document.getElementById('cardboard-show');
+showOption.checked = localStorage.getItem('homeauction.cardboardShow') === 'true';
+function publishShowOption() {
+  postToStage({ type: 'homeauction:cardboard-show', enabled: showOption.checked });
+}
+showOption.addEventListener('change', () => {
+  localStorage.setItem('homeauction.cardboardShow', String(showOption.checked));
+  publishShowOption();
+});
+
 stageFrame.addEventListener('load', () => {
+  publishShowOption();
   publishStageAddress();
   publishStageVisibility();
   publishStageWindowControls();

@@ -1,5 +1,5 @@
 import { paintBroadcastSector, spinRotation, pointerSector, crossedBoundaries, pointerImpact, stepPointerSpring, interpolateSectorShares, SECTOR_SETTLE_MS, TAU } from './wheel-canvas.js';
-import { stageWheelItems, riskLabel } from './stage-model.js';
+import { printLotColor, stageWheelItems, riskLabel } from './stage-model.js';
 import { stepBackgroundParallax, backgroundPhase } from './stage-parallax.js';
 
 const byId = id => document.getElementById(id);
@@ -214,6 +214,7 @@ export class StageWheel {
     card.dataset.id = item.id;
     const color = stageWheelItems({ items: this.state.items.map(i => ({ ...i, eliminated: false, droppedZero: false })) }).find(i => i.id === item.id)?.color;
     card.style.setProperty('--lot-color', color || '#a998ef');
+    card.style.setProperty('--print-color', printLotColor(color));
     const stats = node('div', 'lot-stat');
     const points = node('span', 'lot-points', String(item.totalPoints));
     points.append(node('small', '', ' очк.'));
@@ -400,12 +401,12 @@ export class StageWheel {
     if (now < this.nextBrowse) return;
     this.nextBrowse = now + 8000;
     const list = byId('contenders');
-    if (list.matches(':hover') || list.scrollHeight <= list.clientHeight + 8) return;
+    if ((!document.body.classList.contains('cardboard') && list.matches(':hover')) || list.scrollHeight <= list.clientHeight + 8) return;
     const bottom = list.scrollHeight - list.clientHeight;
     list.scrollTo({ top: list.scrollTop >= bottom - 8 ? 0 : Math.min(bottom, list.scrollTop + list.clientHeight * .72), behavior: this.reduced() ? 'instant' : 'smooth' });
   }
 
-  paintLabel(ctx, slice, angle, side) {
+  paintLabel(ctx, slice, angle, side, paper) {
     const sweep = slice.share * TAU;
     if (sweep <= .10) return;
     const middle = angle + sweep / 2;
@@ -413,9 +414,9 @@ export class StageWheel {
     ctx.save(); ctx.translate(side / 2, side / 2); ctx.rotate(middle + (reverse ? Math.PI : 0));
     ctx.textAlign = reverse ? 'left' : 'right'; ctx.textBaseline = 'middle';
     const fontSize = Math.max(9, side * (this.slices.length <= 4 ? .034 : .027));
-    ctx.font = `700 ${fontSize}px "Segoe UI", sans-serif`;
+    ctx.font = `700 ${fontSize}px ${paper ? "Georgia, serif" : "Segoe UI, sans-serif"}`;
     ctx.fillStyle = '#fff'; ctx.shadowColor = '#241158aa'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
-    const key = `${side}:${slice.id}:${slice.title}:${fontSize}`;
+    const key = `${paper}:${side}:${slice.id}:${slice.title}:${fontSize}`;
     if (!this.labels.has(key)) {
       let label = slice.title;
       while (ctx.measureText(label).width > side * .30 && label.length > 1) label = label.slice(0, -1);
@@ -439,7 +440,8 @@ export class StageWheel {
     ctx.clearRect(0, 0, side, side);
     this.geometry = { width: side, height: side, cx: side / 2, cy: side / 2, radius: side * .47, scale: side / 540 };
     const missingId = this.elimination?.id || this.retiringId;
-    const textureKey = JSON.stringify([side, ratio, this.slices.map(slice => [slice.id, slice.share, slice.color, slice.title]), missingId]);
+    const paper = document.body.classList.contains('cardboard');
+    const textureKey = JSON.stringify([paper, side, ratio, this.slices.map(slice => [slice.id, slice.share, slice.color, slice.title]), missingId]);
     if (textureKey !== this.textureKey) {
       this.textureKey = textureKey;
       this.texture ||= document.createElement('canvas');
@@ -450,8 +452,18 @@ export class StageWheel {
       let angle = 0;
       for (const slice of this.slices) {
         if (slice.id !== missingId) {
-          paintBroadcastSector(texture, this.geometry, angle, slice.share * TAU, slice.color);
-          this.paintLabel(texture, slice, angle, side);
+          if (paper) {
+            texture.beginPath();
+            texture.moveTo(side / 2, side / 2);
+            texture.arc(side / 2, side / 2, this.geometry.radius, angle, angle + slice.share * TAU);
+            texture.closePath();
+            texture.fillStyle = printLotColor(slice.color);
+            texture.fill();
+            texture.strokeStyle = '#f4d5a6';
+            texture.lineWidth = side * .002;
+            texture.stroke();
+          } else paintBroadcastSector(texture, this.geometry, angle, slice.share * TAU, slice.color);
+          this.paintLabel(texture, slice, angle, side, paper);
         }
         angle += slice.share * TAU;
       }

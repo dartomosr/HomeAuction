@@ -1,8 +1,10 @@
-import { PAGE_DURATION, REVEAL_TIMING, stageLotColor, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
+import { printLotColor, PAGE_DURATION, REVEAL_TIMING, stageLotColor, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
 import { StageSound } from './stage-audio.js';
 import { StageWheel } from './stage-wheel.js';
 import { StageFinale } from './stage-finale.js';
 import { createPoolTimerDisplay } from './pool-timer.js';
+
+import { updateShowHost } from './stage-show.js';
 
 const socket = window.io({ auth: { role: 'stage' } });
 const byId = id => document.getElementById(id);
@@ -124,6 +126,7 @@ function renderLots({ pageChange = false, reactions = [], reveal = false } = {})
     let card = lotNodes.get(item.id);
     if (!card) { card = createLot(item.id); lotNodes.set(item.id, card); }
     card.style.setProperty('--lot-color', colors.get(item.id));
+    card.style.setProperty('--print-color', printLotColor(colors.get(item.id)));
     const rank = itemPage * capacity.items + index;
     card.style.setProperty('--slot', index);
     card.classList.toggle('leader', rank === 0 && item.upvotes > item.downvotes);
@@ -325,6 +328,14 @@ function renderScenes(state, pool) {
   } else if (!finaleFade) finale.scene.hidden = true;
 }
 
+function refreshHost(changes) {
+  updateShowHost(snapshot, {
+    revealing, finale: !finale.scene.hidden && !finale.scene.inert,
+    spinning: Boolean(wheel.spin), elimination: Boolean(wheel.elimination),
+    duel: document.body.classList.contains('final-duel'), changes
+  });
+}
+
 function render(changes) {
   const state = snapshot || { phase: 'POOL', players: [], items: [], totalBank: 0 };
   const ready = state.players.filter(player => player.ready).length;
@@ -341,6 +352,7 @@ function render(changes) {
   renderScenes(state, pool);
   if (pool && !changingPage) renderLots({ reactions: changes?.reactions });
   renderPlayers(changes);
+  refreshHost(changes);
 }
 
 async function turnPage() {
@@ -393,7 +405,12 @@ async function revealPool(state) {
   byId('round-title').textContent = 'РАСКРЫТИЕ СТАВОК';
   byId('round-kicker').textContent = 'ВСЕ СТАВКИ НА СТОЛЕ';
   const run = async (nodes, keyframes, duration, easing = 'cubic-bezier(.16,1,.3,1)') => {
-    const animations = nodes.map(card => card.animate(typeof keyframes === 'function' ? keyframes(card) : keyframes, { duration, easing }));
+    const animations = nodes.map(card => {
+      if (motionPreference.matches) {
+        return card.animate([{ opacity: 1 }, { opacity: 1 }], duration === REVEAL_TIMING.hold ? duration : 0);
+      }
+      return card.animate(typeof keyframes === 'function' ? keyframes(card) : keyframes, { duration, easing });
+    });
     animations.forEach(animation => revealAnimations.add(animation));
     await Promise.allSettled(animations.map(animation => animation.finished));
     animations.forEach(animation => { revealAnimations.delete(animation); animation.cancel(); });
@@ -517,6 +534,11 @@ byId('pool-title-cancel').addEventListener('click', finishPoolTitleEdit);
 
 window.addEventListener('message', event => {
   if (window.parent === window || event.source !== window.parent || event.origin !== 'null') return;
+  if (event.data?.type === 'homeauction:cardboard-show') {
+    document.body.classList.toggle('cardboard', event.data.enabled === true);
+    render();
+    wheel.draw();
+  }
   if (event.data?.type === 'homeauction:stage-connection') renderJoinAddress(event.data.address);
   if (event.data?.type === 'homeauction:stage-visibility') { embeddedActive = Boolean(event.data.active); updateActivity(); }
   if (event.data?.type === 'homeauction:stage-window-controls' && Number.isFinite(event.data.bottom)) {
@@ -562,7 +584,8 @@ socket.on('state_update', state => {
   snapshot = state;
   if (state.phase === 'POOL' || state.wheel?.isSpinning || state.phase === 'FINISHED') cancelReveal();
   wheel.update(state, { silent: !baseline });
-  if (previous?.phase === 'POOL' && state.phase === 'REVEAL' && !state.wheel?.isSpinning && animate()) void revealPool(state);
+  if (previous?.phase === 'POOL' && state.phase === 'REVEAL' && !state.wheel?.isSpinning
+    && (animate() || (active() && document.body.classList.contains('cardboard')))) void revealPool(state);
   render(changes);
   baseline = state;
   if (!active()) return;
@@ -609,10 +632,26 @@ window.addEventListener('resize', () => {
   });
 });
 motionPreference.addEventListener('change', () => { cancelPageTurn(); cancelReveal(); wheel.clearMotion(); render(); wheel.draw(); });
+let nextHostUpdate = 0;
+let finaleElapsed = 0;
 function clock(now) {
   wheel.tickBackdrop(now);
   const running = active() && connected && snapshot?.phase === 'POOL' && !changingPage;
   const step = advanceCarousel(elapsed, now - previousTime, running);
+  if (active() && document.body.classList.contains('cardboard')) {
+    if (now >= nextHostUpdate) {
+      refreshHost();
+      nextHostUpdate = now + 200;
+    }
+    if (finale.scene.hidden || finale.scene.inert) finaleElapsed = 0;
+    else if (finale.pages > 1) {
+      finaleElapsed += Math.min(250, now - previousTime);
+      if (finaleElapsed >= PAGE_DURATION) {
+        finale.changePage(1);
+        finaleElapsed = 0;
+      }
+    }
+  }
   previousTime = now;
   elapsed = step.elapsed;
   byId('pagination').style.setProperty('--page-progress', elapsed / PAGE_DURATION);

@@ -1,6 +1,11 @@
 export const PAGE_DURATION = 10000;
 
 export const STAGE_COLORS = ['#7450ff', '#00b8dc', '#ff557d', '#f5aa26', '#00bf91', '#405bff', '#ff7847', '#c748ed'];
+const printPalette = ['#745373', '#397471', '#ac526a', '#af773c', '#568061', '#496989', '#b2674e', '#855a83'];
+export function printLotColor(color) {
+  return printPalette[STAGE_COLORS.indexOf(color)] || '#875a64';
+}
+
 export const REVEAL_TIMING = { compact: 300, flip: 450, hold: 1350, collapse: 500 };
 export function revealLayout(count, width, height) {
   const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count) * width / Math.max(1, height) / 1.8)));
