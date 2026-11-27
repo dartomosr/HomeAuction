@@ -461,16 +461,18 @@ async function revealPool(state) {
 function renderJoinAddress(address) {
   if (address === lastAddress) return;
   const image = byId('join-qr');
+  const hint = byId('join-hint');
   try {
     const url = new URL(address);
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported address');
     image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.HomeAuctionQR.makeQrSvg(url.href))}`;
     image.hidden = false;
     byId('join-address').textContent = url.host;
-    byId('join-hint').textContent = url.protocol === 'https:' ? 'Наведите камеру. Вы в игре.' : 'Подключитесь к той же сети Wi-Fi';
+    hint.hidden = url.protocol !== 'http:';
     lastAddress = address;
   } catch {
     image.hidden = true;
+    hint.hidden = true;
     lastAddress = '';
     byId('join-address').textContent = 'Ожидание ссылки подключения';
   }

@@ -89,6 +89,10 @@
   position:absolute; left:1.4vw; bottom:2vh; width:min(25vw,53vh); aspect-ratio:6/7;
   pointer-events:none; z-index:2;
 }
+.cardboard:not(.wheel-mode,.reveal-mode) .show-host {
+  left:14vw; translate:-50% 0; width:min(30.25vw,65vh);
+}
+.cardboard:not(.wheel-mode,.reveal-mode) .show-line { inset-inline:12%; }
 .cardboard .show-host[data-side="right"] { left:auto; right:-.5vw; bottom:2.4vh; width:min(26vw,54vh); }
 .cardboard .show-host img { width:100%; height:100%; display:block; transform-origin:center bottom; }
 .cardboard .show-line {
@@ -107,6 +111,7 @@
   .cardboard .room .connection,.cardboard .round-kicker { display:none; }
   .cardboard .bottom-panel { margin-left:0; }
   .cardboard:not(.wheel-mode) .show-host { bottom:24vh; }
+  .cardboard:not(.wheel-mode,.reveal-mode) .show-host { max-width:60vh; }
   .cardboard .show-host[data-side="right"] { width:min(21vw,49vh); }
 }
 

@@ -21,6 +21,8 @@ let windowedImmersive = false;
 let stageTitle = '';
 const stageFrame = document.getElementById('stage-frame');
 const topbar = document.querySelector('.topbar');
+const showOption = document.getElementById('cardboard-show');
+const immersiveShowOption = document.getElementById('immersive-cardboard-show');
 const immersiveExit = document.getElementById('immersive-exit');
 const WINDOWED_IMMERSIVE_DELAY_MS = 2500;
 
@@ -51,12 +53,17 @@ function renderWindowMode(mode = {}) {
   fullscreen = Boolean(mode.fullscreen);
   if (fullscreen) clearImmersiveDelay();
   const immersive = selectedTab === 'game' && (fullscreen || windowedImmersive);
+  const focusedShowOption = immersive && document.activeElement === showOption;
   const focusedTopbar = immersive && topbar.contains(document.activeElement);
   if (focusedTopbar) document.activeElement.blur();
   document.body.classList.toggle('immersive', immersive);
   document.body.classList.toggle('windowed-immersive', immersive && !fullscreen);
   topbar.inert = immersive;
   document.getElementById('immersive-controls').hidden = !immersive;
+  if (focusedShowOption) {
+    document.querySelector('.edge-trigger').focus();
+    immersiveShowOption.focus();
+  }
   const exitLabel = fullscreen ? 'Выйти из полного экрана' : 'Обычный вид';
   immersiveExit.setAttribute('aria-label', exitLabel);
   document.getElementById('immersive-exit-label').textContent = exitLabel;
@@ -138,15 +145,19 @@ for (const name of ['management', 'game']) {
     document.getElementById(`tab-${next}`).focus();
   });
 }
-const showOption = document.getElementById('cardboard-show');
-showOption.checked = localStorage.getItem('homeauction.cardboardShow') === 'true';
+immersiveShowOption.checked = showOption.checked = localStorage.getItem('homeauction.cardboardShow') === 'true';
 function publishShowOption() {
   postToStage({ type: 'homeauction:cardboard-show', enabled: showOption.checked });
 }
-showOption.addEventListener('change', () => {
-  localStorage.setItem('homeauction.cardboardShow', String(showOption.checked));
-  publishShowOption();
-});
+for (const option of [showOption, immersiveShowOption]) {
+  option.addEventListener('change', () => {
+    const enabled = option.checked;
+    showOption.checked = enabled;
+    immersiveShowOption.checked = enabled;
+    localStorage.setItem('homeauction.cardboardShow', String(enabled));
+    publishShowOption();
+  });
+}
 
 stageFrame.addEventListener('load', () => {
   publishShowOption();

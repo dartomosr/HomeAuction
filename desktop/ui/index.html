@@ -82,9 +82,6 @@
         </section>
 
         <footer class="footer">
-          <label class="show-option" title="Оформление трансляции во вкладке «Игра»">
-            <input id="cardboard-show" type="checkbox"> Картонное шоу
-          </label>
           <button id="minimize" class="button secondary">Свернуть в трей</button>
           <button id="quit" class="button danger">Выйти</button>
         </footer>
@@ -109,15 +106,25 @@
       </aside>
     </div>
     <section id="game-panel" class="game-panel" role="tabpanel" aria-labelledby="tab-game" hidden>
-      <p id="stage-waiting" class="stage-waiting" role="status">Трансляция появится после запуска сервера</p>
-      <iframe id="stage-frame" title="Интерактивная трансляция HomeAuction" sandbox="allow-scripts allow-same-origin" allow="autoplay" hidden></iframe>
-      <span class="fullscreen-hint">F11 · Полный экран</span>
+      <div class="game-toolbar">
+        <label class="show-option"><input id="cardboard-show" type="checkbox"> Картонное шоу</label>
+      </div>
+      <div class="stage-preview">
+        <p id="stage-waiting" class="stage-waiting" role="status">Трансляция появится после запуска сервера</p>
+        <iframe id="stage-frame" title="Интерактивная трансляция HomeAuction" sandbox="allow-scripts allow-same-origin" allow="autoplay" hidden></iframe>
+        <span class="fullscreen-hint">F11 · Полный экран</span>
+      </div>
     </section>
     <div id="toast" class="toast" role="status"></div>
   </main>
   <div id="immersive-controls" class="immersive-controls" hidden>
     <button class="edge-trigger" type="button" aria-label="Показать управление трансляцией"><span></span></button>
-    <nav class="floating-bar" aria-label="Управление трансляцией"><span class="floating-brand">HomeAuction</span><button id="immersive-management" class="button secondary" type="button">Управление</button><button id="immersive-exit" class="button secondary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h5V3m8 0v5h5M3 16h5v5m8 0v-5h5"/></svg><span id="immersive-exit-label">Выйти из полного экрана</span><span id="immersive-exit-keycap" class="keycap">Esc</span></button></nav>
+    <nav class="floating-bar" aria-label="Управление трансляцией">
+      <span class="floating-brand">HomeAuction</span>
+      <label class="show-option"><input id="immersive-cardboard-show" type="checkbox"> Картонное шоу</label>
+      <button id="immersive-management" class="button secondary" type="button">Управление</button>
+      <button id="immersive-exit" class="button secondary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h5V3m8 0v5h5M3 16h5v5m8 0v-5h5"/></svg><span id="immersive-exit-label">Выйти из полного экрана</span><span id="immersive-exit-keycap" class="keycap">Esc</span></button>
+    </nav>
   </div>
   <script src="qr.js"></script>
   <script src="renderer.js"></script>
