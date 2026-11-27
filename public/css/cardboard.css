@@ -112,6 +112,113 @@
 .cardboard .show-line::after { content:""; position:absolute; top:99%; left:clamp(10%,var(--face-x),90%); width:.85em; height:.68em; background:inherit; clip-path:polygon(0 0,100% 0,28% 100%); }
 .cardboard.reveal-mode .lot-surface { border:2px solid #ecc498; outline:1px dashed #b17d64; outline-offset:-6px; background:linear-gradient(155deg,#fff1d8 54%,#f0d4ae 54.4%,#ffe6c4 55%); }
 .cardboard.reveal-mode .lot-surface::before { content:"✦"; display:block; position:static; border:0; mask:none; background:none; color:#a35c50; font-size:min(8cqh,22px); }
+.cardboard.curtain-reveal .wheel-scene { position:relative; z-index:1; }
+.cardboard.curtain-reveal .show-host[data-side="right"] { z-index:1; }
+.cardboard.curtain-reveal .show-host[data-side="left"] { z-index:3; }
+.cardboard.curtain-reveal #pool-scene {
+  position:relative; z-index:3;
+  clip-path:inset(var(--reveal-clip-top,0px) -18px -12px);
+}
+.cardboard.curtain-reveal .lot-grid { position:relative; z-index:1; padding-block:clamp(14px,5vh,84px); }
+.cardboard.curtain-reveal .reveal-face-up .lot-surface {
+  align-items:stretch; justify-content:flex-start; text-align:left;
+  gap:clamp(3px,3cqh,16px); padding:clamp(6px,5cqh,28px) clamp(8px,5cqw,32px);
+  background:linear-gradient(167deg,#fff4df 60%,#f7dfbe 60.2%);
+}
+.cardboard.curtain-reveal .reveal-face-up .lot-surface::before { display:none; }
+.cardboard.curtain-reveal .reveal-face-up .lot h3 {
+  padding-block-end:clamp(3px,2.5cqh,12px); border-bottom:1px solid #b77f614f;
+  text-wrap:pretty; font-size:clamp(12px,min(11cqh,10cqw),56px); line-height:1.08;
+  -webkit-line-clamp:2;
+}
+.cardboard.curtain-reveal .reveal-face-up .reveal-info {
+  display:grid; flex:1; min-height:0; grid-template-rows:minmax(0,1fr) auto;
+  gap:clamp(3px,2cqh,12px);
+}
+.cardboard.curtain-reveal .reveal-stats {
+  display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);
+  align-items:center; justify-content:normal; gap:0;
+}
+.cardboard.curtain-reveal :is(.reveal-score,.reveal-risk) {
+  display:flex; flex-direction:column; align-items:flex-start; gap:clamp(1px,1cqh,5px);
+}
+.cardboard.curtain-reveal .reveal-score .reveal-points {
+  color:#692f49;
+  font:800 clamp(16px,min(28cqh,17cqw,calc(77cqw / var(--score-length,3))),105px)/.95 "Segoe UI",sans-serif;
+}
+.cardboard.curtain-reveal .reveal-risk { border-left:1px solid #b77f6166; padding-left:7cqw; }
+.cardboard.curtain-reveal .reveal-risk b { font-size:clamp(11px,min(13cqh,8cqw),43px); line-height:1; }
+.cardboard.curtain-reveal .reveal-info :is(.reveal-unit,.reveal-risk > span,.investor-heading) {
+  color:#6e4954; font:650 clamp(8px,min(5.6cqh,4.1cqw),21px)/1.12 "Segoe UI",sans-serif;
+}
+.cardboard.curtain-reveal .investor-section {
+  align-items:flex-start; gap:clamp(2px,2cqh,8px);
+  border-top:1px solid #b77f614f; padding-top:clamp(3px,2cqh,10px);
+}
+.cardboard.curtain-reveal .investor-chips {
+  justify-content:flex-start; max-height:calc(4em + 8px);
+  font-size:clamp(9px,min(5.4cqh,3.9cqw),20px);
+}
+.cardboard.curtain-reveal .investor-chips > span {
+  background:#f9e6cd; border:1px solid #a86c504a;
+  font-size:inherit; line-height:1.45; padding-block:.15em;
+}
+.cardboard.curtain-reveal .investor-name { min-width:0; padding-block:.06em; }
+.cardboard.curtain-reveal .investor-chips b { flex:none; }
+@container reveal-card (height < 175px) {
+  .cardboard.curtain-reveal .reveal-face-up .lot h3 { -webkit-line-clamp:1; }
+  .cardboard.curtain-reveal .investor-chips { flex-wrap:nowrap; }
+}
+.reveal-curtains {
+  position:absolute; z-index:2; inset:max(42px,6.5vh) 0 0; overflow:hidden;
+  pointer-events:none;
+}
+.reveal-curtains > span {
+  --fold-direction:90deg;
+  position:absolute; inset:0 auto 0 0; width:calc(50% + 1px);
+  background:
+    linear-gradient(180deg,#25102060,transparent 16% 90%,#25102050),
+    repeating-linear-gradient(var(--fold-direction),
+      #512b3e 0 .55%,#663447 1.25%,#784052 2.15% 2.65%,#854758 3.35% 4.65%,
+      #773c50 5.35% 6.25%,#633146 7.05% 7.95%,#512b3e 8.85% 9.4%);
+  border-right:clamp(3px,.35vw,8px) double #d79d6d;
+}
+.reveal-curtains > span + span {
+  --fold-direction:270deg;
+  inset:0 0 0 auto; border-right:0; border-left:clamp(3px,.35vw,8px) double #d79d6d;
+}
+.reveal-curtains > span::before {
+  content:""; position:absolute; inset:clamp(12px,2.5vh,38px) 0;
+  border-block:1px solid #e6b988a6;
+}
+.reveal-curtains > span::after {
+  content:""; position:absolute; inset:0 0 auto; height:clamp(8px,1.45vh,20px);
+  box-sizing:border-box;
+  border-bottom:2px solid #ac724f;
+  background:repeating-linear-gradient(120deg,#714051 0 3px,#a6676b 3px 5px);
+}
+.reveal-rig {
+  --cord-thickness:clamp(2px,.16vw,4px);
+  position:absolute; inset:0; pointer-events:none; color:#e3b77d;
+}
+.reveal-cord {
+  position:absolute; height:var(--cord-thickness); border-radius:999px;
+  background:currentColor; box-shadow:0 1px 1px #321826c0;
+}
+.reveal-cord::before,.reveal-cord::after {
+  content:""; position:absolute; bottom:0; width:var(--cord-thickness);
+  height:calc(var(--cord-drop) + var(--cord-thickness));
+  background:currentColor; box-shadow:0 1px 1px #321826c0;
+}
+.reveal-cord::before { left:2px; }
+.reveal-cord::after { right:2px; }
+.cardboard.curtain-reveal .lot::before {
+  content:""; position:absolute; z-index:2; left:50%; top:-9px;
+  width:clamp(7px,.65vw,14px); height:clamp(15px,1.2vw,25px); translate:-50% 0;
+  border:1px solid #ad7d55; border-radius:2px;
+  background:linear-gradient(90deg,#c08c61,#f9d8a0 42%,#d4a275 73%);
+  box-shadow:1px 2px 2px #57253780;
+}
 @media (prefers-reduced-motion:no-preference) {
   .cardboard.reveal-mode .reveal-points:not(:empty) { animation:paper-stamp .48s ease-out both; }
   @keyframes paper-stamp { from { opacity:0; scale:1.35; rotate:-7deg; } 72% { scale:.95; } to { opacity:1; scale:1; rotate:0deg; } }
@@ -200,7 +307,6 @@
   .cardboard .show-scenery i { animation:show-pendant 6s ease-in-out infinite alternate; }
   .cardboard .show-scenery i:nth-child(2) { animation-delay:-3s; }
   .cardboard .show-scenery i:nth-child(3) { animation-duration:8s; }
-  .cardboard.reveal-mode .stage::before,.cardboard.reveal-mode .stage::after,
   .cardboard .stage:has(.finale:not([hidden]):not([inert]))::before,
   .cardboard .stage:has(.finale:not([hidden]):not([inert]))::after {
     animation:show-curtain .8s ease-out;

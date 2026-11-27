@@ -322,8 +322,9 @@ body[data-paused="true"] *, body[data-paused="true"] *::before, body[data-paused
   text-wrap: balance;
 }
 .reveal-info { display: none; width: 100%; min-width: 0; }
-.reveal-mode .reveal-info { display: flex; flex: none; flex-direction: column; align-items: center; gap: clamp(3px, 5cqh, 12px); }
+.reveal-mode .reveal-face-up .reveal-info { display: flex; flex: none; flex-direction: column; align-items: center; gap: clamp(3px, 5cqh, 12px); }
 .reveal-stats { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 2px clamp(4px, 5cqw, 18px); font-size: clamp(10px, min(12cqh, 7cqw), 18px); font-variant-numeric: tabular-nums; }
+.reveal-score { white-space: nowrap; }
 .reveal-points { color: #f5f2ff; font-weight: 700; }
 .reveal-risk { display: inline-flex; align-items: baseline; gap: .45em; color: #c3c6d8; }
 .reveal-risk b { color: #f0e8fb; font-size: 1.15em; font-weight: 650; }

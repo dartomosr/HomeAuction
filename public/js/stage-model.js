@@ -7,6 +7,7 @@ export function printLotColor(color) {
 }
 
 export const REVEAL_TIMING = { compact: 300, flip: 450, hold: 1350, collapse: 500 };
+export const CURTAIN_REVEAL_TIMING = { close: 900, flip: 500, hold: 3000, open: 800 };
 export function revealLayout(count, width, height) {
   const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, count) * width / Math.max(1, height) / 1.8)));
   return { columns, rows: Math.max(1, Math.ceil(count / columns)) };

@@ -1,4 +1,4 @@
-import { printLotColor, PAGE_DURATION, REVEAL_TIMING, stageLotColor, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
+import { printLotColor, PAGE_DURATION, REVEAL_TIMING, CURTAIN_REVEAL_TIMING, stageLotColor, revealLayout, riskLabel, rankStageItems, stageCapacity, stageChanges, advanceCarousel } from './stage-model.js';
 import { StageSound } from './stage-audio.js';
 import { StageWheel } from './stage-wheel.js';
 import { StageFinale } from './stage-finale.js';
@@ -10,6 +10,9 @@ import { createPoolShow } from './stage-pool-show.js';
 const socket = window.io({ auth: { role: 'stage' } });
 const byId = id => document.getElementById(id);
 const lotGrid = byId('lot-grid');
+const poolScene = byId('pool-scene');
+const revealCurtains = byId('reveal-curtains');
+const revealRig = byId('reveal-rig');
 const updatePoolTimer = createPoolTimerDisplay(byId('stage-pool-timer'));
 const playersNode = byId('players');
 const number = new Intl.NumberFormat('ru-RU');
@@ -51,6 +54,7 @@ let revealGeneration = 0;
 let revealing = false;
 let revealState = null;
 let revealLead = null;
+let openingCurtains = false;
 const revealAnimations = new Set();
 
 function element(tag, className, text) {
@@ -113,9 +117,18 @@ function renderLots({ pageChange = false, reactions = [], reveal = false } = {})
   lotGrid.style.setProperty('--columns', layout.columns);
   lotGrid.style.setProperty('--rows', layout.rows);
   if (reveal) {
-    const gap = Number.parseFloat(getComputedStyle(lotGrid).columnGap) || 0;
-    const cardWidth = Math.min(420, innerWidth * .4, (lotGrid.clientWidth - gap * (layout.columns - 1)) / layout.columns);
-    const cardHeight = Math.min(520, innerHeight * .6 / layout.rows, (lotGrid.clientHeight - gap * (layout.rows - 1)) / layout.rows);
+    const gridStyle = getComputedStyle(lotGrid);
+    const columnGap = Number.parseFloat(gridStyle.columnGap) || 0;
+    const rowGap = Number.parseFloat(gridStyle.rowGap) || 0;
+    const usableHeight = lotGrid.clientHeight - Number.parseFloat(gridStyle.paddingTop) - Number.parseFloat(gridStyle.paddingBottom);
+    const availableWidth = (lotGrid.clientWidth - columnGap * (layout.columns - 1)) / layout.columns;
+    const availableHeight = (usableHeight - rowGap * (layout.rows - 1)) / layout.rows;
+    const cardWidth = revealCurtains.hidden
+      ? Math.min(420, innerWidth * .4, availableWidth)
+      : Math.min(innerWidth * .44, availableWidth);
+    const cardHeight = revealCurtains.hidden
+      ? Math.min(520, innerHeight * .6 / layout.rows, availableHeight)
+      : Math.min(cardWidth * 1.05, availableHeight);
     lotGrid.style.setProperty('--reveal-card-width', `${Math.max(1, Math.floor(cardWidth))}px`);
     lotGrid.style.setProperty('--reveal-card-height', `${Math.max(1, Math.floor(cardHeight))}px`);
   } else {
@@ -283,8 +296,8 @@ function renderScenes(state, pool) {
     finaleFade = null;
   }
 
-  byId('pool-scene').hidden = !pool && !revealing;
-  wheelScene.hidden = pool || revealing || (showFinale && !enterFromWheel && !wheelFade);
+  poolScene.hidden = !pool && !revealing;
+  wheelScene.hidden = pool || (revealing && !openingCurtains) || (showFinale && !enterFromWheel && !wheelFade);
   wheelScene.inert = showFinale;
   finale.scene.inert = !showFinale;
   document.body.classList.toggle('wheel-mode', !pool);
@@ -340,7 +353,7 @@ function refreshHost() {
   const now = performance.now();
   updatePoolShowActivity(now);
   updateShowHost(snapshot, {
-    revealing, finale: !finale.scene.hidden && !finale.scene.inert,
+    revealing: revealing && !openingCurtains, finale: !finale.scene.hidden && !finale.scene.inert,
     spinning: Boolean(wheel.spin), elimination: Boolean(wheel.elimination),
     duel: document.body.classList.contains('final-duel'), revealLead,
     poolLine: poolShow.tick(now, { slots: capacity.items, hasQr: Boolean(lastAddress) })
@@ -398,11 +411,48 @@ function cancelReveal() {
   revealing = false;
   revealState = null;
   revealLead = null;
+  openingCurtains = false;
   for (const animation of revealAnimations) animation.cancel();
   revealAnimations.clear();
-  document.body.classList.remove('reveal-mode');
-  lotGrid.style.opacity = '';
-  lotGrid.style.transform = '';
+  document.body.classList.remove('reveal-mode', 'curtain-reveal');
+  lotGrid.classList.remove('reveal-face-up');
+  poolScene.style.removeProperty('--reveal-clip-top');
+  revealCurtains.hidden = true;
+  revealRig.hidden = true;
+  revealRig.replaceChildren();
+}
+
+function renderRevealRopes() {
+  const columns = Number(lotGrid.style.getPropertyValue('--columns'));
+  if (!columns) return;
+  const scene = poolScene.getBoundingClientRect();
+  const grid = lotGrid.getBoundingClientRect();
+  const trim = getComputedStyle(revealCurtains.firstElementChild, '::after');
+  const cordAnchor = revealCurtains.getBoundingClientRect().top + Number.parseFloat(trim.height) - scene.top;
+  poolScene.style.setProperty('--reveal-clip-top', cordAnchor + 'px');
+  const cards = [...lotGrid.children].map(card => card.getBoundingClientRect());
+  const ropes = [];
+  for (let index = 0; index < cards.length; index += columns) {
+    const first = cards[index];
+    const last = cards[Math.min(index + columns, cards.length) - 1];
+    const rope = element('span', 'reveal-cord');
+    const top = first.top - grid.top + lotGrid.offsetTop - 5;
+    rope.style.left = (first.left - scene.left - 14) + 'px';
+    rope.style.width = (last.right - first.left + 28) + 'px';
+    rope.style.top = top + 'px';
+    rope.style.setProperty('--cord-drop', Math.max(0, top - cordAnchor) + 'px');
+    ropes.push(rope);
+  }
+  revealRig.replaceChildren(...ropes);
+}
+
+function moveCurtains(run, opening) {
+  return run([...revealCurtains.children], (_, index) => {
+    const open = { transform: index === 0 ? 'translateX(-100%)' : 'translateX(100%)' };
+    const closed = { transform: 'translateX(0)' };
+    return opening ? [closed, { ...closed, offset: .20 }, open] : [open, closed];
+  }, opening ? CURTAIN_REVEAL_TIMING.open : CURTAIN_REVEAL_TIMING.close,
+  { easing: 'cubic-bezier(.65,0,.35,1)' });
 }
 
 async function revealPool(state) {
@@ -410,38 +460,54 @@ async function revealPool(state) {
   const generation = revealGeneration;
   revealing = true;
   revealState = state;
-  if (document.body.classList.contains('cardboard')) revealLead = poolShow.reveal(state.revealReason);
-  const first = new Map([...lotGrid.children].map(card => [card.dataset.id, card.getBoundingClientRect()]));
+  const curtain = document.body.classList.contains('cardboard');
+  const timing = curtain ? CURTAIN_REVEAL_TIMING : REVEAL_TIMING;
+  if (curtain) {
+    revealLead = poolShow.reveal(state.revealReason);
+    document.body.classList.add('curtain-reveal');
+    revealCurtains.hidden = false;
+    revealRig.hidden = false;
+  }
+  const first = curtain ? null : new Map([...lotGrid.children].map(card => [card.dataset.id, card.getBoundingClientRect()]));
   document.body.classList.add('reveal-mode');
   render();
   renderLots({ reveal: true });
   byId('round-title').textContent = 'РАСКРЫТИЕ СТАВОК';
   byId('round-kicker').textContent = 'ВСЕ СТАВКИ НА СТОЛЕ';
-  const run = async (nodes, keyframes, duration, easing = 'cubic-bezier(.16,1,.3,1)') => {
-    const animations = nodes.map(card => {
-      if (motionPreference.matches) {
-        return card.animate([{ opacity: 1 }, { opacity: 1 }], duration === REVEAL_TIMING.hold ? duration : 0);
-      }
-      return card.animate(typeof keyframes === 'function' ? keyframes(card) : keyframes, { duration, easing });
-    });
+  const run = async (nodes, keyframes, duration, { easing = 'cubic-bezier(.16,1,.3,1)', hold = false } = {}) => {
+    if (motionPreference.matches && !hold) return generation === revealGeneration;
+    const animations = nodes.map((node, index) =>
+      node.animate(typeof keyframes === 'function' ? keyframes(node, index) : keyframes, { duration, easing, fill: 'backwards' }));
     animations.forEach(animation => revealAnimations.add(animation));
     await Promise.allSettled(animations.map(animation => animation.finished));
     animations.forEach(animation => { revealAnimations.delete(animation); animation.cancel(); });
     return generation === revealGeneration;
   };
   const cards = [...lotGrid.children];
-  if (!await run(cards, card => {
+  if (curtain) {
+    renderRevealRopes();
+    const lower = run([lotGrid, revealRig], [
+      { transform: 'translateY(calc(-100% - 16vh))' },
+      { transform: 'translateY(.7vh)', offset: .85 },
+      { transform: 'translateY(0)' }
+    ], timing.close);
+    const closed = await Promise.all([lower, moveCurtains(run, false)]);
+    if (!closed.every(Boolean)) return;
+  } else if (!await run(cards, card => {
     const before = first.get(card.dataset.id);
     const after = card.getBoundingClientRect();
     return [{ opacity: before ? 1 : 0, transformOrigin: 'top left', transform: before ? `translate(${before.left - after.left}px, ${before.top - after.top}px) scale(${before.width / after.width}, ${before.height / after.height})` : 'scale(1.15)' }, { opacity: 1, transform: 'none' }];
-  }, REVEAL_TIMING.compact)) return;
+  }, timing.compact)) return;
   const surfaces = cards.map(card => card.querySelector('.lot-surface'));
-  if (!await run(surfaces, [{ transform: 'perspective(1000px) rotateY(0)' }, { transform: 'perspective(1000px) rotateY(90deg)' }], REVEAL_TIMING.flip / 2)) return;
+  if (!await run(surfaces, [{ transform: 'perspective(1000px) rotateY(0)' }, { transform: 'perspective(1000px) rotateY(90deg)' }], timing.flip / 2)) return;
   revealLead = null;
   refreshHost();
   cards.forEach(card => {
     const item = state.items.find(item => item.id === card.dataset.id);
-    card.querySelector('.reveal-points').textContent = `${number.format(item.totalPoints)} очк.`;
+    const points = card.querySelector('.reveal-points');
+    const score = number.format(item.totalPoints);
+    points.textContent = score;
+    points.style.setProperty('--score-length', Math.max(3, score.length));
     card.querySelector('.reveal-risk b').textContent = riskLabel(item.roundElimShare);
     const investors = card.querySelector('.investor-chips');
     const contributors = item.contributors || [];
@@ -455,22 +521,32 @@ async function revealPool(state) {
     if (contributors.length > 3) investors.append(element('span', '', `+${contributors.length - 3}`));
     if (!contributors.length) investors.append(element('span', '', 'Нет ставок'));
   });
-  if (!await run(surfaces, [{ transform: 'perspective(1000px) rotateY(-90deg)' }, { transform: 'perspective(1000px) rotateY(0)' }], REVEAL_TIMING.flip / 2)) return;
-  if (!await run([lotGrid], [{ opacity: 1 }, { opacity: 1 }], REVEAL_TIMING.hold, 'linear')) return;
-  byId('wheel-scene').hidden = false;
-  wheel.draw();
-  const grow = run([document.querySelector('.wheel-center')], [{ transform: 'scale(.3)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], REVEAL_TIMING.collapse, spring);
-  const sides = [...document.querySelectorAll('.wheel-column')].map((column, i) => run([column], [
-    { transform: `translateX(${i ? 28 : -28}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }
-  ], REVEAL_TIMING.collapse));
-  if (!await run([byId('pool-scene')], [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(.2)', opacity: 0 }], REVEAL_TIMING.collapse)) return;
-  await grow;
-  await Promise.all(sides);
+  lotGrid.classList.add('reveal-face-up');
+  if (!await run(surfaces, [{ transform: 'perspective(1000px) rotateY(-90deg)' }, { transform: 'perspective(1000px) rotateY(0)' }], timing.flip / 2)) return;
+  if (!await run([lotGrid], [{ opacity: 1 }, { opacity: 1 }], timing.hold, { hold: true })) return;
+  if (curtain) {
+    openingCurtains = true;
+    render();
+    wheel.renderLists();
+    wheel.draw();
+    await Promise.all([
+      run([lotGrid, revealRig], [{ transform: 'translateY(0)' }, { transform: 'translateY(calc(-100% - 16vh))' }], timing.open),
+      moveCurtains(run, true)
+    ]);
+  } else {
+    wheelScene.hidden = false;
+    wheel.draw();
+    const grow = run([document.querySelector('.wheel-center')], [{ transform: 'scale(.3)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], timing.collapse, { easing: spring });
+    const sides = [...document.querySelectorAll('.wheel-column')].map((column, i) => run([column], [
+      { transform: `translateX(${i ? 28 : -28}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }
+    ], timing.collapse));
+    await Promise.all([grow, ...sides, run([poolScene], [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(.2)', opacity: 0 }], timing.collapse)]);
+  }
   if (generation !== revealGeneration) return;
   cancelReveal();
   render();
   wheel.renderLists();
-  wheel.impact();
+  if (!curtain) wheel.impact();
 }
 
 function renderJoinAddress(address) {
@@ -555,6 +631,7 @@ window.addEventListener('message', event => {
   if (event.data?.type === 'homeauction:cardboard-show') {
     const enabled = event.data.enabled === true;
     if (document.body.classList.contains('cardboard') !== enabled) {
+      if (revealing) cancelReveal();
       document.body.classList.toggle('cardboard', enabled);
       render();
       wheel.draw();
@@ -653,12 +730,17 @@ let resizeFrame;
 window.addEventListener('resize', () => {
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
-    if (revealing) cancelReveal();
+    if (revealing && revealCurtains.hidden) cancelReveal();
     const next = stageCapacity(innerWidth, innerHeight);
     if (next.items !== capacity.items || next.players !== capacity.players) {
       capacity = next; itemPage = 0; playerPage = 0; elapsed = 0; cancelPageTurn();
     }
     render();
+    if (revealing && !revealCurtains.hidden) {
+      renderLots({ reveal: true });
+      renderRevealRopes();
+      if (openingCurtains) wheel.draw();
+    }
   });
 });
 motionPreference.addEventListener('change', () => { cancelPageTurn(); cancelReveal(); wheel.clearMotion(); render(); wheel.draw(); });

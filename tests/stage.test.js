@@ -94,7 +94,7 @@ test('countdown preempts the pool line and does not repeat after pause or visibi
   assert.equal(session.tick(9000).pose, '21-final-countdown');
   session.send(10000, { phase: 'REVEAL', poolTimer: null });
   assert.equal(session.tick(10000).text, '');
-  assert.equal(session.show.reveal('timer').text, 'Время вышло! Поднимаем занавес!');
+  assert.equal(session.show.reveal('timer').text, 'Время вышло! Раскрываем карты.');
 });
 
 test('show drops stale ready events and never reads unsuitable names aloud', async () => {

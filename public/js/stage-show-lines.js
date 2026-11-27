@@ -92,9 +92,9 @@ export const showLines = {
   },
   REVEAL: {
     ready: { priority: 100, variants: [
-      line('Ставки сделаны! Поднимаем занавес!', '13-before-reveal'),
+      line('Ставки сделаны! Время раскрыть карты.', '13-before-reveal'),
       line('Все готовы! Открываем конверты!', '13-before-reveal')
     ] },
-    timer: { priority: 100, variants: [line('Время вышло! Поднимаем занавес!', '13-before-reveal')] }
+    timer: { priority: 100, variants: [line('Время вышло! Раскрываем карты.', '13-before-reveal')] }
   }
 };
