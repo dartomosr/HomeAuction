@@ -125,11 +125,37 @@
   grid-template-rows:minmax(0,1fr) auto;
   padding-block:8vh;
 }
-/* Hanging paper ornaments and two beams behind the playing surface. */
+/* Backdrop, hanging paper ornaments and beams behind the playing surface. */
 .show-scenery { display:none; }
 .cardboard .show-scenery {
   display:block; position:absolute; inset:max(42px,6.5vh) 0 0; overflow:hidden;
   z-index:-1; pointer-events:none;
+}
+.cardboard .show-folds { position:absolute; inset:66% 0 -10%; z-index:1; }
+/* Five identical periods. Each loop moves the contour by exactly one period. */
+.cardboard .show-folds::before,.cardboard .show-folds::after {
+  --fold-fall:calc(-1 * var(--fold-rise));
+  content:""; position:absolute; inset:0 auto 0 0; width:125%;
+  clip-path:shape(from 0% var(--fold-baseline),
+    curve by 10% 0% with 3.33% var(--fold-rise) / 6.67% var(--fold-rise),
+    curve by 10% 0% with 3.33% var(--fold-fall) / 6.67% var(--fold-fall),
+    curve by 10% 0% with 3.33% var(--fold-rise) / 6.67% var(--fold-rise),
+    curve by 10% 0% with 3.33% var(--fold-fall) / 6.67% var(--fold-fall),
+    curve by 10% 0% with 3.33% var(--fold-rise) / 6.67% var(--fold-rise),
+    curve by 10% 0% with 3.33% var(--fold-fall) / 6.67% var(--fold-fall),
+    curve by 10% 0% with 3.33% var(--fold-rise) / 6.67% var(--fold-rise),
+    curve by 10% 0% with 3.33% var(--fold-fall) / 6.67% var(--fold-fall),
+    curve by 10% 0% with 3.33% var(--fold-rise) / 6.67% var(--fold-rise),
+    curve by 10% 0% with 3.33% var(--fold-fall) / 6.67% var(--fold-fall),
+    line to 100% 100%, line to 0% 100%, close);
+}
+.cardboard .show-folds::before {
+  --fold-baseline:36%; --fold-rise:-7%;
+  background:linear-gradient(#ad746b 24%,#98615e 43%,#784552 69%,#603746 95%);
+}
+.cardboard .show-folds::after {
+  --fold-baseline:65%; --fold-rise:5.5%;
+  background:linear-gradient(#a76d66 44%,#89535a 58%,#713e50 74%,#522e42 98%);
 }
 .cardboard .show-rays {
   position:absolute; left:50%; top:104%; width:hypot(50vw, 104vh); aspect-ratio:1;
@@ -154,6 +180,8 @@
   clip-path:polygon(50% 0,65% 35%,100% 50%,65% 65%,50% 100%,35% 65%,0 50%,35% 35%);
 }
 @media (prefers-reduced-motion:no-preference) {
+  .cardboard .show-folds::before { animation:show-fold-drift 10s linear infinite; }
+  .cardboard .show-folds::after { animation:show-fold-drift 7s -1.25s linear infinite; }
   .cardboard .show-rays { animation:show-ray-turn 100s linear infinite; }
   .cardboard .show-scenery::before,.cardboard .show-scenery::after { animation:show-spot 16s ease-in-out infinite alternate; }
   .cardboard .show-scenery::after { animation-direction:alternate-reverse; }
@@ -172,6 +200,10 @@
   .cardboard .show-host[data-pose="11-thanks"] img { animation:show-bow 1s ease-in-out; }
   .cardboard .finale-hero::before,.cardboard .finale-hero::after { animation:show-rosette 1s ease-out both; }
   .cardboard .finale-hero::after { animation-delay:.18s; }
+  @keyframes show-fold-drift {
+    from { transform:translateX(-20%); }
+    to { transform:translateX(0); }
+  }
   @keyframes show-ray-turn { to { transform:rotate(1turn); } }
   @keyframes show-spot { to { transform:rotate(8deg); } }
   @keyframes show-pendant { from { rotate:-5deg; } to { rotate:5deg; } }
