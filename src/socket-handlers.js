@@ -22,10 +22,11 @@ function registerSocketHandlers(io) {
   let pendingPoolTimer = null;
   let pendingSpinTimer = null;
   let spinGeneration = 0;
+  let lastStageEventId = 0;
   const stageScreens = new Set();
   let wheelPresentation = { active: false, nextSpinAt: 0 };
 
-  function broadcastState() {
+  function broadcastState(stageEventType) {
     if (state.phase !== 'REVEAL' || !state.players.get(state.hostToken)?.online) {
       wheelPresentation = { active: false, nextSpinAt: 0 };
       for (const screen of stageScreens) screen.emit('wheel_presentation', { ...wheelPresentation, serverNow: Date.now() });
@@ -37,6 +38,7 @@ function registerSocketHandlers(io) {
     }
     if (stageScreens.size > 0) {
       const snapshot = buildStageState();
+      if (stageEventType) snapshot.stageEvent = { type: stageEventType, id: ++lastStageEventId };
       for (const socket of stageScreens) socket.emit('state_update', snapshot);
     }
   }
@@ -92,10 +94,11 @@ function registerSocketHandlers(io) {
     pendingPoolTimer = null;
   }
 
-  function revealPool() {
+  function revealPool(reason) {
     if (getActiveRevealItems().length === 0) return false;
     stopPoolCountdown();
     state.phase = 'REVEAL';
+    state.revealReason = reason;
     return true;
   }
 
@@ -104,15 +107,15 @@ function registerSocketHandlers(io) {
     if (state.phase !== 'POOL' || timer?.endsAt == null || Date.now() < timer.endsAt) return;
     stopPoolCountdown();
     state.poolTimer = { ...timer, endsAt: null, remainingMs: 0 };
-    if (!revealPool()) {
+    if (!revealPool('timer')) {
       io.emit('toast_error', 'Время ставок вышло, но в пуле нет активных вариантов. Добавьте вариант и распределите очки.');
     }
     broadcastState();
   }
 
-  function startPoolTimer(duration, remainingMs = duration * 1000) {
+  function startPoolTimer(duration, remainingMs = duration * 1000, runId = generateId()) {
     stopPoolCountdown();
-    const timer = { duration, remainingMs, endsAt: Date.now() + remainingMs };
+    const timer = { duration, remainingMs, endsAt: Date.now() + remainingMs, runId };
     state.poolTimer = timer;
     const onDeadline = () => {
       if (state.phase !== 'POOL' || state.poolTimer !== timer) return;
@@ -131,7 +134,7 @@ function registerSocketHandlers(io) {
     const everyoneReady = allPlayers.every(p => p.ready);
     if (!everyoneReady) return;
 
-    if (!revealPool()) {
+    if (!revealPool('ready')) {
       for (const p of allPlayers) p.ready = false;
       io.emit('toast_error', 'В пуле нет ни одного активного варианта! Добавьте вариант и распределите очки.');
     }
@@ -172,7 +175,7 @@ function registerSocketHandlers(io) {
         stopPoolCountdown();
         state.poolTimer = { ...timer, endsAt: null, remainingMs };
       } else if (action === 'resume' && timer?.endsAt === null && timer.remainingMs > 0) {
-        startPoolTimer(timer.duration, timer.remainingMs);
+        startPoolTimer(timer.duration, timer.remainingMs, timer.runId);
       } else if (action === 'disable' && timer) {
         stopPoolCountdown();
         state.poolTimer = null;
@@ -585,6 +588,13 @@ function registerSocketHandlers(io) {
         rejectBid(`Минимальная ставка — ${minimumBid} очк. Поставьте 0, чтобы оставить вариант без ставки или снять ставку.`);
         return;
       }
+      const commitBid = allowed => {
+        const cleared = allowed === 0 && item.allocations[currentToken] > 0 && !state.items.some(other =>
+          other !== item && !other.mergedInto && other.allocations[currentToken] > 0);
+        if (allowed === 0) delete item.allocations[currentToken];
+        else item.allocations[currentToken] = allowed;
+        broadcastState(cleared ? 'stakesCleared' : undefined);
+      };
       if (state.settings.foreignReserveMode === 'per_opponent') {
         const usage = getPerOpponentUsage(currentToken);
         const { quotaPerOpponent, effectiveFreePoints } = getReserveAllocation();
@@ -599,9 +609,7 @@ function registerSocketHandlers(io) {
           rejectBid('Недостаточно свободных очков для этой ставки. Уменьшите ставку или измените другие ставки.');
           return;
         }
-        if (desired === 0) delete item.allocations[currentToken];
-        else item.allocations[currentToken] = desired;
-        broadcastState();
+        commitBid(desired);
         return;
       }
       let spentOnOthers = 0;
@@ -628,13 +636,7 @@ function registerSocketHandlers(io) {
         rejectBid(`Недостаточно свободных очков для ставки не ниже ${minimumBid}. Поставьте 0 или измените другие ставки.`);
         return;
       }
-      if (allowed === 0) {
-        delete item.allocations[currentToken];
-      } else {
-        item.allocations[currentToken] = allowed;
-      }
-
-      broadcastState();
+      commitBid(allowed);
     });
 
     // Переключение статуса «Готов»
@@ -785,6 +787,8 @@ function registerSocketHandlers(io) {
       stopPoolCountdown();
       state.poolTimer = null;
       state.phase = 'POOL';
+      state.roundId = generateId();
+      state.revealReason = null;
       state.settings = { ...DEFAULT_SETTINGS };
       state.hostToken = null;
       state.players.clear();
@@ -803,6 +807,8 @@ function registerSocketHandlers(io) {
       if (!player || !player.isHost || state.wheel.isSpinning) return;
 
       state.phase = 'POOL';
+      state.roundId = generateId();
+      state.revealReason = null;
       state.wheel = {
         predeterminedWinnerId: null,
         isSpinning: false,

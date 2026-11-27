@@ -3,6 +3,8 @@ const { generateId } = require('./config');
 
 const state = {
   phase: 'POOL', // 'POOL' (добавление и тайные ставки) | 'REVEAL' (колесо) | 'FINISHED' (финал)
+  roundId: generateId(),
+  revealReason: null,
   settings: { ...DEFAULT_SETTINGS },
   poolTimer: null,
   hostToken: null,
@@ -216,6 +218,7 @@ function buildStageState() {
   const items = state.items.filter(item => !item.mergedInto);
   const colorIndexes = new Map(state.items.map((item, index) => [item.id, index]));
   const revealed = state.phase !== 'POOL';
+  const poolTimer = buildPoolTimerState();
   const finished = state.phase === 'FINISHED';
   const winner = state.wheel.winner;
   const winningItem = finished && items.find(item => item.id === winner?.id);
@@ -227,8 +230,10 @@ function buildStageState() {
     .sort((a, b) => b.points - a.points);
   return {
     phase: state.phase,
+    roundId: state.roundId,
     roomName: 'HomeAuction',
-    poolTimer: buildPoolTimerState(),
+    poolTimer: poolTimer ? { ...poolTimer, runId: state.poolTimer.runId } : null,
+    ...(revealed ? { revealReason: state.revealReason } : { bankCapacity: players.length * state.settings.maxPoints }),
     ...(revealed ? { wheel: {
       isSpinning: state.wheel.isSpinning,
       history: state.wheel.history.map(entry => ({ ...entry })),
@@ -247,6 +252,7 @@ function buildStageState() {
     })),
     items: items.map(item => ({
       id: item.id,
+      ...(revealed ? {} : { kind: item.isFreeSlot ? 'extra' : item.isSystem ? 'system' : 'regular' }),
       colorIndex: colorIndexes.get(item.id),
       title: item.title,
       upvotes: getReactionSummary(item, null).upvotes,

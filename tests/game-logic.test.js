@@ -123,7 +123,7 @@ describe('isolated backend unit checks', () => {
     assert.equal(stage.totalBank, 7);
     assert.equal(stage.items.length, 1);
     assert.deepEqual(stage.players, [{ id: 'a', name: 'A', ready: true, online: false }]);
-    assert.deepEqual(Object.keys(stage.items[0]).sort(), ['colorIndex', 'downvotes', 'id', 'title', 'upvotes']);
+    assert.deepEqual(Object.keys(stage.items[0]).sort(), ['colorIndex', 'downvotes', 'id', 'kind', 'title', 'upvotes']);
   });
 
   test('awards round titles in priority order and resolves investor ties by bank share', () => {
@@ -484,6 +484,34 @@ describe('socket handler scenarios', () => {
   beforeEach(resetState);
   afterEach(resetState);
 
+  test('stage receives the aggregate budget and a one-shot private-bid signal without exposing the bidder', () => {
+    const { connect } = createSocketHarness();
+    const host = connect('host-socket');
+    const player = connect('player-socket');
+    const stage = connect('screen', { role: 'stage' });
+    const latest = socket => socket.received.filter(event => event.event === 'state_update').at(-1).args[0];
+    join(host, 'host', 'Host');
+    join(player, 'player', 'Player');
+    host.receive('add_item', { title: 'First' });
+    host.receive('add_item', { title: 'Extra', isFreeSlot: true });
+    assert.deepEqual(latest(stage).items.map(item => item.kind), ['regular', 'extra']);
+    assert.equal(latest(stage).bankCapacity, 2 * state.settings.maxPoints);
+    assert.equal(latest(player).bankCapacity, undefined);
+    const roundId = latest(stage).roundId;
+    const [a, b] = state.items;
+    player.receive('set_points', { itemId: a.id, points: 3 });
+    player.receive('set_points', { itemId: b.id, points: 3 });
+    player.receive('set_points', { itemId: a.id, points: 0 });
+    assert.equal(latest(stage).stageEvent, undefined);
+    player.receive('set_points', { itemId: b.id, points: 0 });
+    assert.deepEqual(latest(stage).stageEvent, { id: 1, type: 'stakesCleared' });
+    assert.equal(latest(player).stageEvent, undefined);
+    assert.equal(latest(connect('reconnect-stage', { role: 'stage' })).stageEvent, undefined);
+    host.receive('reset_auction', { clearItems: false });
+    assert.notEqual(latest(stage).roundId, roundId);
+    assert.equal(latest(stage).items.length, 2);
+  });
+
   test('bidding timer synchronizes with players and stage, pauses and reveals unready bids at the deadline', t => {
     t.mock.timers.enable({ apis: ['Date', 'setTimeout'] });
     const { connect } = createSocketHarness();
@@ -508,7 +536,9 @@ describe('socket handler scenarios', () => {
     host.receive('pool_timer', { action: 'start', duration: 5 });
     const started = { duration: 5, status: 'running', remainingMs: 5000 };
     assert.deepEqual(latest(player).poolTimer, started);
-    assert.deepEqual(latest(stage).poolTimer, started);
+    const { runId } = latest(stage).poolTimer;
+    assert.ok(runId);
+    assert.deepEqual(latest(stage).poolTimer, { ...started, runId });
     assert.equal(latest(stage).items[0].totalPoints, undefined);
     t.mock.timers.tick(1500);
     player.receive('pool_timer', { action: 'pause' });
@@ -517,8 +547,9 @@ describe('socket handler scenarios', () => {
     t.mock.timers.tick(10000);
     assert.equal(state.phase, 'POOL');
     const reconnect = connect('reconnect-stage', { role: 'stage' });
-    assert.deepEqual(latest(reconnect).poolTimer, { duration: 5, status: 'paused', remainingMs: 3500 });
+    assert.deepEqual(latest(reconnect).poolTimer, { duration: 5, status: 'paused', remainingMs: 3500, runId });
     host.receive('pool_timer', { action: 'resume' });
+    assert.equal(latest(stage).poolTimer.runId, runId);
     t.mock.timers.tick(3499);
     assert.equal(state.phase, 'POOL');
     t.mock.timers.tick(1);
@@ -526,6 +557,8 @@ describe('socket handler scenarios', () => {
     assert.equal(state.wheel.isSpinning, false);
     assert.equal(state.players.get('player').ready, false);
     assert.equal(latest(reconnect).poolTimer, null);
+    assert.equal(latest(stage).revealReason, 'timer');
+    assert.equal(latest(player).revealReason, undefined);
     assert.equal(latest(stage).items[0].totalPoints, 18);
     player.receive('set_points', { itemId: item.id, points: 30 });
     assert.equal(getRawPoints(item), 18);
@@ -592,7 +625,7 @@ describe('socket handler scenarios', () => {
     spectator.receive('toggle_reaction', { itemId: item.id, type: 'up' });
     assert.equal(latest(stage).totalBank, 12, 'Base points are not distributed player points');
     assert.equal(latest(stage).players.length, 1, 'Spectators and system screens are excluded');
-    assert.deepEqual(latest(stage).items, [{ id: item.id, colorIndex: 0, title: item.title, upvotes: 1, downvotes: 0 }]);
+    assert.deepEqual(latest(stage).items, [{ id: item.id, kind: 'regular', colorIndex: 0, title: item.title, upvotes: 1, downvotes: 0 }]);
     assert.equal(JSON.stringify(latest(stage)).includes('allocations'), false);
     assert.equal(JSON.stringify(latest(stage)).includes('host-socket'), false);
     assert.equal('me' in latest(stage), false);

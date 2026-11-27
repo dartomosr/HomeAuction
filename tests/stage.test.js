@@ -4,6 +4,112 @@ const { EventEmitter } = require('node:events');
 const { bindWindowMode } = require('../desktop/window-mode');
 const model = import('../public/js/stage-model.js');
 const audio = import('../public/js/stage-audio.js');
+const poolShow = import('../public/js/stage-pool-show.js');
+
+async function createShowHarness(initial) {
+  const { createPoolShow } = await poolShow;
+  const { stageChanges } = await model;
+  const show = createPoolShow({ random: () => 0 });
+  let state = { phase: 'POOL', roundId: 'a', items: [], players: [], totalBank: 0, bankCapacity: 0, ...initial };
+  show.setRunning(true, 0);
+  show.receive(null, state, stageChanges(null, state), 0, 6);
+  return {
+    show,
+    send(now, patch) {
+      const next = { ...state, ...patch };
+      show.receive(state, next, stageChanges(state, next), now, 6);
+      state = next;
+    },
+    tick(now, slots = 6, hasQr = true) { return show.tick(now, { slots, hasQr }); }
+  };
+}
+
+test('show batches arrivals and picks the special lot pose for a full showcase', async () => {
+  const session = await createShowHarness({ items: Array.from({ length: 5 }, (_, id) => ({ id, kind: 'regular' })) });
+  const a = { id: 'a', name: 'Анна', online: true };
+  const b = { id: 'b', name: 'Борис', online: true };
+  session.send(10, { players: [a], bankCapacity: 50 });
+  session.send(100, { players: [a, b], bankCapacity: 100 });
+  assert.equal(session.tick(810).text, 'Рады видеть новых гостей за столом!');
+  session.send(6100, { items: Array.from({ length: 6 }, (_, id) => ({ id, kind: 'regular' })) });
+  assert.equal(session.tick(6810).pose, '16-showcase-full');
+});
+
+test('show holds a reaction before returning to a contextual line between events', async () => {
+  const a = { id: 'a', name: 'Анна', online: true };
+  const b = { id: 'b', name: 'Борис', online: true };
+  const session = await createShowHarness({ players: [a] });
+  session.send(100, { items: [{ id: 1, kind: 'regular' }] });
+  assert.equal(session.tick(700).pose, '03-new-idea');
+  session.send(800, { players: [a, b] });
+  assert.equal(session.tick(5499).pose, '03-new-idea');
+  assert.equal(session.tick(5500).text, 'Обдумайте свой следующий ход.');
+  assert.match(session.tick(6700).text, /Борис/);
+});
+
+test('idle phrases persist between rotations and cycle without repeats or unavailable QR prompts', async () => {
+  const session = await createShowHarness();
+  const lines = Array.from({ length: 7 }, (_, index) => session.tick(index * 25000, 6, false).text);
+  assert.equal(new Set(lines).size, lines.length);
+  assert.ok(lines.every(line => !line.includes('QR')));
+  assert.equal(session.tick(6 * 25000 + 10000, 6, false).text, lines.at(-1));
+  assert.notEqual(session.tick(7 * 25000, 6, false).text, lines.at(-1));
+  session.send(7 * 25000 + 100, { players: [{ id: 'a', name: 'Анна', online: true }] });
+  assert.equal(session.tick(7 * 25000 + 100).text, 'Жду ваши идеи для витрины!');
+});
+
+test('show uses the available room budget and drops a threshold crossing caused by a budget change', async () => {
+  const { largeBankThreshold } = await poolShow;
+  assert.deepEqual([20, 90, 200, 2000].map(largeBankThreshold), [12, 50, 110, 1100]);
+  const session = await createShowHarness({
+    players: [{ id: 'a', online: true }, { id: 'b', online: true }],
+    items: [{ id: 1, kind: 'regular' }],
+    totalBank: 11, bankCapacity: 20
+  });
+  session.send(100, { totalBank: 12, bankCapacity: 19 });
+  assert.equal(session.tick(1600).text, 'Обдумайте свой следующий ход.');
+  session.send(2000, { totalBank: 10 });
+  session.send(2100, { totalBank: 12 });
+  assert.equal(session.tick(3600).text, 'Банк растёт! Вот это размах!');
+  session.send(9000, { totalBank: 10 });
+  session.send(9100, { totalBank: 12 });
+  assert.equal(session.tick(11000).text, 'Обдумайте свой следующий ход.');
+});
+
+test('countdown preempts the pool line and does not repeat after pause or visibility changes', async () => {
+  const session = await createShowHarness();
+  session.send(0, { poolTimer: { runId: 'timer', status: 'running', remainingMs: 17000 } });
+  assert.equal(session.tick(0).pose, '05-timer');
+  const player = { id: 'a', name: 'Анна', online: true };
+  session.send(5100, { players: [player], poolTimer: { runId: 'timer', status: 'running', remainingMs: 11900 } });
+  assert.match(session.tick(6000).text, /Анна/);
+  assert.equal(session.tick(7000).pose, '21-final-countdown');
+  session.send(7500, { poolTimer: { runId: 'timer', status: 'paused', remainingMs: 9500 } });
+  assert.notEqual(session.tick(7500).pose, '21-final-countdown');
+  session.show.setRunning(false, 7700);
+  session.send(8000, { poolTimer: { runId: 'timer', status: 'running', remainingMs: 9500 } });
+  session.show.setRunning(true, 8300);
+  assert.notEqual(session.tick(8300).pose, '21-final-countdown');
+  session.send(9000, { poolTimer: { runId: 'next', status: 'running', remainingMs: 5000 } });
+  assert.equal(session.tick(9000).pose, '21-final-countdown');
+  session.send(10000, { phase: 'REVEAL', poolTimer: null });
+  assert.equal(session.tick(10000).text, '');
+  assert.equal(session.show.reveal('timer').text, 'Время вышло! Поднимаем занавес!');
+});
+
+test('show drops stale ready events and never reads unsuitable names aloud', async () => {
+  const a = { id: 'a', name: 'Слишком Длинное Имя', online: true, ready: false };
+  const b = { id: 'b', online: true, ready: false };
+  const c = { id: 'c', online: true, ready: false };
+  const session = await createShowHarness({ items: [{ id: 1 }], players: [a, b, c] });
+  session.send(50, { players: [{ ...a, ready: true }, b, c] });
+  assert.equal(session.tick(650).text, 'Первый выбор уже сделан!');
+  session.send(6000, { players: [{ ...a, ready: true }, { ...b, ready: true }, c] });
+  session.send(6300, { players: [{ ...a, ready: true }, b, c] });
+  assert.equal(session.tick(6700).text, 'Обдумайте свой следующий ход.');
+  session.send(7000, { players: [{ ...a, ready: true }, { ...b, ready: true }, c] });
+  assert.equal(session.tick(7600).pose, '20-last-ready');
+});
 
 test('stage ranks by net votes, then upvotes, preserving ties and source order', async () => {
   const { rankStageItems } = await model;

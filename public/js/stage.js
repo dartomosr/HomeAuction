@@ -5,6 +5,7 @@ import { StageFinale } from './stage-finale.js';
 import { createPoolTimerDisplay } from './pool-timer.js';
 
 import { updateShowHost } from './stage-show.js';
+import { createPoolShow } from './stage-pool-show.js';
 
 const socket = window.io({ auth: { role: 'stage' } });
 const byId = id => document.getElementById(id);
@@ -14,12 +15,14 @@ const playersNode = byId('players');
 const number = new Intl.NumberFormat('ru-RU');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const sound = new StageSound();
+const poolShow = createPoolShow();
 const spring = 'cubic-bezier(.34, 1.56, .64, 1)';
 const lotNodes = new Map();
 const playerNodes = new Map();
 const motions = new WeakMap();
 let snapshot = null;
 let baseline = null;
+let hasLiveSnapshot = false;
 let capacity = stageCapacity(innerWidth, innerHeight);
 let itemPage = 0;
 let playerPage = 0;
@@ -47,6 +50,7 @@ let finaleFade = null;
 let revealGeneration = 0;
 let revealing = false;
 let revealState = null;
+let revealLead = null;
 const revealAnimations = new Set();
 
 function element(tag, className, text) {
@@ -328,11 +332,18 @@ function renderScenes(state, pool) {
   } else if (!finaleFade) finale.scene.hidden = true;
 }
 
-function refreshHost(changes) {
+function updatePoolShowActivity(now) {
+  poolShow.setRunning(active() && connected && hasLiveSnapshot && document.body.classList.contains('cardboard'), now);
+}
+
+function refreshHost() {
+  const now = performance.now();
+  updatePoolShowActivity(now);
   updateShowHost(snapshot, {
     revealing, finale: !finale.scene.hidden && !finale.scene.inert,
     spinning: Boolean(wheel.spin), elimination: Boolean(wheel.elimination),
-    duel: document.body.classList.contains('final-duel'), changes
+    duel: document.body.classList.contains('final-duel'), revealLead,
+    poolLine: poolShow.tick(now, { slots: capacity.items, hasQr: Boolean(lastAddress) })
   });
 }
 
@@ -352,7 +363,7 @@ function render(changes) {
   renderScenes(state, pool);
   if (pool && !changingPage) renderLots({ reactions: changes?.reactions });
   renderPlayers(changes);
-  refreshHost(changes);
+  refreshHost();
 }
 
 async function turnPage() {
@@ -386,6 +397,7 @@ function cancelReveal() {
   revealGeneration++;
   revealing = false;
   revealState = null;
+  revealLead = null;
   for (const animation of revealAnimations) animation.cancel();
   revealAnimations.clear();
   document.body.classList.remove('reveal-mode');
@@ -398,6 +410,7 @@ async function revealPool(state) {
   const generation = revealGeneration;
   revealing = true;
   revealState = state;
+  if (document.body.classList.contains('cardboard')) revealLead = poolShow.reveal(state.revealReason);
   const first = new Map([...lotGrid.children].map(card => [card.dataset.id, card.getBoundingClientRect()]));
   document.body.classList.add('reveal-mode');
   render();
@@ -424,6 +437,8 @@ async function revealPool(state) {
   }, REVEAL_TIMING.compact)) return;
   const surfaces = cards.map(card => card.querySelector('.lot-surface'));
   if (!await run(surfaces, [{ transform: 'perspective(1000px) rotateY(0)' }, { transform: 'perspective(1000px) rotateY(90deg)' }], REVEAL_TIMING.flip / 2)) return;
+  revealLead = null;
+  refreshHost();
   cards.forEach(card => {
     const item = state.items.find(item => item.id === card.dataset.id);
     card.querySelector('.reveal-points').textContent = `${number.format(item.totalPoints)} очк.`;
@@ -480,6 +495,7 @@ function renderJoinAddress(address) {
 
 function updateActivity() {
   previousTime = performance.now();
+  updatePoolShowActivity(previousTime);
   document.body.dataset.paused = String(!active());
   sound.setActive(active() && connected);
   if (!active()) wheel.clearMotion();
@@ -583,19 +599,25 @@ void sound.unlock();
 
 socket.on('state_update', state => {
   updatePoolTimer(state.poolTimer);
-  const previous = snapshot;
-  const changes = stageChanges(baseline, state);
+  const previousLiveState = baseline?.roundId === state.roundId ? baseline : null;
+  const changes = stageChanges(previousLiveState, state);
   if (snapshot?.phase !== state.phase) { cancelPageTurn(); elapsed = 0; }
   snapshot = state;
+  hasLiveSnapshot = true;
+  const now = performance.now();
+  updatePoolShowActivity(now);
+  poolShow.receive(previousLiveState, state, changes, now, capacity.items);
   if (state.phase === 'POOL' || state.wheel?.isSpinning || state.phase === 'FINISHED') cancelReveal();
-  wheel.update(state, { silent: !baseline });
-  if (previous?.phase === 'POOL' && state.phase === 'REVEAL' && !state.wheel?.isSpinning
+  wheel.update(state, { silent: !previousLiveState });
+  if (previousLiveState?.phase === 'POOL' && state.phase === 'REVEAL' && !state.wheel?.isSpinning
     && (animate() || (active() && document.body.classList.contains('cardboard')))) void revealPool(state);
   render(changes);
   baseline = state;
   if (!active()) return;
-  if (changes.allReady) { sound.play('all-ready'); announce('Комната готова. Начинаем!'); }
-  else if (changes.ready.length) { sound.play('ready'); announce(`${changes.ready[0].name} · готовность подтверждена`); }
+  if (previousLiveState?.phase === 'POOL' && state.phase === 'REVEAL' && state.revealReason === 'ready') {
+    sound.play('all-ready');
+    announce('Комната готова. Начинаем!');
+  } else if (changes.ready.length && !changes.allReady) { sound.play('ready'); announce(`${changes.ready[0].name} · готовность подтверждена`); }
   else if (changes.added.length) { sound.play('lot'); announce('Новая идея в игре'); }
   else if (changes.reactions.some(change => change.up > 0)) { sound.play('up'); announce('У кого-то появился фаворит'); }
   else if (changes.reactions.some(change => change.down > 0)) { sound.play('down'); announce('Мнения разделились'); }
@@ -609,6 +631,7 @@ socket.on('wheel_presentation', data => wheel.setPresentation(data));
 
 function connectionStatus(value) {
   connected = value;
+  hasLiveSnapshot = false;
   baseline = null;
   if (!value) { cancelReveal(); wheel.suspend(); render(); }
   byId('connection-status').textContent = value ? 'ПРЯМОЙ ЭФИР' : 'Переподключение...';
@@ -619,6 +642,8 @@ socket.on('connect', () => connectionStatus(true));
 socket.on('disconnect', () => connectionStatus(false));
 socket.on('connect_error', () => connectionStatus(false));
 socket.on('auction_hard_reset', () => {
+  hasLiveSnapshot = false;
+  updatePoolShowActivity(performance.now());
   cancelReveal(); wheel.reset();
   cancelPageTurn(); itemPage = 0; playerPage = 0; elapsed = 0; baseline = null;
   clearTimeout(activityTimer); byId('activity').textContent = 'Начинаем новый вечер';
